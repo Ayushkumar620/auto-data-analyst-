@@ -1,5 +1,8 @@
+import os
+
 from flask import Blueprint, jsonify, request
 
+from backend.app.profilers.dataset_profiler import DatasetProfiler
 from backend.app.services.dataset_service import DatasetService
 from backend.app.services.workspace_service import WorkspaceService
 
@@ -11,9 +14,16 @@ def upload_dataset():
     file_storage = request.files.get("file")
     dataset_service = DatasetService(upload_folder="uploads")
     workspace_service = WorkspaceService()
+    profiler = DatasetProfiler()
 
     try:
         result = dataset_service.upload_dataset(file_storage)
+        profile_result = profiler.profile(
+            dataframe=dataset_service._read_dataframe(os.path.join("uploads", result["dataset"]["name"])),
+            filename=result["dataset"]["name"],
+            file_type=result["dataset"]["file_type"],
+            file_size=result["metadata"]["file_size"],
+        )
         workspace = workspace_service.create_workspace(name="Default Workspace", owner="demo")
         project = workspace_service.create_project(workspace_id=workspace["id"], name="Imported Project")
         dataset = workspace_service.create_dataset(
@@ -40,6 +50,14 @@ def upload_dataset():
         result["duplicates"] = result["metadata"]["duplicate_rows"]
         result["data_types"] = result["metadata"]["data_types"]
         result["memory_usage"] = result["metadata"]["memory_usage"]
+        result["profile"] = profile_result["profile"]
+        result["column_analysis"] = profile_result["column_analysis"]
+        result["numeric_analysis"] = profile_result["numeric_analysis"]
+        result["categorical_analysis"] = profile_result["categorical_analysis"]
+        result["missing_values_details"] = profile_result["missing_values"]
+        result["duplicate_analysis"] = profile_result["duplicate_analysis"]
+        result["recommendations"] = profile_result["recommendations"]
+        result["preview"] = profile_result["preview"]
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:
