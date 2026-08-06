@@ -86,6 +86,7 @@ Open your browser and go to: **http://127.0.0.1:5000**
 | [`SDD.md`](SDD.md) | Software Design Document — 3-layer architecture, modules, DB, APIs, security, roadmap |
 | [`AGENT_SPECS.md`](AGENT_SPECS.md) | AI Multi-Agent Design — team of AI specialists (planner, data, eda, insight, forecast, report, chat) |
 | [`ENGINEERING_SETUP.md`](ENGINEERING_SETUP.md) | Engineering Setup — monorepo, Docker, CI/CD, dev workflow, coding standards, sprint plan |
+| [`STEP7_PROJECT_INITIALIZATION.md`](STEP7_PROJECT_INITIALIZATION.md) | Project Initialization — repo structure, backend/frontend setup, auth, projects, background jobs, MVP architecture |
 
 > **Vision:** Turn ADAA into a full AI-powered platform — "Upload your data. Ask questions. Get business insights in minutes."
 
