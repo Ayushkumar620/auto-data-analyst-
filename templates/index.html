@@ -28,12 +28,20 @@
                     <p class="small file-type">Type: <span id="file-type"></span></p>
                 </div>
 
-                <h2>2. Enter Command</h2>
+                <h2>2. Upload Profile</h2>
+                <div class="command-input">
+                    <button id="upload-btn" class="btn btn-primary">⬆ Upload Dataset</button>
+                </div>
+                <div id="upload-status" class="file-info hidden">
+                    <p>Processing dataset...</p>
+                </div>
+
+                <h2>3. Enter Command</h2>
                 <div class="command-input">
                     <input type="text" id="command-input" placeholder="e.g., summary, correlation, chart, predict target=price" autocomplete="off">
                     <button id="analyze-btn" class="btn btn-primary">▶ Analyze</button>
                 </div>
-<div class="quick-commands">
+                <div class="quick-commands">
                     <span class="small">Quick commands:</span>
                     <button class="chip" data-cmd="summary">summary</button>
                     <button class="chip" data-cmd="describe">describe</button>
@@ -71,6 +79,8 @@
         const fileInput = document.getElementById('file-input');
         const commandInput = document.getElementById('command-input');
         const analyzeBtn = document.getElementById('analyze-btn');
+        const uploadBtn = document.getElementById('upload-btn');
+        const uploadStatus = document.getElementById('upload-status');
         const results = document.getElementById('results');
         const loading = document.getElementById('loading');
         const fileInfo = document.getElementById('file-info');
@@ -115,9 +125,41 @@
 
         // Analyze button & enter key
         analyzeBtn.addEventListener('click', runAnalysis);
+        uploadBtn.addEventListener('click', uploadDataset);
         commandInput.addEventListener('keypress', function (e) {
             if (e.key === 'Enter') runAnalysis();
         });
+
+        async function uploadDataset() {
+            if (!selectedFile) {
+                showError('Please upload a data file first.');
+                return;
+            }
+
+            uploadStatus.classList.remove('hidden');
+            uploadStatus.innerHTML = '<p>Processing dataset...</p>';
+            uploadBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            try {
+                const resp = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await resp.json();
+                if (!resp.ok || data.type === 'error') {
+                    throw new Error(data.message || 'Upload failed.');
+                }
+                renderDatasetProfile(data);
+            } catch (err) {
+                showError(err.message);
+            } finally {
+                uploadStatus.classList.add('hidden');
+                uploadBtn.disabled = false;
+            }
+        }
 
         async function runAnalysis() {
             const command = commandInput.value.trim();
@@ -229,6 +271,36 @@ if (data.type === 'insight') {
 
         function showError(message) {
             results.innerHTML = '<div class="error-box">⚠️ ' + escapeHtml(message) + '</div>';
+        }
+
+        function renderDatasetProfile(profile) {
+            let html = '<div class="card">' +
+                '<div class="card-header"><span>📦 Dataset Profile</span><span class="badge">' + escapeHtml(profile.dataset_name) + '</span></div>' +
+                '<div class="stats-grid">' +
+                '<div class="stat"><span class="label">Rows</span><span class="value">' + profile.rows + '</span></div>' +
+                '<div class="stat"><span class="label">Columns</span><span class="value">' + profile.columns + '</span></div>' +
+                '<div class="stat"><span class="label">Missing Values</span><span class="value">' + profile.missing_values + '</span></div>' +
+                '<div class="stat"><span class="label">Duplicate Rows</span><span class="value">' + profile.duplicates + '</span></div>' +
+                '</div>';
+
+            html += '<h4>Column Names</h4><div class="chip-row">';
+            profile.column_names.forEach(function (column) {
+                html += '<span class="chip">' + escapeHtml(column) + '</span>';
+            });
+            html += '</div>';
+
+            if (profile.numeric_columns && profile.numeric_columns.length) {
+                html += '<h4>Numeric Columns</h4><div class="chip-row">' + profile.numeric_columns.map(function (col) { return '<span class="chip">' + escapeHtml(col) + '</span>'; }).join('') + '</div>';
+            }
+            if (profile.categorical_columns && profile.categorical_columns.length) {
+                html += '<h4>Categorical Columns</h4><div class="chip-row">' + profile.categorical_columns.map(function (col) { return '<span class="chip">' + escapeHtml(col) + '</span>'; }).join('') + '</div>';
+            }
+            if (profile.date_columns && profile.date_columns.length) {
+                html += '<h4>Date Columns</h4><div class="chip-row">' + profile.date_columns.map(function (col) { return '<span class="chip">' + escapeHtml(col) + '</span>'; }).join('') + '</div>';
+            }
+
+            html += '<h4>Preview (first 20 rows)</h4><div class="table-wrap">' + buildTable(profile.preview) + '</div></div>';
+            results.innerHTML = html;
         }
 
         function escapeHtml(str) {
