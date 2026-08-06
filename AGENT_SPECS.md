@@ -1,222 +1,303 @@
-# 🤖 ADAA — AI Agent Specifications
+# 🤖 ADAA — AI Multi-Agent Design (Step 5)
 
-> **Why this matters:** Before writing any code, we define the detailed
-> responsibilities, inputs/outputs, tools, prompts, decision logic, error
-> handling, and inter-agent communication for every agent. This gives each
-> agent a **clear contract**, making implementation straightforward.
+> **Goal:** Instead of one AI model handling everything, we create a **team of
+> AI specialists** — each with one clear responsibility. Think of it like a
+> real company.
 
----
+```
+                    CEO
+                     │
+              Planner Agent
+                     │
+  ┌────────┬───────┬────────┬────────┬────────┐
+  │        │       │        │        │        │
+  ▼        ▼       ▼        ▼        ▼        ▼
+ Data    EDA   Insight    ML      Report
+ Agent   Agent   Agent    Agent    Agent
+                     │
+                     ▼
+                Chat Agent
+```
 
-## Agent Overview
-
-| Agent | Responsibility |
-|-------|----------------|
-| **Planner** | Understands the request & coordinates other agents |
-| **Data Ingestion** | Reads CSV, Excel, PDF, JSON, SQL |
-| **Data Cleaning** | Cleans & validates data |
-| **EDA** | Produces statistics & distributions |
-| **Visualization** | Creates charts/graphs |
-| **Insight** | Explains trends & anomalies |
-| **Forecasting** | Builds predictive models |
-| **Report** | Generates PDF/PPT/Excel reports |
-| **Chat** | Answers user questions about the data |
+> **The Planner Agent is the brain of the system.**
 
 ---
 
 ## 1. Planner Agent
 
-- **Inputs:** User request, dataset context, available agents metadata
-- **Outputs:** Ordered list of agent tasks (a workflow plan)
-- **Tools:** Agent registry, routing rules, LLM (for complex requests)
+**Responsibility:** The Planner Agent **never analyzes data itself**. It decides:
+- **What** the user wants
+- **Which** agents are needed
+- **The order** in which they should run
+- **When to stop** or ask for more information
 
-**Prompt template:**
+**Example:**
+> *User:* "Upload this sales data and predict next month's revenue."
+
+Planner creates:
 ```
-You are the Planner Agent. Given the user request and dataset summary, decide
-which specialized agents to call and in what order. Return a JSON workflow:
-{"tasks": [{"agent": "...", "params": {...}}]}
+Read Dataset
+    ↓
+Clean Dataset
+    ↓
+EDA
+    ↓
+Generate Insights
+    ↓
+Forecast
+    ↓
+Generate Report
 ```
-
-**Decision logic:**
-- Simple metadata request → EDA / Data Ingestion
-- "chart/visualize" → Visualization
-- "predict/forecast" → Forecasting
-- "insights/anomalies" → Insight
-- "report/pdf/ppt" → Report
-- "why/what/how" question → Insight → Chat
-- Full analysis → Clean → EDA → Visualize → Insight → Report
-
-**Error handling:** If no agent can satisfy the request, return a clear
-"unsupported request" message with suggested alternatives.
-
-**Inter-agent communication:** Sends task specs to agents; collects and merges
-their outputs into a final result.
 
 ---
 
 ## 2. Data Ingestion Agent
 
-- **Inputs:** Raw file (CSV/Excel/PDF/JSON/SQL) or DB connection
-- **Outputs:** A validated DataFrame (or dict of DataFrames) + metadata
-- **Tools:** pandas, openpyxl, PyPDF2, sqlite3, SQLAlchemy
+**Responsibility:** Read every supported file.
 
-**Logic:**
-1. Detect file type by extension
-2. Read into a DataFrame
-3. Infer schema (column names, dtypes)
-4. Return dataset + metadata (rows, columns, size)
+**Supported formats:** CSV, Excel, PDF, JSON, SQL, Google Sheets
 
-**Error handling:** invalid format, corrupted file, empty dataset → return
-error with code + suggested next step.
-
-**Inter-agent:** Passes the DataFrame to Data Cleaning / EDA.
+**Outputs:**
+- DataFrame
+- Metadata
+- Schema
+- Data Types
 
 ---
 
 ## 3. Data Cleaning Agent
 
-- **Inputs:** Raw DataFrame
-- **Outputs:** Cleaned DataFrame + a cleaning report
-- **Tools:** pandas, numpy
+**Responsibility:** Automatically clean datasets.
 
-**Logic:**
-1. Drop/flag duplicates
-2. Handle missing values (fill or drop)
-3. Fix data types
-4. Detect & handle outliers
-5. Standardize column names
+**Tasks:**
+- Remove duplicates
+- Fill missing values
+- Detect wrong data types
+- Remove invalid values
+- Handle outliers
+- Standardize formats
 
-**Error handling:** If a column becomes empty after cleaning, warn the user
-instead of failing silently.
-
-**Inter-agent:** Passes cleaned data to EDA / Insight.
+**Output:**
+- Clean Dataset
+- Cleaning Report
 
 ---
 
 ## 4. EDA Agent
 
-- **Inputs:** Cleaned DataFrame
-- **Outputs:** Statistical summary, distributions, correlations
-- **Tools:** pandas, numpy, scipy
+**Creates:**
+- Summary statistics
+- Correlation matrix
+- Histograms
+- Box plots
+- Distribution analysis
+- Time-series summaries
 
-**Logic:**
-- Shape, dtypes, describe()
-- Missing values, duplicates
-- Correlation matrix (numeric)
-- Distribution stats (mean, median, quartiles, skew)
-
-**Error handling:** no numeric columns → return categorical-only summary.
-
-**Inter-agent:** Feeds stats to Visualization and Insight agents.
+**Output:**
+- EDA Summary
+- Charts
+- Interesting Statistics
 
 ---
 
 ## 5. Visualization Agent
 
-- **Inputs:** DataFrame + chart spec (type, x, y)
-- **Outputs:** Chart images / interactive Plotly figures
-- **Tools:** matplotlib, plotly, seaborn
+**Creates beautiful charts.**
 
-**Chart types:** bar, pie, line, heatmap, histogram, box plot, scatter.
+**Possible outputs:**
+- Line Chart
+- Bar Chart
+- Pie Chart
+- Scatter Plot
+- Heatmap
+- Box Plot
+- Treemap
+- Sunburst
 
-**Decision logic:** auto-picks chart type if not specified (numeric vs
-categorical, etc.).
-
-**Error handling:** missing columns / non-numeric for numeric chart → clear error.
-
-**Inter-agent:** Receives chart selection from EDA/Planner; returns figures.
+> The agent **automatically chooses the best chart** based on the data.
 
 ---
 
 ## 6. Insight Agent
 
-- **Inputs:** DataFrame + optional EDA output
-- **Outputs:** Natural-language findings, anomalies, recommendations
-- **Tools:** pandas, numpy, LLM (optional), rule-based heuristics
+**This is the "business analyst."**
 
-**Logic:**
-- Detect trends, top drivers, correlations
-- Flag anomalies/outliers
-- Generate findings + recommendations
+Instead of saying:
+> Revenue = 20M
 
-**Error handling:** insufficient data → return "not enough data" message.
+It explains:
+> Revenue increased by 18% because repeat customers purchased more during the festival season.
 
-**Inter-agent:** Uses EDA output; sends findings to Report & Chat.
+**Responsibilities:**
+- Explain trends
+- Detect anomalies
+- Find opportunities
+- Recommend actions
 
 ---
 
-## 7. Forecasting Agent
+## 7. Forecast Agent
 
-- **Inputs:** DataFrame + target column + horizons
-- **Outputs:** Forecast values + confidence + metric score
-- **Tools:** scikit-learn, statsmodels, pandas
+**Responsibilities:** Predict:
+- Sales
+- Revenue
+- Inventory
+- Customer demand
+- Churn
+- Profit
 
-**Logic:**
-- Detect time-series column
-- Train regression model (or auto-select)
-- Forecast future periods
-- Return trend, slope, projected change
-
-**Error handling:** no numeric/target column → clear error.
-
-**Inter-agent:** Receives cleaned data; sends forecast to Report & Chat.
+> The agent **automatically chooses the most suitable forecasting approach**.
 
 ---
 
 ## 8. Report Agent
 
-- **Inputs:** Analysis outputs (insights, stats, charts, forecasts)
-- **Outputs:** PDF / PPT / Excel report file
-- **Tools:** reportlab, python-pptx, openpyxl
+**Generates:**
+- Executive Summary
+- PDF
+- PowerPoint
+- Excel
 
-**Logic:**
-- Assemble sections (overview, metrics, findings, recommendations)
-- Render to requested format
-- Return downloadable file
-
-**Error handling:** missing required sections → warn + include what exists.
-
-**Inter-agent:** Aggregates outputs from all agents into the final report.
+**Reports should include:**
+- Overview
+- KPIs
+- Charts
+- Insights
+- Predictions
+- Recommendations
 
 ---
 
 ## 9. Chat Agent
 
-- **Inputs:** User question + dataset context + agent outputs
-- **Outputs:** A conversational answer (may include charts/tables)
-- **Tools:** LLM, RAG over dataset, current analysis results
+**This is the user's assistant.**
 
-**Prompt template:**
-```
-You are the ADAA Chat Agent. Answer the user's question about the dataset
-using the provided context. Be concise and cite the data.
-Context: {dataset_summary + recent agent outputs}
-Question: {question}
-```
+**Examples:**
+- "Which city generated the highest profit?"
+- "Show yearly growth."
+- "Find anomalies."
+- "Build a dashboard."
 
-**Decision logic:** Direct factual questions → answer directly; complex
-analysis → ask Planner to run agents, then answer with results.
-
-**Error handling:** question out of scope / no data → guide the user.
-
-**Inter-agent:** The main gateway — routes to Planner and returns results in a
-ChatGPT-style interface.
+> The Chat Agent **doesn't guess**. It queries the processed data and other
+> agents for **accurate answers**.
 
 ---
 
-## Summary
+## 10. Memory Agent (Future)
 
-Every agent has a **clear contract**:
-- **Inputs** (what it receives)
-- **Outputs** (what it produces)
-- **Tools** (what it uses)
-- **Prompt template** (how it reasons — where applicable)
-- **Decision logic** (how it decides)
-- **Error handling** (how it fails gracefully)
-- **Communication** (how it talks to other agents)
+**Purpose:** Remember:
+- Previous analyses
+- User preferences
+- Frequently asked questions
+- Project history
 
-With these specs agreed, implementation becomes a straightforward matter of
-filling in each agent's contract.
+> This enables **continuity across sessions**.
 
 ---
 
-*These agent specs are the final design step before implementation begins.*
+## Agent Communication
+
+```
+User
+ ↓
+Planner
+ ↓
+Data Agent
+ ↓
+Cleaning
+ ↓
+EDA
+ ↓
+Visualization
+ ↓
+Insight
+ ↓
+Forecast
+ ↓
+Report
+ ↓
+Chat
+```
+
+> Each agent receives **structured input** and returns **structured output** so
+> that agents can work independently.
+
+---
+
+## Tools Available to Each Agent
+
+| Agent | Tools |
+|-------|-------|
+| **Planner** | LangGraph, workflow engine |
+| **Data Agent** | Pandas, Polars, DuckDB |
+| **Cleaning Agent** | Pandas, Great Expectations (optional) |
+| **EDA Agent** | Pandas, NumPy |
+| **Visualization Agent** | Plotly, Matplotlib |
+| **Insight Agent** | LLM + business rules |
+| **Forecast Agent** | Scikit-learn, Prophet, XGBoost |
+| **Report Agent** | PDF/PPT generation libraries |
+| **Chat Agent** | LLM + retrieval from project data |
+
+---
+
+## AI Workflow Example
+
+**User request:**
+> "Analyze this retail sales file and tell me what should be improved."
+
+**Workflow:**
+```
+Planner
+ ↓
+Read CSV
+ ↓
+Clean Data
+ ↓
+EDA
+ ↓
+Visualize
+ ↓
+Generate Insights
+ ↓
+Forecast Sales
+ ↓
+Generate Report
+ ↓
+Answer User
+```
+
+---
+
+## Why This Design Is Powerful
+
+This architecture lets you add **new capabilities without rewriting the system**.
+For example, add:
+- A **Fraud Detection Agent**
+- A **Finance Analyst Agent**
+- An **HR Analytics Agent**
+- A **Marketing Campaign Agent**
+
+The Planner simply learns **when to use them**.
+
+---
+
+## 🚀 Next Big Step (Step 6)
+
+From here, we **stop planning and start engineering**. We'll define the
+complete technology stack and repository structure, including:
+- Monorepo layout
+- Backend service architecture
+- Frontend architecture
+- Database migrations
+- Docker setup
+- CI/CD pipeline
+- Development workflow
+- Coding standards
+- Sprint plan
+
+After that, we'll create the GitHub repository and begin building the **MVP
+module by module** — transitioning from a concept into a working product.
+
+---
+
+*This multi-agent design is the blueprint for the AI layer implementation.*

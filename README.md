@@ -84,7 +84,8 @@ Open your browser and go to: **http://127.0.0.1:5000**
 | [`UIUX_DESIGN.md`](UIUX_DESIGN.md) | UI/UX design spec — 13 screens, design system, user flows, responsive layouts |
 | [`TECHNICAL_PLAN.md`](TECHNICAL_PLAN.md) | Technical planning — DB schema, API specs, folder structure, dev environment, sprints |
 | [`SDD.md`](SDD.md) | Software Design Document — 3-layer architecture, modules, DB, APIs, security, roadmap |
-| [`AGENT_SPECS.md`](AGENT_SPECS.md) | AI Agent Specifications — detailed contracts for all 9 agents (inputs, outputs, tools, prompts) |
+| [`AGENT_SPECS.md`](AGENT_SPECS.md) | AI Multi-Agent Design — team of AI specialists (planner, data, eda, insight, forecast, report, chat) |
+| [`ENGINEERING_SETUP.md`](ENGINEERING_SETUP.md) | Engineering Setup — monorepo, Docker, CI/CD, dev workflow, coding standards, sprint plan |
 
 > **Vision:** Turn ADAA into a full AI-powered platform — "Upload your data. Ask questions. Get business insights in minutes."
 
