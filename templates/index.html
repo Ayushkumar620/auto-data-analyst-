@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🤖 Auto Data Analyst Agent</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 Auto Data Analyst Agent</h1>
+            <p class="subtitle">Upload any data file and run simple commands to analyze it instantly</p>
+        </header>
+
+        <div class="grid">
+            <!-- Upload Panel -->
+            <section class="panel upload-panel">
+                <h2>1. Upload Data</h2>
+                <div id="drop-zone" class="drop-zone">
+                    <p>📁 Drag &amp; drop your file here</p>
+                    <p class="small">or</p>
+                    <input type="file" id="file-input" accept=".csv,.xlsx,.xls,.json,.txt,.pdf,.db,.sqlite,.mp4,.avi,.mov,.mkv">
+                    <label for="file-input" class="btn btn-file">Choose File</label>
+                </div>
+                <div id="file-info" class="file-info hidden">
+                    <p>📄 <span id="file-name"></span></p>
+                    <p class="small file-type">Type: <span id="file-type"></span></p>
+                </div>
+
+                <h2>2. Enter Command</h2>
+                <div class="command-input">
+                    <input type="text" id="command-input" placeholder="e.g., summary, correlation, chart, predict target=price" autocomplete="off">
+                    <button id="analyze-btn" class="btn btn-primary">▶ Analyze</button>
+                </div>
+<div class="quick-commands">
+                    <span class="small">Quick commands:</span>
+                    <button class="chip" data-cmd="summary">summary</button>
+                    <button class="chip" data-cmd="describe">describe</button>
+                    <button class="chip" data-cmd="nulls">nulls</button>
+                    <button class="chip" data-cmd="correlation">correlation</button>
+                    <button class="chip" data-cmd="chart">chart</button>
+                    <button class="chip" data-cmd="predict">predict</button>
+                    <button class="chip" data-cmd="clean">clean</button>
+                    <button class="chip" data-cmd="insights">insights</button>
+                    <button class="chip" data-cmd="anomalies">anomalies</button>
+                    <button class="chip" data-cmd="forecast">forecast</button>
+                    <button class="chip" data-cmd="report">report</button>
+                    <button class="chip" data-cmd="help">help</button>
+                </div>
+            </section>
+
+            <!-- Results Panel -->
+            <section class="panel results-panel">
+                <h2>📊 Results</h2>
+                <div id="loading" class="loading hidden">
+                    <div class="spinner"></div>
+                    <p>Analyzing data...</p>
+                </div>
+                <div id="results" class="results">
+                    <div class="placeholder">
+                        <p>👆 Upload a file and run a command to see results here.</p>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const commandInput = document.getElementById('command-input');
+        const analyzeBtn = document.getElementById('analyze-btn');
+        const results = document.getElementById('results');
+        const loading = document.getElementById('loading');
+        const fileInfo = document.getElementById('file-info');
+        const fileName = document.getElementById('file-name');
+        const fileType = document.getElementById('file-type');
+
+        let selectedFile = null;
+
+        // Drag & drop
+        dropZone.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', function () {
+            dropZone.classList.remove('dragover');
+        });
+        dropZone.addEventListener('drop', function (e) {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+        fileInput.addEventListener('change', function (e) {
+            if (e.target.files.length) handleFile(e.target.files[0]);
+        });
+
+        function handleFile(file) {
+            selectedFile = file;
+            fileName.textContent = file.name;
+            fileType.textContent = file.name.split('.').pop().toUpperCase();
+            fileInfo.classList.remove('hidden');
+        }
+
+        // Quick command chips
+        document.querySelectorAll('.chip').forEach(function (chip) {
+            chip.addEventListener('click', function () {
+                commandInput.value = chip.dataset.cmd;
+                runAnalysis();
+            });
+        });
+
+        // Analyze button & enter key
+        analyzeBtn.addEventListener('click', runAnalysis);
+        commandInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') runAnalysis();
+        });
+
+        async function runAnalysis() {
+            const command = commandInput.value.trim();
+            if (!selectedFile) {
+                showError('Please upload a data file first.');
+                return;
+            }
+            if (!command) {
+                showError('Please enter a command.');
+                return;
+            }
+
+            showLoading(true);
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('command', command);
+
+            try {
+                const resp = await fetch('/api/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await resp.json();
+                renderResult(data);
+            } catch (err) {
+                showError('Request failed: ' + err.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function showLoading(show) {
+            loading.classList.toggle('hidden', !show);
+            analyzeBtn.disabled = show;
+        }
+
+        function renderResult(data) {
+            results.innerHTML = '';
+            if (data.type === 'error') {
+                showError(data.message);
+                return;
+            }
+            if (data.type === 'help') {
+                renderHelp(data.commands);
+                return;
+            }
+            if (data.type === 'chart') {
+                renderCharts(data.charts);
+                return;
+            }
+            if (data.type === 'predict') {
+                renderPrediction(data.result);
+                return;
+            }
+            if (data.type === 'summary' || data.type === 'columns') {
+                renderSummary(data.reports);
+                return;
+            }
+            if (data.type === 'describe') {
+                renderDescribe(data.reports);
+                return;
+            }
+            if (data.type === 'nulls') {
+                renderNulls(data.reports);
+                return;
+            }
+            if (data.type === 'correlation') {
+                renderCorrelation(data.reports);
+                return;
+            }
+            if (data.type === 'head') {
+                renderHead(data.reports);
+                return;
+            }
+            if (data.type === 'unique') {
+                renderUnique(data.reports);
+                return;
+            }
+            if (data.type === 'text') {
+                renderText(data.result);
+                return;
+            }
+if (data.type === 'insight') {
+                renderInsight(data.result, data.intent);
+                return;
+            }
+            if (data.type === 'clean') {
+                renderClean(data.reports);
+                return;
+            }
+            if (data.type === 'insights') {
+                renderSmartInsights(data.result);
+                return;
+            }
+            if (data.type === 'anomalies') {
+                renderAnomalies(data.result);
+                return;
+            }
+            if (data.type === 'forecast') {
+                renderForecast(data.result);
+                return;
+            }
+            if (data.type === 'report') {
+                renderReport(data.result);
+                return;
+            }
+            showError('Unknown result type: ' + data.type);
+        }
+
+        function showError(message) {
+            results.innerHTML = '<div class="error-box">⚠️ ' + escapeHtml(message) + '</div>';
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function renderHelp(commands) {
+            let html = '<div class="help-box"><h3>📖 Available Commands</h3><table>';
+            commands.forEach(function (c) {
+                html += '<tr><td><code>' + escapeHtml(c.command) + '</code></td><td>' + escapeHtml(c.description) + '</td></tr>';
+            });
+            html += '</table></div>';
+            results.innerHTML = html;
+        }
+
+        function renderCharts(charts) {
+            let html = '';
+            charts.forEach(function (chart) {
+                html += '<div class="card">' +
+                    '<div class="card-header"><span>📈 ' + escapeHtml(chart.chart_type) + ' Chart</span><span class="badge">' + escapeHtml(chart.name) + '</span></div>' +
+                    '<img src="data:image/png;base64,' + chart.image + '" alt="chart">' +
+                    '</div>';
+            });
+            results.innerHTML = html;
+        }
+
+        function renderSummary(reports) {
+            let html = '';
+            reports.forEach(function (rep) {
+                let nullTotal = 0;
+                Object.values(rep.nulls).forEach(function (n) { nullTotal += n; });
+                html += '<div class="card">' +
+                    '<div class="card-header"><span>📋 Summary</span><span class="badge">' + escapeHtml(rep.name) + '</span></div>' +
+                    '<div class="stats-grid">' +
+                    '<div class="stat"><span class="label">Rows</span><span class="value">' + rep.shape.rows + '</span></div>' +
+                    '<div class="stat"><span class="label">Columns</span><span class="value">' + rep.shape.columns + '</span></div>' +
+                    '<div class="stat"><span class="label">Nulls</span><span class="value">' + nullTotal + '</span></div>' +
+                    '</div>' +
+                    '<h4>Columns &amp; Types</h4>' +
+                    '<div class="table-wrap"><table><tr><th>Column</th><th>Type</th></tr>';
+                Object.entries(rep.dtypes).forEach(function (entry) {
+                    html += '<tr><td>' + escapeHtml(entry[0]) + '</td><td>' + escapeHtml(entry[1]) + '</td></tr>';
+                });
+                html += '</table></div>';
+                html += '<h4>Preview (first 10 rows)</h4><div class="table-wrap">' + buildTable(rep.head) + '</div></div>';
+            });
+            results.innerHTML = html;
+        }
+
+        function renderDescribe(reports) {
+            let html = '';
+            reports.forEach(function (rep) {
+                if (rep.note) {
+                    html += '<div class="card"><p>' + escapeHtml(rep.note) + '</p></div>';
+                    return;
+                }
+                html += '<div class="card">' +
+                    '<div class="card-header"><span>📊 Statistical Summary</span><span class="badge">' + escapeHtml(rep.name) + '</span></div>' +
+                    '<div class="table-wrap">' + buildDescribeTable(rep.describe) + '</div></div>';
+            });
+            results.innerHTML = html;
+        }
+
+        function buildDescribeTable(describe) {
+            const stats = Object.keys(describe);
+            const cols = Object.keys(describe[stats[0]] || {});
+            let html = '<table><tr><th>Statistic</th>';
+            cols.forEach(function (c) { html += '<th>' + escapeHtml(c) + '</th>'; });
+            html += '</tr>';
+            stats.forEach(function (stat) {
+                html += '<tr><td><strong>' + escapeHtml(stat) + '</strong></td>';
+                cols.forEach(function (c) {
+                    const val = describe[stat][c];
+                    html += '<td>' + (typeof val === 'number' ? val.toFixed(4) : escapeHtml(val)) + '</td>';
+                });
+                html += '</tr>';
+            });
+            html += '</table>';
+            return html;
+        }
+
+        function renderNulls(reports) {
+            let html = '';
+            reports.forEach(function (rep) {
+                html += '<div class="card">' +
+                    '<div class="card-header"><span>🔍 Missing Values</span><span class="badge">' + escapeHtml(rep.name) + '</span></div>' +
+                    '<div class="stats-grid">' +
+                    '<div class="stat"><span class="label">Total Null Cells</span><span class="value">' + rep.total_null_cells + '</span></div>' +
+                    '<div class="stat"><span class="label">Rows with Nulls</span><span class="value">' + rep.rows_with_nulls + '</span></div>' +
+                    '<div class="stat"><span class="label">Null Percentage</span><span class="value">' + rep.null_percentage + '%</span></div>' +
+                    '</div>' +
+                    '<div class="table-wrap"><table><tr><th>Column</th><th>Null Count</th></tr>';
+                Object.entries(rep.null_counts).forEach(function (entry) {
+                    html += '<tr><td>' + escapeHtml(entry[0]) + '</td><td>' + entry[1] + '</td></tr>';
+                });
+                html += '</table></div></div>';
+            });
+            results.innerHTML = html;
+        }
+
+        function renderCorrelation(reports) {
+            let html = '';
+            reports.forEach(function (rep) {
+                if (rep.note) {
+                    html += '<div class="card"><p>' + escapeHtml(rep.note) + '</p></div>';
+                    return;
+                }
+                html += '<div class="card">' +
+                    '<div class="card-header"><span>🔗 Correlation Matrix</span><span class="badge">' + escapeHtml(rep.name) + '</span></div>' +
+                    '<div class="table-wrap">' + buildCorrTable(rep.columns, rep.matrix) + '</div></div>';
+            });
+            results.innerHTML = html;
+        }
+
+        function buildCorrTable(cols, matrix) {
+            let html = '<table><tr><th></th>';
+            cols.forEach(function (c) { html += '<th>' + escapeHtml(c) + '</th>'; });
+            html += '</tr>';
+            cols.forEach(function (row) {
+                html += '<tr><td><strong>' + escapeHtml(row) + '</strong></td>';
+                cols.forEach(function (col) {
+                    const val = matrix[col][row];
+                    let color = '#fff';
+                    if (typeof val === 'number') {
+                        color = val >= 0 ? 'rgba(137,180,250,' + Math.abs(val) + ')' : 'rgba(243,139,168,' + Math.abs(val) + ')';
+                    }
+                    html += '<td style="background:' + color + '">' + (typeof val === 'number' ? val.toFixed(2) : escapeHtml(val)) + '</td>';
+                });
+                html += '</tr>';
+            });
+            html += '</table>';
+            return html;
+        }
+
+        function renderHead(reports) {
+            let html = '';
+            reports.forEach(function (rep) {
+                html += '<div class="card">' +
+                    '<div class="card-header"><span>👀 First 10 Rows</span><span class="badge">' + escapeHtml(rep.name) + '</span></div>' +
+                    '<div class="table-wrap">' + buildTable(rep.rows) + '</div></div>';
+            });
+            results.innerHTML = html;
+        }
+
+        function renderUnique(reports) {
+            let html = '';
+            reports.forEach(function (rep) {
+                html += '<div class="card">' +
+                    '<div class="card-header"><span>🔠 Unique Values</span><span class="badge">' + escapeHtml(rep.name) + '</span></div>' +
+                    '<div class="table-wrap"><table><tr><th>Column</th><th>Unique Count</th></tr>';
+                Object.entries(rep.unique_counts).forEach(function (entry) {
+                    html += '<tr><td>' + escapeHtml(entry[0]) + '</td><td>' + entry[1] + '</td></tr>';
+                });
+                html += '</table></div></div>';
+            });
+            results.innerHTML = html;
+        }
+
+        function renderPrediction(result) {
+            if (result.error) {
+                results.innerHTML = '<div class="error-box">⚠️ ' + escapeHtml(result.error) + '</div>';
+                return;
+            }
+            const m = result.metric;
+            let metricHtml = '';
+            if (m.type === 'classification') {
+                metricHtml = '<div class="stat"><span class="label">Accuracy</span><span class="value">' + m.accuracy + '</span></div>';
+            } else {
+                metricHtml = '<div class="stat"><span class="label">R² Score</span><span class="value">' + m.r2_score + '</span></div>' +
+                    '<div class="stat"><span class="label">MSE</span><span class="value">' + m.mean_squared_error + '</span></div>';
+            }
+            let html = '<div class="card">' +
+                '<div class="card-header"><span>🧠 Prediction Model</span><span class="badge">' + escapeHtml(m.model) + '</span></div>' +
+                '<div class="stats-grid">' +
+                '<div class="stat"><span class="label">Target</span><span class="value">' + escapeHtml(result.target) + '</span></div>' +
+                '<div class="stat"><span class="label">Train Size</span><span class="value">' + result.train_size + '</span></div>' +
+                '<div class="stat"><span class="label">Test Size</span><span class="value">' + result.test_size + '</span></div>' +
+                metricHtml +
+                '</div>' +
+                '<h4>Features</h4><p>' + result.features.map(escapeHtml).join(', ') + '</p></div>';
+            if (Object.keys(result.coefficients).length) {
+                html += '<div class="card"><div class="card-header"><span>⚖️ Model Coefficients</span></div>' +
+                    '<div class="table-wrap"><table><tr><th>Feature</th><th>Coefficient</th></tr>';
+                Object.entries(result.coefficients).forEach(function (entry) {
+                    html += '<tr><td>' + escapeHtml(entry[0]) + '</td><td>' + entry[1] + '</td></tr>';
+                });
+                html += '</table></div></div>';
+            }
+            results.innerHTML = html;
+        }
+
+        function renderText(result) {
+            if (result.error) {
+                results.innerHTML = '<div class="error-box">⚠️ ' + escapeHtml(result.error) + '</div>';
+                return;
+            }
+            let html = '<div class="card">' +
+                '<div class="card-header"><span>📝 Text Analysis</span></div>' +
+                '<div class="stats-grid">' +
+                '<div class="stat"><span class="label">Words</span><span class="value">' + result.word_count + '</span></div>' +
+                '<div class="stat"><span class="label">Sentences</span><span class="value">' + result.sentence_count + '</span></div>' +
+                '<div class="stat"><span class="label">Characters</span><span class="value">' + result.character_count + '</span></div>' +
+                '<div class="stat"><span class="label">Unique Words</span><span class="value">' + result.unique_words + '</span></div>' +
+                '</div>';
+            if (result.common_words && Object.keys(result.common_words).length) {
+                html += '<h4>Most Common Words</h4><div class="table-wrap"><table><tr><th>Word</th><th>Frequency</th></tr>';
+                Object.entries(result.common_words).forEach(function (entry) {
+                    html += '<tr><td>' + escapeHtml(entry[0]) + '</td><td>' + entry[1] + '</td></tr>';
+                });
+                html += '</table></div>';
+            }
+            html += '</div>';
+            results.innerHTML = html;
+        }
+
+function renderInsight(result, intent) {
+            if (result.error) {
+                results.innerHTML = '<div class="error-box">⚠️ ' + escapeHtml(result.error) + '</div>';
+                return;
+            }
+            let html = '<div class="card"><div class="card-header"><span>💡 Insight</span></div>';
+            if (result.data_name) html += '<p class="small">Dataset: <strong>' + escapeHtml(result.data_name) + '</strong></p>';
+            if (result.target) html += '<p class="small">Analyzing column: <strong>' + escapeHtml(result.target) + '</strong></p>';
+            if (result.time_period) html += '<p class="small">Time period: <strong>' + escapeHtml(result.time_period) + '</strong></p>';
+
+            if ('received_total' in result) {
+                html += '<div class="stats-grid">' +
+                    '<div class="stat"><span class="label">Total Received</span><span class="value">₹' + formatNum(result.received_total) + '</span></div>' +
+                    '<div class="stat"><span class="label">Total Paid</span><span class="value">₹' + formatNum(result.paid_total) + '</span></div>' +
+                    '<div class="stat"><span class="label">Received Count</span><span class="value">' + result.received_count + '</span></div>' +
+                    '<div class="stat"><span class="label">Paid Count</span><span class="value">' + result.paid_count + '</span></div>' +
+                    '</div>';
+            }
+
+            if ('value' in result) {
+                const label = intent && intent.metric ? intent.metric.toUpperCase() : 'VALUE';
+                html += '<div class="stats-grid">' +
+                    '<div class="stat"><span class="label">' + escapeHtml(label) + '</span><span class="value">' + formatNum(result.value) + '</span></div>';
+                if (result.count !== undefined) html += '<div class="stat"><span class="label">Count</span><span class="value">' + result.count + '</span></div>';
+                if (result.average !== undefined) html += '<div class="stat"><span class="label">Average</span><span class="value">' + formatNum(result.average) + '</span></div>';
+                if (result.max !== undefined) html += '<div class="stat"><span class="label">Max</span><span class="value">' + formatNum(result.max) + '</span></div>';
+                if (result.min !== undefined) html += '<div class="stat"><span class="label">Min</span><span class="value">' + formatNum(result.min) + '</span></div>';
+                if (result.unique_values !== undefined) html += '<div class="stat"><span class="label">Unique</span><span class="value">' + result.unique_values + '</span></div>';
+                html += '</div>';
+            }
+
+            if (result.groups && result.groups.length) {
+                html += '<h4>Breakdown</h4><div class="table-wrap"><table><tr><th>Group</th><th>Total</th><th>Count</th></tr>';
+                result.groups.forEach(function (g) {
+                    const grpKey = Object.keys(g).find(function (k) { return k !== 'total' && k !== 'count'; });
+                    html += '<tr><td>' + escapeHtml(String(g[grpKey])) + '</td><td>' + formatNum(g.total) + '</td><td>' + g.count + '</td></tr>';
+                });
+                html += '</table></div>';
+            } else if (result.groups && !Array.isArray(result.groups)) {
+                html += '<h4>Breakdown</h4><div class="table-wrap"><table><tr><th>Group</th><th>Value</th></tr>';
+                Object.entries(result.groups).forEach(function (entry) {
+                    html += '<tr><td>' + escapeHtml(entry[0]) + '</td><td>' + formatNum(entry[1]) + '</td></tr>';
+                });
+                html += '</table></div>';
+            }
+
+            if (result.top_values && Object.keys(result.top_values).length) {
+                html += '<h4>Top Values</h4><div class="table-wrap"><table><tr><th>Value</th><th>Count</th></tr>';
+                Object.entries(result.top_values).forEach(function (entry) {
+                    html += '<tr><td>' + escapeHtml(entry[0]) + '</td><td>' + entry[1] + '</td></tr>';
+                });
+                html += '</table></div>';
+            }
+
+            html += '</div>';
+            results.innerHTML = html;
+        }
+
+        function renderClean(reports) {
+            let html = '';
+            reports.forEach(function (rep) {
+                html += '<div class="card">' +
+                    '<div class="card-header"><span>🧹 Data Cleaning Report</span><span class="badge">' + escapeHtml(rep.name) + '</span></div>';
+                html += '<div class="stats-grid">' +
+                    '<div class="stat"><span class="label">Original Rows</span><span class="value">' + rep.original_shape.rows + '</span></div>' +
+                    '<div class="stat"><span class="label">Cleaned Rows</span><span class="value">' + rep.cleaned_shape.rows + '</span></div>' +
+                    '<div class="stat"><span class="label">Original Cols</span><span class="value">' + rep.original_shape.columns + '</span></div>' +
+                    '<div class="stat"><span class="label">Cleaned Cols</span><span class="value">' + rep.cleaned_shape.columns + '</span></div>' +
+                    '</div>';
+                if (rep.actions && rep.actions.length) {
+                    html += '<h4>Actions Taken</h4><ul class="insight-list">';
+                    rep.actions.forEach(function (a) { html += '<li>' + escapeHtml(a) + '</li>'; });
+                    html += '</ul>';
+                } else {
+                    html += '<p class="small">✔ No cleaning actions needed — data was already clean.</p>';
+                }
+                html += '<h4>Cleaned Preview</h4><div class="table-wrap">' + buildTable(rep.cleaned_data.slice(0, 10)) + '</div>';
+                html += '</div>';
+            });
+            results.innerHTML = html;
+        }
+
+        function renderSmartInsights(result) {
+            if (result.error) {
+                results.innerHTML = '<div class="error-box">⚠️ ' + escapeHtml(result.error) + '</div>';
+                return;
+            }
+            let html = '<div class="card"><div class="card-header"><span>💡 Smart Insights</span><span class="badge">' + escapeHtml(result.data_name) + '</span></div>';
+            html += '<div class="stats-grid">' +
+                '<div class="stat"><span class="label">Rows</span><span class="value">' + result.rows + '</span></div>' +
+                '<div class="stat"><span class="label">Columns</span><span class="value">' + result.columns + '</span></div>' +
+                '</div>';
+            if (result.findings && result.findings.length) {
+                html += '<h4>Key Findings</h4><ul class="insight-list">';
+                result.findings.forEach(function (f) { html += '<li>' + escapeHtml(f) + '</li>'; });
+                html += '</ul>';
+            }
+            if (result.key_drivers && result.key_drivers.length) {
+                html += '<h4>Key Drivers</h4><div class="chip-row">';
+                result.key_drivers.forEach(function (d) { html += '<button class="chip"><strong>' + escapeHtml(d) + '</strong></button> '; });
+                html += '</div>';
+            }
+            if (result.anomalies && result.anomalies.length) {
+                html += '<h4>Detected Anomalies</h4><div class="table-wrap"><table><tr><th>Column</th><th>Outlier Count</th></tr>';
+                result.anomalies.forEach(function (a) {
+                    html += '<tr><td>' + escapeHtml(a.column) + '</td><td>' + a.count + '</td></tr>';
+                });
+                html += '</table></div>';
+            }
+            if (result.recommendations && result.recommendations.length) {
+                html += '<h4>Recommendations</h4><ul class="insight-list">';
+                result.recommendations.forEach(function (r) { html += '<li>' + escapeHtml(r) + '</li>'; });
+                html += '</ul>';
+            }
+            html += '</div>';
+            results.innerHTML = html;
+        }
+
+        function renderAnomalies(result) {
+            if (result.error) {
+                results.innerHTML = '<div class="error-box">⚠️ ' + escapeHtml(result.error) + '</div>';
+                return;
+            }
+            let html = '<div class="card"><div class="card-header"><span>🔔 Anomaly Detection</span><span class="badge">' + escapeHtml(result.data_name || 'data') + '</span></div>';
+            if (result.message) {
+                html += '<p class="small">' + escapeHtml(result.message) + '</p></div>';
+                results.innerHTML = html;
+                return;
+            }
+            if (result.suspicious_count !== undefined) {
+                html += '<div class="stats-grid">' +
+                    '<div class="stat"><span class="label">Total Transactions</span><span class="value">' + result.total_transactions + '</span></div>' +
+                    '<div class="stat"><span class="label">Suspicious</span><span class="value">' + result.suspicious_count + '</span></div>' +
+                    '<div class="stat"><span class="label">Percentage</span><span class="value">' + result.suspicious_percentage + '%</span></div>' +
+                    '</div>';
+                if (result.records && result.records.length) {
+                    html += '<h4>Suspicious Transactions</h4><div class="table-wrap">' + buildTable(result.records) + '</div>';
+                }
+            } else {
+                html += '<div class="stats-grid">' +
+                    '<div class="stat"><span class="label">Columns Checked</span><span class="value">' + result.columns_checked.length + '</span></div>' +
+                    '<div class="stat"><span class="label">Columns w/ Anomalies</span><span class="value">' + Object.keys(result.anomalies || {}).length + '</span></div>' +
+                    '</div>';
+                const anoms = result.anomalies || {};
+                if (Object.keys(anoms).length) {
+                    html += '<h4>Anomalous Columns</h4>';
+                    Object.entries(anoms).forEach(function (entry) {
+                        const col = entry[0];
+                        const info = entry[1];
+                        html += '<div class="card sub-card">' +
+                            '<p><strong>' + escapeHtml(col) + '</strong> — ' + info.count + ' outlier(s) of ' + info.total + ' (' + info.percentage + '%)</p>' +
+                            '<p class="small">Mean: ' + info.mean + ', Std: ' + info.std + ', Range: [' + info.lower_bound + ', ' + info.upper_bound + ']</p>' +
+                            '<p class="small">Values: ' + info.values.map(escapeHtml).join(', ') + '</p></div>';
+                    });
+                }
+            }
+            html += '</div>';
+            results.innerHTML = html;
+        }
+
+        function renderForecast(result) {
+            if (result.error) {
+                results.innerHTML = '<div class="error-box">⚠️ ' + escapeHtml(result.error) + '</div>';
+                return;
+            }
+            let html = '<div class="card"><div class="card-header"><span>🔮 Forecast</span><span class="badge">' + escapeHtml(result.target) + '</span></div>';
+            html += '<div class="stats-grid">' +
+                '<div class="stat"><span class="label">History Points</span><span class="value">' + result.history_points + '</span></div>' +
+                '<div class="stat"><span class="label">Forecast Periods</span><span class="value">' + result.forecast_periods + '</span></div>' +
+                '<div class="stat"><span class="label">Trend</span><span class="value">' + escapeHtml(result.trend) + '</span></div>' +
+                '<div class="stat"><span class="label">Slope</span><span class="value">' + result.slope + '</span></div>' +
+                '<div class="stat"><span class="label">Projected Change</span><span class="value">' + result.projected_change_percent + '%</span></div>' +
+                '</div>';
+            if (result.forecast && result.forecast.length) {
+                html += '<h4>Forecasted Values</h4><div class="table-wrap"><table><tr><th>Period</th><th>Forecast</th></tr>';
+                result.forecast.forEach(function (f) {
+                    html += '<tr><td>' + f.period + '</td><td>' + formatNum(f.forecast) + '</td></tr>';
+                });
+                html += '</table></div>';
+            }
+            html += '</div>';
+            results.innerHTML = html;
+        }
+
+        function renderReport(result) {
+            if (result.error) {
+                results.innerHTML = '<div class="error-box">⚠️ ' + escapeHtml(result.error) + '</div>';
+                return;
+            }
+            let html = '<div class="card"><div class="card-header"><span>📄 Executive Report</span></div>';
+            html += '<p class="small">' + escapeHtml(result.title || '') + '</p>';
+            html += '<p class="small">Dataset: <strong>' + escapeHtml(result.dataset || '') + '</strong></p>';
+            if (result.pdf_base64) {
+                html += '<div style="margin: 15px 0;">' +
+                    '<a class="btn btn-primary" href="data:application/pdf;base64,' + result.pdf_base64 + '" download="report.pdf">⬇ Download PDF Report</a>' +
+                    '</div>';
+            }
+            const ov = result.overview || {};
+            html += '<h4>Overview</h4><div class="stats-grid">' +
+                '<div class="stat"><span class="label">Rows</span><span class="value">' + ov.rows + '</span></div>' +
+                '<div class="stat"><span class="label">Columns</span><span class="value">' + ov.columns + '</span></div>' +
+                '<div class="stat"><span class="label">Missing</span><span class="value">' + ov.missing_values + '</span></div>' +
+                '<div class="stat"><span class="label">Duplicates</span><span class="value">' + ov.duplicate_rows + '</span></div>' +
+                '</div>';
+            const ins = result.insights || {};
+            if (ins.findings && ins.findings.length) {
+                html += '<h4>Key Findings</h4><ul class="insight-list">';
+                ins.findings.forEach(function (f) { html += '<li>' + escapeHtml(f) + '</li>'; });
+                html += '</ul>';
+            }
+            if (ins.recommendations && ins.recommendations.length) {
+                html += '<h4>Recommendations</h4><ul class="insight-list">';
+                ins.recommendations.forEach(function (r) { html += '<li>' + escapeHtml(r) + '</li>'; });
+                html += '</ul>';
+            }
+            const metrics = result.metrics || {};
+            if (Object.keys(metrics).length) {
+                html += '<h4>Numeric Metrics</h4><div class="table-wrap"><table><tr><th>Column</th><th>Total</th><th>Average</th><th>Min</th><th>Max</th></tr>';
+                Object.entries(metrics).forEach(function (entry) {
+                    const col = entry[0];
+                    const m = entry[1];
+                    html += '<tr><td>' + escapeHtml(col) + '</td><td>' + formatNum(m.total) + '</td><td>' + formatNum(m.average) + '</td><td>' + formatNum(m.min) + '</td><td>' + formatNum(m.max) + '</td></tr>';
+                });
+                html += '</table></div>';
+            }
+            html += '</div>';
+            results.innerHTML = html;
+        }
+
+        function formatNum(val) {
+            if (typeof val !== 'number') return escapeHtml(String(val));
+            const abs = Math.abs(val);
+            if (abs >= 10000000) return (val / 10000000).toFixed(2) + ' Cr';
+            if (abs >= 100000) return (val / 100000).toFixed(2) + ' L';
+            if (abs >= 1000) return Math.round(val).toLocaleString('en-IN');
+            return val.toFixed(2);
+        }
+
+        function buildTable(rows) {
+            if (!rows || !rows.length) return '<p>No data rows.</p>';
+            const cols = Object.keys(rows[0]);
+            let html = '<table><tr>';
+            cols.forEach(function (c) { html += '<th>' + escapeHtml(c) + '</th>'; });
+            html += '</tr>';
+            rows.forEach(function (row) {
+                html += '<tr>';
+                cols.forEach(function (c) {
+                    let val = row[c];
+                    if (typeof val === 'object' && val !== null) val = JSON.stringify(val);
+                    html += '<td>' + escapeHtml(String(val)) + '</td>';
+                });
+                html += '</tr>';
+            });
+            html += '</table>';
+            return html;
+        }
+    </script>
+</body>
+</html>

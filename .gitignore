@@ -1,0 +1,31 @@
+# ---- Python / Flask ----
+venv/
+__pycache__/
+*.py[cod]
+.env
+
+# ---- Uploaded data files (user data, not code) ----
+uploads/
+*.pdf
+
+# ---- Visual Studio on Windows ----
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# ---- VS Code ----
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+
+# ---- Build / misc ----
+*.log
+*.ini

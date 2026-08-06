@@ -1,0 +1,9 @@
+flask
+pandas
+numpy
+matplotlib
+scikit-learn
+openpyxl
+opencv-python
+PyPDF2
+reportlab
