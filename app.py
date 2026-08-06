@@ -15,12 +15,14 @@ from agent.insights import InsightsEngine
 from agent.report_generator import ReportGenerator
 from agent.planner import PlannerAgent
 from backend.app.api.upload import upload_bp
+from backend.app.api.workspace import workspace_bp
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100MB
 app.config["UPLOAD_FOLDER"] = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 app.register_blueprint(upload_bp)
+app.register_blueprint(workspace_bp)
 
 ALLOWED_EXTENSIONS = {
     "csv", "xlsx", "xls", "json", "txt", "pdf", "db", "sqlite", "sqlite3",

@@ -5,11 +5,13 @@ import pandas as pd
 from werkzeug.utils import secure_filename
 
 from backend.app.schemas.dataset import DatasetProfile
+from backend.app.services.workspace_service import WorkspaceService
 
 
 class FileService:
-    def __init__(self, upload_folder: str):
+    def __init__(self, upload_folder: str, workspace_service: WorkspaceService | None = None):
         self.upload_folder = upload_folder
+        self.workspace_service = workspace_service or WorkspaceService()
         os.makedirs(self.upload_folder, exist_ok=True)
 
     def upload_and_profile(self, uploaded_file: Any) -> Dict[str, Any]:
@@ -25,7 +27,26 @@ class FileService:
 
         dataframe = self._read_dataframe(destination)
         profile = self._build_profile(dataframe, filename)
-        return self._to_dict(profile)
+        workspace = self.workspace_service.create_workspace(name="Default Workspace", owner="demo")
+        project = self.workspace_service.create_project(workspace_id=workspace["id"], name="Imported Project")
+        dataset = self.workspace_service.create_dataset(
+            project_id=project["id"],
+            workspace_id=workspace["id"],
+            name=filename,
+            rows=profile.rows,
+            columns=profile.columns,
+            schema=profile.column_names,
+            stats={
+                "missing_values": profile.missing_values,
+                "duplicates": profile.duplicates,
+                "memory_usage": profile.memory_usage,
+            },
+        )
+        payload = self._to_dict(profile)
+        payload["dataset_id"] = dataset["id"]
+        payload["project_id"] = project["id"]
+        payload["workspace_id"] = workspace["id"]
+        return payload
 
     def _read_dataframe(self, file_path: str) -> pd.DataFrame:
         extension = os.path.splitext(file_path)[1].lower()
