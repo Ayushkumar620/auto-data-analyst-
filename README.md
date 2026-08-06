@@ -81,7 +81,8 @@ Open your browser and go to: **http://127.0.0.1:5000**
 |----------|-------------|
 | [`PRD.md`](PRD.md) | Product Requirements — problem statement, target users, features, MVP scope |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | System design — multi-agent workflow, tech stack, API, security, version plan |
-| [`UIUX_DESIGN.md`](UIUX_DESIGN.md) | UI/UX design spec — all screens, design system, user flows, responsive layouts |
+| [`UIUX_DESIGN.md`](UIUX_DESIGN.md) | UI/UX design spec — 13 screens, design system, user flows, responsive layouts |
+| [`TECHNICAL_PLAN.md`](TECHNICAL_PLAN.md) | Technical planning — DB schema, API specs, folder structure, dev environment, sprints |
 
 > **Vision:** Turn ADAA into a full AI-powered platform — "Upload your data. Ask questions. Get business insights in minutes."
 
