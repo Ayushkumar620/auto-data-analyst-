@@ -75,6 +75,15 @@ Open your browser and go to: **http://127.0.0.1:5000**
    - `chart` → auto-generate a visualization
    - `predict target=sales` → train a model to predict sales
 
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| [`PRD.md`](PRD.md) | Product Requirements — problem statement, target users, features, MVP scope |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | System design — frontend, backend, AI multi-agent workflow, DB schema, APIs, data flow |
+
+> **Vision:** Turn ADAA into a full AI-powered platform — "Upload your data. Ask questions. Get business insights in minutes."
+
 ## 📁 Project Structure
 
 ```
