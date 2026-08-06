@@ -1,232 +1,296 @@
-# 🚀 ADAA — Engineering Setup (Step 6)
+# 🚀 ADAA — Engineering Blueprint (Step 6)
 
-> **Goal:** Transition from planning to engineering. Define the complete
-> technology stack, repository structure, and development workflow, then begin
-> building the MVP module by module.
+> **Goal:** This is the **foundation that every line of code will follow**.
+
+**Project Name:** Auto Data Analyst Agent (ADAA)
 
 ---
 
-## 1. Monorepo Layout
+## 1. Technology Stack
+
+### Frontend
+| Technology | Purpose |
+|------------|---------|
+| React | UI |
+| TypeScript | Type safety |
+| Tailwind CSS | Styling |
+| Shadcn UI | Components |
+| React Router | Navigation |
+| TanStack Query | API state |
+| Plotly | Charts |
+| AG Grid | Large data tables |
+
+### Backend
+| Technology | Purpose |
+|------------|---------|
+| FastAPI | REST API |
+| Python | Backend |
+| LangGraph | Multi-agent orchestration |
+| Pydantic | Validation |
+| SQLAlchemy | ORM |
+| Alembic | Database migrations |
+| Celery (or Dramatiq) | Background jobs |
+| Redis | Job queue & caching |
+
+### Data Layer
+| Technology | Purpose |
+|------------|---------|
+| Polars | Fast data processing |
+| Pandas | Data manipulation |
+| DuckDB | SQL over files |
+| NumPy | Numerical computation |
+
+### AI Layer
+| Technology | Purpose |
+|------------|---------|
+| OpenAI API | Reasoning and explanations |
+| LangGraph | Agent workflows |
+| LangChain (optional) | Tool integration |
+
+### Machine Learning
+| Technology | Purpose |
+|------------|---------|
+| Scikit-learn | ML models |
+| XGBoost | Gradient boosting |
+| Prophet | Time-series forecasting |
+
+### Database
+- **PostgreSQL**
+
+### File Storage
+```
+uploads/
+reports/
+exports/
+```
+> For cloud deployment, replace local storage with **object storage**.
+
+---
+
+## 2. Repository Structure
 
 ```
 auto-data-analyst/
-├── .github/
-│   ├── workflows/          # CI/CD pipelines
-│   ├── ISSUE_TEMPLATE/
-│   └── PULL_REQUEST_TEMPLATE.md
 │
-├── apps/
-│   ├── frontend/           # React + TypeScript web app
-│   └── backend/            # FastAPI API server
+├── frontend/
+│   ├── src/
+│   ├── public/
+│   └── package.json
 │
-├── packages/
-│   ├── shared/             # Shared types, schemas, utils
-│   └── config/             # Shared config (ESLint, Prettier, tsconfig)
+├── backend/
+│   ├── app/
+│   ├── tests/
+│   ├── alembic/
+│   ├── requirements.txt
+│   └── Dockerfile
 │
-├── docs/                   # PRD, Architecture, SDD, agent specs, etc.
+├── docs/
+│   ├── vision.md
+│   ├── architecture.md
+│   ├── api.md
+│   └── roadmap.md
 │
-├── scripts/                # Dev/build/deploy scripts
-│
-├── docker-compose.yml      # Local dev services
-├── package.json            # Root (workspaces)
-├── pnpm-workspace.yaml
+├── docker-compose.yml
 ├── .gitignore
-└── README.md
+├── README.md
+└── LICENSE
 ```
 
 ---
 
-## 2. Backend Service Architecture
+## 3. Backend Architecture
 
 ```
-backend/
-│
-├── app/
-│   ├── api/               # FastAPI routers (auth, projects, datasets, analysis, chat, reports)
-│   ├── agents/            # AI multi-agent system (planner, data, eda, insight, forecast, report, chat)
-│   ├── auth/              # JWT, OAuth, password hashing
-│   ├── database/          # SQLAlchemy engine, sessions, migrations (Alembic)
-│   ├── models/            # ORM models (User, Project, Dataset, Analysis, Report, ChatHistory)
-│   ├── schemas/           # Pydantic request/response schemas
-│   ├── services/          # Business logic (upload, cleaning, visualization, report)
-│   ├── prompts/           # LLM prompt templates per agent
-│   ├── reports/           # Report template assets
-│   ├── uploads/           # Stored dataset files
-│   ├── utils/             # Helpers, error handlers
-│   └── main.py            # FastAPI app entrypoint
-│
-├── tests/                 # Unit + integration tests
-├── alembic/               # DB migration scripts
-├── requirements.txt
-├── .env.example
-└── Dockerfile
+app/
+├── api/
+├── agents/
+├── services/
+├── repositories/
+├── database/
+├── models/
+├── schemas/
+├── core/
+├── utils/
+├── prompts/
+├── jobs/
+├── reports/
+└── uploads/
 ```
+
+> Each folder has **one responsibility**.
 
 ---
 
-## 3. Frontend Architecture
+## 4. Frontend Architecture
 
 ```
-frontend/
-│
-├── src/
-│   ├── components/        # Reusable UI (buttons, cards, modals, charts)
-│   ├── pages/             # Route-level screens (Landing, Login, Dashboard, Upload, Chat...)
-│   ├── hooks/             # Custom React hooks
-│   ├── services/          # API client calls
-│   ├── layouts/           # Sidebar + topbar layout
-│   ├── routes/            # Router configuration
-│   ├── context/           # React context (auth, theme, project)
-│   ├── assets/            # Static assets
-│   │
-│   ├── App.tsx
-│   └── main.tsx
-│
-├── tailwind.config.ts
-├── package.json
-└── Dockerfile
+src/
+├── components/
+├── pages/
+├── layouts/
+├── hooks/
+├── services/
+├── contexts/
+├── types/
+├── utils/
+└── assets/
 ```
 
 ---
 
-## 4. Database Migrations
+## 5. Git Branch Strategy
 
-- **Tool:** Alembic (SQLAlchemy)
-- **Workflow:** Each schema change is a new migration file; run `alembic upgrade head`
-- **Migration folders:** `backend/alembic/versions/`
-- **Convention:** `alembic revision -m "add users table"`
+> **Never work directly on `main`.**
 
----
-
-## 5. Docker Setup
-
-### `docker-compose.yml` (local dev)
-```yaml
-version: "3.9"
-services:
-  backend:
-    build: ./apps/backend
-    ports: ["8000:8000"]
-    env_file: .env
-    depends_on:
-      - db
-      - redis
-  frontend:
-    build: ./apps/frontend
-    ports: ["3000:3000"]
-  db:
-    image: postgres:16
-    environment:
-      POSTGRES_USER: adaa
-      POSTGRES_PASSWORD: adaa
-      POSTGRES_DB: adaa
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-  redis:
-    image: redis:7
-volumes:
-  pgdata:
+```
+main
+ │
+ ▼
+develop
+ │
+ ├── feature/auth
+ ├── feature/upload
+ ├── feature/eda
+ ├── feature/chat
+ └── feature/report
 ```
 
----
-
-## 6. CI/CD Pipeline
-
-### Backend (`.github/workflows/backend.yml`)
-- Trigger: push/PR to `main`
-- Steps: checkout → setup Python → install deps → **lint** (ruff) → **test** (pytest) → **build** Docker image → push to registry → deploy
-
-### Frontend (`.github/workflows/frontend.yml`)
-- Trigger: push/PR to `main`
-- Steps: checkout → setup Node → install (pnpm) → **lint** (ESLint) → **type-check** (tsc) → **build** (vite) → deploy
+Every new feature gets its own branch.
 
 ---
 
-## 7. Development Workflow
+## 6. Development Workflow
 
-- **Branching:** feature branches (`feat/`, `fix/`) → PR → review → merge to `main`
-- **Commits:** Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`)
-- **Code review:** every PR requires at least 1 approval
-- **Pre-commit:** lint + format + type-check
+```
+Idea
+ ↓
+Issue
+ ↓
+Feature Branch
+ ↓
+Code
+ ↓
+Test
+ ↓
+Pull Request
+ ↓
+Review
+ ↓
+Merge
+```
+
+> This keeps the project organized and scalable.
 
 ---
 
-## 8. Coding Standards
+## 7. Coding Standards
 
 ### Python
-- Type hints on all functions
-- `ruff` for linting/formatting
-- `pytest` for tests
-- Small, focused functions & modules
+- Type hints everywhere
+- Small, focused functions
+- Clear docstrings
+- Meaningful variable names
+- Unit tests for business logic
 
 ### TypeScript
-- TypeScript strict mode
-- ESLint + Prettier
-- React Query for server state
-- Reusable components in `components/`
-
-### General
-- OpenAPI/Swagger docs for all APIs
-- Keep functions small and single-purpose
-- Write unit tests for core logic
+- Strict mode enabled
+- Reusable components
+- Avoid duplicated code
+- Shared types for API models
 
 ---
 
-## 9. Sprint Plan
+## 8. Logging
 
-| Sprint | Focus |
-|--------|-------|
-| **Sprint 0** | Repo scaffolding, Docker, CI/CD, DB migrations |
-| **Sprint 1** | Auth (register/login/JWT/OAuth) + Projects CRUD + Dashboard layout |
-| **Sprint 2** | Upload service + Dataset overview |
-| **Sprint 3** | Cleaning + EDA + Charts (Plotly) |
-| **Sprint 4** | Insight Agent + Chat Agent (dataset-aware) |
-| **Sprint 5** | Report Agent (PDF/PPT/Excel) + Forecast Agent |
-| **Sprint 6** | Admin panel + Settings + Audit logs + polish |
-| **Sprint 7** | E2E testing + deployment + MVP launch |
+Log important events:
+- User login
+- Dataset upload
+- Analysis start/end
+- AI errors
+- Report generation
+
+> Use **structured logs (JSON)** in production.
 
 ---
 
-## 10. Development Environment (Quick Start)
+## 9. Environment Variables
 
-### Backend
-```bash
-cd apps/backend
-python -m venv venv
-venv\Scripts\activate        # Windows
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --reload
 ```
-
-### Frontend
-```bash
-cd apps/frontend
-pnpm install
-pnpm dev
+DATABASE_URL
+OPENAI_API_KEY
+REDIS_URL
+JWT_SECRET
+APP_ENV
+UPLOAD_PATH
 ```
 
-### Environment Variables (`.env`)
-```
-DATABASE_URL=postgresql://adaa:adaa@localhost:5432/adaa
-JWT_SECRET=...
-LLM_API_KEY=...
-LLM_PROVIDER=openai
-LLM_MODEL=gpt-4o-mini
-UPLOAD_DIR=app/uploads
-```
+> **Keep secrets out of source control.**
 
 ---
 
-## 11. GitHub Repository Setup
+## 10. Development Milestones
 
-1. Create `frontend/` and `backend/` scaffolds
-2. Add `.github/workflows/` CI/CD
-3. Add Docker + docker-compose
-4. Set up branches/protection on `main`
-5. Add issue/PR templates
-6. Begin **Sprint 0** → **build MVP module by module**
+| Sprint | Milestone |
+|--------|-----------|
+| **Sprint 1** | Repository setup, Authentication, Dashboard layout |
+| **Sprint 2** | File upload, Dataset preview, Data profiling |
+| **Sprint 3** | Data cleaning, EDA, Charts |
+| **Sprint 4** | AI insights, Chat with data |
+| **Sprint 5** | Forecasting, Reports |
+| **Sprint 6** | Deployment, Testing, Optimization |
 
 ---
 
-*This engineering setup is the final plan before MVP development begins.*
+## 11. MVP Scope (First Release)
+
+To keep the project achievable, **Version 1** should include only:
+- User authentication
+- CSV/Excel upload
+- Automatic data profiling
+- Data cleaning
+- Basic EDA
+- Interactive charts
+- AI-generated insights
+- Chat with uploaded data
+- PDF report generation
+
+> Leave advanced features like voice interaction, Google Sheets integration,
+> and team collaboration for later releases.
+
+---
+
+## 12. Success Criteria
+
+When **Version 1** is complete, a user should be able to:
+1. **Sign in**
+2. **Create a project**
+3. **Upload a dataset**
+4. **Wait for automatic analysis**
+5. **View insights and charts**
+6. **Ask questions about the data**
+7. **Download a report**
+
+> If those **seven steps work smoothly**, you have a strong MVP that can be
+> demonstrated to users, recruiters, or potential customers.
+
+---
+
+## 🚀 Step 7 (Next)
+
+This is where **development truly begins**. We'll create the complete project
+repository from scratch, including:
+- Backend (FastAPI)
+- Frontend (React + TypeScript)
+- Database (PostgreSQL)
+- Docker configuration
+- GitHub repository
+- Initial folder structure
+- Base authentication
+- First running application
+
+> From that point onward, every step will involve building a **real, working
+> application** rather than planning.
+
+---
+
+*This engineering blueprint is the foundation for the ADAA codebase.*
