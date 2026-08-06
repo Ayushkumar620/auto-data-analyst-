@@ -88,6 +88,7 @@ Open your browser and go to: **http://127.0.0.1:5000**
 | [`ENGINEERING_SETUP.md`](ENGINEERING_SETUP.md) | Engineering Setup — monorepo, Docker, CI/CD, dev workflow, coding standards, sprint plan |
 | [`STEP7_PROJECT_INITIALIZATION.md`](STEP7_PROJECT_INITIALIZATION.md) | Project Initialization — repo structure, backend/frontend setup, auth, projects, background jobs, MVP architecture |
 | [`ANALYSIS_ENGINE.md`](ANALYSIS_ENGINE.md) | Phase 1 Analysis Engine — 9 modules (ingestion, profiling, quality, cleaning, EDA, viz, insights, NLP, reports) + core pipeline |
+| [`AI_OPERATING_SYSTEM.md`](AI_OPERATING_SYSTEM.md) | Phase 2 AI Operating System — 5 layers (understanding, planning, tools, reflection, learning), decision engine, tool registry |
 
 > **Vision:** Turn ADAA into a full AI-powered platform — "Upload your data. Ask questions. Get business insights in minutes."
 
