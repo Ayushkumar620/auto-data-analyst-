@@ -87,6 +87,7 @@ Open your browser and go to: **http://127.0.0.1:5000**
 | [`AGENT_SPECS.md`](AGENT_SPECS.md) | AI Multi-Agent Design — team of AI specialists (planner, data, eda, insight, forecast, report, chat) |
 | [`ENGINEERING_SETUP.md`](ENGINEERING_SETUP.md) | Engineering Setup — monorepo, Docker, CI/CD, dev workflow, coding standards, sprint plan |
 | [`STEP7_PROJECT_INITIALIZATION.md`](STEP7_PROJECT_INITIALIZATION.md) | Project Initialization — repo structure, backend/frontend setup, auth, projects, background jobs, MVP architecture |
+| [`ANALYSIS_ENGINE.md`](ANALYSIS_ENGINE.md) | Phase 1 Analysis Engine — 9 modules (ingestion, profiling, quality, cleaning, EDA, viz, insights, NLP, reports) + core pipeline |
 
 > **Vision:** Turn ADAA into a full AI-powered platform — "Upload your data. Ask questions. Get business insights in minutes."
 
