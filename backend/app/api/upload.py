@@ -1,13 +1,40 @@
 import os
+from typing import Any
 
+import numpy as np
+import pandas as pd
 from flask import Blueprint, jsonify, request
 
 from backend.app.cleaning.cleaner import DataCleaner
+from backend.app.eda.orchestrator import EDAOrchestrator
+from backend.app.insights import InsightEngine
+from backend.app.api.insights import register_analysis
 from backend.app.profilers.dataset_profiler import DatasetProfiler
 from backend.app.services.dataset_service import DatasetService
 from backend.app.services.workspace_service import WorkspaceService
 
 upload_bp = Blueprint("upload_bp", __name__, url_prefix="/api")
+
+
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, np.generic):
+        return _json_safe(value.item())
+    if isinstance(value, (pd.Timestamp, pd.Timedelta)):
+        return str(value)
+    if pd.isna(value):
+        return None
+    if hasattr(value, "tolist"):
+        try:
+            return [_json_safe(item) for item in value.tolist()]
+        except TypeError:
+            pass
+    return str(value)
 
 
 @upload_bp.route("/upload", methods=["POST"])
@@ -16,6 +43,8 @@ def upload_dataset():
     dataset_service = DatasetService(upload_folder="uploads")
     workspace_service = WorkspaceService()
     profiler = DatasetProfiler()
+    eda_orchestrator = EDAOrchestrator()
+    insight_engine = InsightEngine()
 
     try:
         result = dataset_service.upload_dataset(file_storage)
@@ -61,6 +90,11 @@ def upload_dataset():
         result["duplicate_analysis"] = profile_result["duplicate_analysis"]
         result["recommendations"] = profile_result["recommendations"]
         result["preview"] = profile_result["preview"]
+        result["eda"] = eda_orchestrator.analyze(dataframe)
+        insight_result = insight_engine.generate(dataframe, result["eda"])
+        result["insights"] = insight_result["insights"]
+        result["analytical_facts"] = insight_result["facts"]
+        register_analysis(result["dataset_id"], dataframe, result["eda"])
         result["cleaning"] = {
             "status": cleaning_result["status"],
             "quality_before": cleaning_result["quality_before"],
@@ -76,4 +110,4 @@ def upload_dataset():
     except Exception as exc:
         return jsonify({"error": f"Upload failed: {exc}"}), 500
 
-    return jsonify(result)
+    return jsonify(_json_safe(result))
