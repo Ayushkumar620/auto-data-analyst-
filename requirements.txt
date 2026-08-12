@@ -1,5 +1,6 @@
 flask
 pandas
+plotly
 numpy
 matplotlib
 scikit-learn
