@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.encoders import jsonable_encoder
 
 from backend.app.config import UPLOAD_DIR
 from backend.app.eda.orchestrator import EDAOrchestrator
@@ -82,7 +83,7 @@ def analyze_dataset_eda(file: UploadFile = File(...)) -> dict[str, Any]:
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"EDA failed: {exc}") from exc
 
-    return result
+    return jsonable_encoder(result)
 
 
 @router.post("/chart")
