@@ -25,7 +25,7 @@ def upload_dataset(file: UploadFile = File(...)) -> dict[str, Any]:
             dataframe=dataframe,
             filename=result["dataset"]["name"],
             file_type=result["dataset"]["file_type"],
-            file_size=result["metadata"]["file_size"].split(" ")[0] if result["metadata"]["file_size"] else 0,
+            file_size=result["metadata"]["file_size"],
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

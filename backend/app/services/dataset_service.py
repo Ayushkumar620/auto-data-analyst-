@@ -87,11 +87,12 @@ class DatasetService:
 
     def profile_dataset(self, dataframe: pd.DataFrame, filename: str, file_type: str, file_size: int) -> Dict[str, Any]:
         profiler = DatasetProfiler()
+        size_value = int(file_size) if isinstance(file_size, (int, float, str)) and str(file_size).replace(".", "", 1).replace(" ", "").isdigit() else 0
         result = profiler.profile(
             dataframe=dataframe,
             filename=filename,
             file_type=file_type,
-            file_size=self._format_memory_usage(file_size),
+            file_size=self._format_memory_usage(size_value),
         )
         return result
 
