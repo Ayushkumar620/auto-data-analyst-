@@ -2,7 +2,7 @@ from __future__ import annotations
 import pandas as pd
 
 class ForecastValidator:
-    MIN_OBSERVATIONS = 8
+    MIN_OBSERVATIONS = 5
     def validate(self, series: pd.DataFrame, date_column: str, target: str) -> str | None:
         if date_column not in series or target not in series: return "The selected date or target column does not exist."
         if not pd.api.types.is_numeric_dtype(series[target]): return f"'{target}' must be numeric to forecast it."

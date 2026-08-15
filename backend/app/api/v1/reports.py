@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
+import numpy as np
+import pandas as pd
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 
@@ -12,6 +15,23 @@ from backend.app.reports import ReportEngine
 from backend.app.services.dataset_service import DatasetService
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+
+
+def _json_default(value: Any) -> Any:
+    if isinstance(value, (np.integer, np.floating, np.bool_)):
+        return value.item()
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, (pd.Timestamp, pd.Timedelta)):
+        return str(value)
+    if pd.isna(value):
+        return None
+    if hasattr(value, "isoformat"):
+        try:
+            return value.isoformat()
+        except TypeError:
+            pass
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
 _REPORTS: dict[str, dict[str, Any]] = {}
 
@@ -46,12 +66,13 @@ def generate_report(
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Report generation failed: {exc}") from exc
 
-    return {
+    payload = {
         "status": "completed",
         "report_id": report.report_id,
         "download_url": f"/api/v1/reports/{report.report_id}",
         "report": report.to_dict(),
     }
+    return json.loads(json.dumps(payload, default=_json_default))
 
 
 @router.get("/{report_id}")
