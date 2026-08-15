@@ -7,16 +7,26 @@ import pandas as pd
 from werkzeug.utils import secure_filename
 
 
+def _get_upload_stream(uploaded_file: Any):
+    if hasattr(uploaded_file, "file"):
+        return uploaded_file.file
+    return getattr(uploaded_file, "stream", uploaded_file)
+
+
 class DatasetService:
     def __init__(self, upload_folder: str):
         self.upload_folder = upload_folder
         os.makedirs(self.upload_folder, exist_ok=True)
 
     def upload_dataset(self, uploaded_file: Any) -> Dict[str, Any]:
-        if uploaded_file is None or getattr(uploaded_file, "filename", "") == "":
+        if uploaded_file is None:
             raise ValueError("Empty file upload. Please choose a file.")
 
-        filename = secure_filename(uploaded_file.filename)
+        filename = getattr(uploaded_file, "filename", None) or getattr(uploaded_file, "name", "")
+        if not filename:
+            raise ValueError("Empty file upload. Please choose a file.")
+
+        filename = secure_filename(filename)
         if not filename:
             raise ValueError("Empty file upload. Please choose a file.")
 
@@ -24,19 +34,30 @@ class DatasetService:
         if extension not in {".csv", ".xlsx", ".xls"}:
             raise ValueError("Unsupported file type. Only CSV and Excel files are allowed.")
 
+        stream = _get_upload_stream(uploaded_file)
         file_size = 0
         try:
-            uploaded_file.stream.seek(0, os.SEEK_END)
-            file_size = uploaded_file.stream.tell()
-            uploaded_file.stream.seek(0)
+            stream.seek(0, os.SEEK_END)
+            file_size = stream.tell()
+            stream.seek(0)
         except Exception:
-            file_size = 0
+            try:
+                content = stream.read()
+                file_size = len(content)
+                stream.seek(0)
+            except Exception:
+                file_size = 0
 
         if file_size > 100 * 1024 * 1024:
             raise ValueError("File is too large. Maximum size is 100MB.")
 
         destination = os.path.join(self.upload_folder, filename)
-        uploaded_file.save(destination)
+        if hasattr(uploaded_file, "save"):
+            uploaded_file.save(destination)
+        else:
+            with open(destination, "wb") as destination_file:
+                stream.seek(0)
+                destination_file.write(stream.read())
 
         try:
             dataframe = self._read_dataframe(destination)
