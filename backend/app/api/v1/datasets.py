@@ -20,6 +20,13 @@ def upload_dataset(file: UploadFile = File(...)) -> dict[str, Any]:
     service = DatasetService(upload_folder=str(UPLOAD_DIR))
     try:
         result = service.upload_dataset(file)
+        dataframe = service._read_dataframe(str(UPLOAD_DIR / result["dataset"]["name"]))
+        profile = service.profile_dataset(
+            dataframe=dataframe,
+            filename=result["dataset"]["name"],
+            file_type=result["dataset"]["file_type"],
+            file_size=result["metadata"]["file_size"].split(" ")[0] if result["metadata"]["file_size"] else 0,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -37,6 +44,11 @@ def upload_dataset(file: UploadFile = File(...)) -> dict[str, Any]:
         "missing_values": metadata["missing_values"],
         "duplicate_rows": metadata["duplicate_rows"],
         "memory_usage": metadata["memory_usage"],
-        "preview": result["preview"],
+        "profile": profile["profile"],
+        "column_analysis": profile["column_analysis"],
+        "numeric_analysis": profile["numeric_analysis"],
+        "categorical_analysis": profile["categorical_analysis"],
+        "preview": profile["preview"],
+        "recommendations": profile["recommendations"],
     }
     return payload
