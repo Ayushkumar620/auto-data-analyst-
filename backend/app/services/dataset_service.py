@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 import pandas as pd
 from werkzeug.utils import secure_filename
 
+from backend.app.cleaning.cleaner import DataCleaner
 from backend.app.profilers.dataset_profiler import DatasetProfiler
 
 
@@ -87,7 +88,7 @@ class DatasetService:
 
     def profile_dataset(self, dataframe: pd.DataFrame, filename: str, file_type: str, file_size: int) -> Dict[str, Any]:
         profiler = DatasetProfiler()
-        size_value = int(file_size) if isinstance(file_size, (int, float, str)) and str(file_size).replace(".", "", 1).replace(" ", "").isdigit() else 0
+        size_value = self._coerce_size_bytes(file_size)
         result = profiler.profile(
             dataframe=dataframe,
             filename=filename,
@@ -95,6 +96,32 @@ class DatasetService:
             file_size=self._format_memory_usage(size_value),
         )
         return result
+
+    def clean_dataset(self, uploaded_file: Any) -> Dict[str, Any]:
+        result = self.upload_dataset(uploaded_file)
+        dataframe = self._read_dataframe(os.path.join(self.upload_folder, result["dataset"]["name"]))
+        cleaner = DataCleaner(dataframe)
+        cleaned = cleaner.clean()
+        profile = self.profile_dataset(
+            dataframe=dataframe,
+            filename=result["dataset"]["name"],
+            file_type=result["dataset"]["file_type"],
+            file_size=result["metadata"]["file_size"],
+        )
+
+        return {
+            "status": "cleaned",
+            "dataset": result["dataset"],
+            "quality_before": cleaned["quality_before"],
+            "quality_after": cleaned["quality_after"],
+            "rows_removed": cleaned["rows_removed"],
+            "missing_values_fixed": cleaned["missing_values_fixed"],
+            "datatype_conversions": cleaned["datatype_conversions"],
+            "outliers_detected": cleaned["outliers_detected"],
+            "cleaning_report": cleaned["cleaning_report"],
+            "preview": cleaned["cleaned_data"],
+            "profile": profile["profile"],
+        }
 
     def _read_dataframe(self, file_path: str) -> pd.DataFrame:
         extension = os.path.splitext(file_path)[1].lower()
@@ -123,6 +150,17 @@ class DatasetService:
         for row in preview_rows:
             normalized.append({key: None if pd.isna(value) else value for key, value in row.items()})
         return normalized
+
+    def _coerce_size_bytes(self, size_value: Any) -> int:
+        if isinstance(size_value, (int, float)):
+            return int(size_value)
+        if isinstance(size_value, str):
+            numeric = size_value.split(" ")[0].strip()
+            try:
+                return int(float(numeric))
+            except ValueError:
+                return 0
+        return 0
 
     def _format_memory_usage(self, size_bytes: int) -> str:
         for unit in ["B", "KB", "MB", "GB"]:

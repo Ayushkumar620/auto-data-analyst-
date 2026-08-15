@@ -52,3 +52,16 @@ def upload_dataset(file: UploadFile = File(...)) -> dict[str, Any]:
         "recommendations": profile["recommendations"],
     }
     return payload
+
+
+@router.post("/clean")
+def clean_dataset(file: UploadFile = File(...)) -> dict[str, Any]:
+    service = DatasetService(upload_folder=str(UPLOAD_DIR))
+    try:
+        result = service.clean_dataset(file)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Cleaning failed: {exc}") from exc
+
+    return result
