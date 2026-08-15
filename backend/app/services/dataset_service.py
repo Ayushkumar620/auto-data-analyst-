@@ -6,6 +6,8 @@ from typing import Any, Dict, List
 import pandas as pd
 from werkzeug.utils import secure_filename
 
+from backend.app.profilers.dataset_profiler import DatasetProfiler
+
 
 def _get_upload_stream(uploaded_file: Any):
     if hasattr(uploaded_file, "file"):
@@ -82,6 +84,16 @@ class DatasetService:
             "metadata": metadata,
             "preview": preview,
         }
+
+    def profile_dataset(self, dataframe: pd.DataFrame, filename: str, file_type: str, file_size: int) -> Dict[str, Any]:
+        profiler = DatasetProfiler()
+        result = profiler.profile(
+            dataframe=dataframe,
+            filename=filename,
+            file_type=file_type,
+            file_size=self._format_memory_usage(file_size),
+        )
+        return result
 
     def _read_dataframe(self, file_path: str) -> pd.DataFrame:
         extension = os.path.splitext(file_path)[1].lower()
