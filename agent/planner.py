@@ -119,7 +119,8 @@ class PlannerAgent:
 
     def run_agent(self, request, data=None):
         """Execute a single atomic request using the appropriate agent."""
-        data = data or self.data
+        if data is None:
+            data = self.data
         req = request or {}
         action = req.get("action", "summary")
         entry = self.REQUEST_MAP.get(action)
@@ -143,7 +144,8 @@ class PlannerAgent:
         steps: list of action strings, e.g. ["clean", "summary", "insights", "report"].
         Defaults to a full pipeline: clean -> summary -> insights.
         """
-        data = data or self.data
+        if data is None:
+            data = self.data
         if steps is None:
             steps = ["clean", "summary", "insights"]
 
