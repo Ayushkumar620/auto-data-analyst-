@@ -43,6 +43,10 @@ def health_v1() -> dict:
     return health()
 
 
+from backend.app.api.v1.chat import router as chat_router
 from backend.app.api.v1.datasets import router as datasets_router
+from backend.app.api.v1.insights import router as insights_router
 
 app.include_router(datasets_router, prefix=settings.api_v1_prefix)
+app.include_router(insights_router, prefix=settings.api_v1_prefix)
+app.include_router(chat_router, prefix=settings.api_v1_prefix)
