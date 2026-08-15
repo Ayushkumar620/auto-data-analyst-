@@ -94,7 +94,6 @@ def upload_dataset():
         insight_result = insight_engine.generate(dataframe, result["eda"])
         result["insights"] = insight_result["insights"]
         result["analytical_facts"] = insight_result["facts"]
-        register_analysis(result["dataset_id"], dataframe, result["eda"])
         result["cleaning"] = {
             "status": cleaning_result["status"],
             "quality_before": cleaning_result["quality_before"],
@@ -105,6 +104,7 @@ def upload_dataset():
             "outliers_detected": cleaning_result["outliers_detected"],
             "cleaning_report": cleaning_result["cleaning_report"],
         }
+        register_analysis(result["dataset_id"], dataframe, result["eda"], insights=result["insights"], cleaning=result["cleaning"], dataset_name=result["dataset_name"])
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:
