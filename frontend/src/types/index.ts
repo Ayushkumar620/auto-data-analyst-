@@ -8,6 +8,9 @@ export type DatasetProfile = {
   preview: Array<Record<string, unknown>>;
   data_types?: Record<string, string>;
   memory_usage?: string;
+  workspace_id?: string;
+  project_id?: string;
+  workspace_dataset_id?: string;
 };
 
 export type Workspace = {

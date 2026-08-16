@@ -51,7 +51,10 @@ export default function UploadPage() {
     setError('');
 
     try {
-      const result = await uploadDataset(selectedFile);
+      const result = await uploadDataset(selectedFile, {
+        workspaceId: workspace?.id,
+        projectId: project?.id,
+      });
       setProfile(result);
       resetDerivedResults();
     } catch (err) {
@@ -288,6 +291,7 @@ export default function UploadPage() {
                   <h3>Active context</h3>
                   {workspace ? <p>Workspace: {workspace.name} ({workspace.id})</p> : null}
                   {project ? <p>Project: {project.name} ({project.id})</p> : null}
+                  {profile?.workspace_dataset_id ? <p>Linked dataset: {profile.workspace_dataset_id}</p> : null}
                 </section>
               ) : null}
 
