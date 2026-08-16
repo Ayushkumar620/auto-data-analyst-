@@ -73,7 +73,7 @@ export default function UploadPage() {
     setWorking('Generating EDA...');
     setError('');
     try {
-      const result = await generateEda(selectedFile);
+      const result = await generateEda(selectedFile, { workspaceId: workspace?.id, projectId: project?.id });
       setEda(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'EDA failed');
@@ -91,7 +91,7 @@ export default function UploadPage() {
     setWorking('Generating insights...');
     setError('');
     try {
-      const result = await generateInsights(selectedFile);
+      const result = await generateInsights(selectedFile, { workspaceId: workspace?.id, projectId: project?.id });
       setInsights(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Insight generation failed');
@@ -109,7 +109,7 @@ export default function UploadPage() {
     setWorking('Generating forecast...');
     setError('');
     try {
-      const result = await generateForecast(selectedFile, horizon);
+      const result = await generateForecast(selectedFile, horizon, { workspaceId: workspace?.id, projectId: project?.id });
       setForecast(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Forecast failed');
@@ -127,7 +127,7 @@ export default function UploadPage() {
     setWorking('Generating report...');
     setError('');
     try {
-      const result = await generateReport(selectedFile, 'pdf');
+      const result = await generateReport(selectedFile, 'pdf', { workspaceId: workspace?.id, projectId: project?.id });
       setReport(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Report generation failed');

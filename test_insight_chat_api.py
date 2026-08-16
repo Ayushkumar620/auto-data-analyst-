@@ -32,3 +32,27 @@ def test_chat_endpoint_responds_using_dataset_context():
     assert payload["status"] == "success"
     assert payload["intent"] in {"aggregation", "statistics"}
     assert "message" in payload
+
+
+def test_insight_endpoint_accepts_workspace_project_context():
+    workspace = client.post(
+        "/api/v1/workspaces",
+        json={"name": "Insight Workspace", "owner": "demo"},
+    ).json()
+    project = client.post(
+        f"/api/v1/workspaces/{workspace['id']}/projects",
+        json={"name": "Trend Project"},
+    ).json()
+
+    csv_content = "date,sales\n2024-01,100\n2024-02,130\n2024-03,160\n"
+    response = client.post(
+        "/api/v1/insights/generate",
+        files={"file": ("metrics.csv", csv_content, "text/csv")},
+        data={"workspace_id": workspace["id"], "project_id": project["id"]},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["workspace_id"] == workspace["id"]
+    assert payload["project_id"] == project["id"]
+    assert payload["workspace_dataset_id"]

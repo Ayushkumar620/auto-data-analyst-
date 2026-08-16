@@ -1,5 +1,19 @@
 import { buildApiUrl } from './api';
 
+type AnalysisContext = {
+  workspaceId?: string;
+  projectId?: string;
+};
+
+function appendContext(formData: FormData, context?: AnalysisContext): void {
+  if (context?.workspaceId) {
+    formData.append('workspace_id', context.workspaceId);
+  }
+  if (context?.projectId) {
+    formData.append('project_id', context.projectId);
+  }
+}
+
 export type InsightItem = {
   type: string;
   title: string;
@@ -45,9 +59,10 @@ async function parseError(response: Response): Promise<never> {
   throw new Error(errorData.detail || errorData.message || 'Request failed');
 }
 
-export async function generateEda(file: File): Promise<Record<string, unknown>> {
+export async function generateEda(file: File, context?: AnalysisContext): Promise<Record<string, unknown>> {
   const formData = new FormData();
   formData.append('file', file);
+  appendContext(formData, context);
 
   const response = await fetch(buildApiUrl('/api/v1/datasets/eda'), {
     method: 'POST',
@@ -61,9 +76,10 @@ export async function generateEda(file: File): Promise<Record<string, unknown>> 
   return response.json();
 }
 
-export async function generateInsights(file: File): Promise<InsightsResponse> {
+export async function generateInsights(file: File, context?: AnalysisContext): Promise<InsightsResponse> {
   const formData = new FormData();
   formData.append('file', file);
+  appendContext(formData, context);
 
   const response = await fetch(buildApiUrl('/api/v1/insights/generate'), {
     method: 'POST',
@@ -81,10 +97,11 @@ export async function generateInsights(file: File): Promise<InsightsResponse> {
   };
 }
 
-export async function generateForecast(file: File, horizon = 6): Promise<ForecastResponse> {
+export async function generateForecast(file: File, horizon = 6, context?: AnalysisContext): Promise<ForecastResponse> {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('horizon', String(horizon));
+  appendContext(formData, context);
 
   const response = await fetch(buildApiUrl('/api/v1/forecast'), {
     method: 'POST',
@@ -98,10 +115,15 @@ export async function generateForecast(file: File, horizon = 6): Promise<Forecas
   return response.json();
 }
 
-export async function generateReport(file: File, outputFormat: 'pdf' | 'excel' | 'powerpoint' = 'pdf'): Promise<ReportResponse> {
+export async function generateReport(
+  file: File,
+  outputFormat: 'pdf' | 'excel' | 'powerpoint' = 'pdf',
+  context?: AnalysisContext,
+): Promise<ReportResponse> {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('output_format', outputFormat);
+  appendContext(formData, context);
 
   const response = await fetch(buildApiUrl('/api/v1/reports/generate'), {
     method: 'POST',

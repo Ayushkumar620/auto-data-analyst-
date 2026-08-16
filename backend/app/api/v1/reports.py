@@ -8,6 +8,7 @@ import pandas as pd
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 
+from backend.app.api.v1.context import link_uploaded_dataset, resolve_context
 from backend.app.config import UPLOAD_DIR
 from backend.app.eda.orchestrator import EDAOrchestrator
 from backend.app.insights import InsightEngine
@@ -40,13 +41,17 @@ _REPORTS: dict[str, dict[str, Any]] = {}
 def generate_report(
     file: UploadFile = File(...),
     output_format: str = Form("pdf"),
+    workspace_id: str | None = Form(None),
+    project_id: str | None = Form(None),
 ) -> dict[str, Any]:
     service = DatasetService(upload_folder=str(UPLOAD_DIR))
     try:
+        resolved_workspace_id, resolved_project_id = resolve_context(workspace_id, project_id)
         uploaded = service.upload_dataset(file)
         dataframe = service._read_dataframe(str(UPLOAD_DIR / uploaded["dataset"]["name"]))
         eda = EDAOrchestrator().analyze(dataframe)
         insights = InsightEngine().generate(dataframe, eda)
+        linked_dataset = link_uploaded_dataset(uploaded, resolved_workspace_id, resolved_project_id)
         analysis = {
             "dataframe": dataframe,
             "eda": eda,
@@ -71,6 +76,9 @@ def generate_report(
         "report_id": report.report_id,
         "download_url": f"/api/v1/reports/{report.report_id}",
         "report": report.to_dict(),
+        "workspace_id": resolved_workspace_id,
+        "project_id": resolved_project_id,
+        "workspace_dataset_id": linked_dataset["id"] if linked_dataset else None,
     }
     return json.loads(json.dumps(payload, default=_json_default))
 

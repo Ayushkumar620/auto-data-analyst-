@@ -32,3 +32,27 @@ def test_clean_endpoint_handles_missing_and_duplicates():
     assert payload["status"] == "cleaned"
     assert payload["quality_after"] >= payload["quality_before"]
     assert isinstance(payload["cleaning_report"], list)
+
+
+def test_eda_endpoint_accepts_workspace_project_context():
+    workspace = client.post(
+        "/api/v1/workspaces",
+        json={"name": "EDA Workspace", "owner": "demo"},
+    ).json()
+    project = client.post(
+        f"/api/v1/workspaces/{workspace['id']}/projects",
+        json={"name": "EDA Project"},
+    ).json()
+
+    csv_content = "region,sales\nNorth,120\nSouth,90\nEast,130\n"
+    response = client.post(
+        "/api/v1/datasets/eda",
+        files={"file": ("sales.csv", csv_content, "text/csv")},
+        data={"workspace_id": workspace["id"], "project_id": project["id"]},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["workspace_id"] == workspace["id"]
+    assert payload["project_id"] == project["id"]
+    assert payload["workspace_dataset_id"]

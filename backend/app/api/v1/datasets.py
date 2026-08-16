@@ -7,10 +7,10 @@ import numpy as np
 import pandas as pd
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
+from backend.app.api.v1.context import link_uploaded_dataset, resolve_context
 from backend.app.config import UPLOAD_DIR
 from backend.app.eda.orchestrator import EDAOrchestrator
 from backend.app.services.dataset_service import DatasetService
-from backend.app.services.workspace_service import get_workspace_service
 from backend.app.visualization.charts import ChartFactory
 from backend.app.visualization.serializers import figure_to_json
 
@@ -46,19 +46,8 @@ def upload_dataset(
     project_id: str | None = Form(None),
 ) -> dict[str, Any]:
     service = DatasetService(upload_folder=str(UPLOAD_DIR))
-    workspace_service = get_workspace_service()
     try:
-        resolved_workspace_id = workspace_id
-        if project_id:
-            project = workspace_service.get_project(project_id)
-            if project is None:
-                raise ValueError("Project not found")
-            if resolved_workspace_id and project["workspace_id"] != resolved_workspace_id:
-                raise ValueError("Project does not belong to workspace")
-            resolved_workspace_id = project["workspace_id"]
-
-        if resolved_workspace_id and not workspace_service.has_workspace(resolved_workspace_id):
-            raise ValueError("Workspace not found")
+        resolved_workspace_id, resolved_project_id = resolve_context(workspace_id, project_id)
 
         result = service.upload_dataset(file)
         dataframe = service._read_dataframe(str(UPLOAD_DIR / result["dataset"]["name"]))
@@ -69,21 +58,7 @@ def upload_dataset(
             file_size=result["metadata"]["file_size"],
         )
 
-        linked_dataset: dict[str, Any] | None = None
-        if resolved_workspace_id and project_id:
-            linked_dataset = workspace_service.create_dataset(
-                project_id=project_id,
-                workspace_id=resolved_workspace_id,
-                name=result["dataset"]["name"],
-                rows=result["dataset"]["rows"],
-                columns=result["dataset"]["columns"],
-                schema=result["metadata"]["column_names"],
-                stats={
-                    "missing_values": result["metadata"]["missing_values"],
-                    "duplicate_rows": result["metadata"]["duplicate_rows"],
-                    "memory_usage": result["metadata"]["memory_usage"],
-                },
-            )
+        linked_dataset = link_uploaded_dataset(result, resolved_workspace_id, resolved_project_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -108,7 +83,7 @@ def upload_dataset(
         "preview": profile["preview"],
         "recommendations": profile["recommendations"],
         "workspace_id": resolved_workspace_id,
-        "project_id": project_id,
+        "project_id": resolved_project_id,
         "workspace_dataset_id": linked_dataset["id"] if linked_dataset else None,
     }
     return payload
@@ -128,18 +103,30 @@ def clean_dataset(file: UploadFile = File(...)) -> dict[str, Any]:
 
 
 @router.post("/eda")
-def analyze_dataset_eda(file: UploadFile = File(...)) -> dict[str, Any]:
+def analyze_dataset_eda(
+    file: UploadFile = File(...),
+    workspace_id: str | None = Form(None),
+    project_id: str | None = Form(None),
+) -> dict[str, Any]:
     service = DatasetService(upload_folder=str(UPLOAD_DIR))
     try:
+        resolved_workspace_id, resolved_project_id = resolve_context(workspace_id, project_id)
         uploaded = service.upload_dataset(file)
         dataframe = service._read_dataframe(str(UPLOAD_DIR / uploaded["dataset"]["name"]))
         result = EDAOrchestrator().analyze(dataframe)
+        linked_dataset = link_uploaded_dataset(uploaded, resolved_workspace_id, resolved_project_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"EDA failed: {exc}") from exc
 
-    return json.loads(json.dumps(result, default=_json_default))
+    payload = {
+        **result,
+        "workspace_id": resolved_workspace_id,
+        "project_id": resolved_project_id,
+        "workspace_dataset_id": linked_dataset["id"] if linked_dataset else None,
+    }
+    return json.loads(json.dumps(payload, default=_json_default))
 
 
 @router.post("/chart")
