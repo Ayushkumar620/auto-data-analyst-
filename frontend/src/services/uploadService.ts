@@ -1,6 +1,5 @@
 import type { DatasetProfile } from '../types';
-
-const API_BASE_URL = (import.meta as ImportMeta & { env?: { VITE_API_BASE_URL?: string } }).env?.VITE_API_BASE_URL ?? '';
+import { buildApiUrl } from './api';
 
 type FastApiUploadResponse = {
   dataset?: { name?: string; rows?: number; columns?: number; file_type?: string };
@@ -36,7 +35,7 @@ export async function uploadDataset(file: File): Promise<DatasetProfile> {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(`${API_BASE_URL}/api/v1/datasets/upload`, {
+  const response = await fetch(buildApiUrl('/api/v1/datasets/upload'), {
     method: 'POST',
     body: formData,
   });
