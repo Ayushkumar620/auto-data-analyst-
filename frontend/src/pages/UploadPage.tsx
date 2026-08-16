@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import UploadBox from '../components/UploadBox';
 import DatasetSummary from '../components/DatasetSummary';
+import ForecastChart from '../components/ForecastChart';
 import PreviewTable from '../components/PreviewTable';
 import {
   generateEda,
@@ -13,6 +14,7 @@ import {
 } from '../services/analysisService';
 import { uploadDataset } from '../services/uploadService';
 import type { DatasetProfile } from '../types';
+import './upload-page.css';
 
 export default function UploadPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -24,6 +26,7 @@ export default function UploadPage() {
   const [loading, setLoading] = useState(false);
   const [working, setWorking] = useState('');
   const [error, setError] = useState('');
+  const [horizon, setHorizon] = useState(6);
 
   const resetDerivedResults = () => {
     setEda(null);
@@ -97,7 +100,7 @@ export default function UploadPage() {
     setWorking('Generating forecast...');
     setError('');
     try {
-      const result = await generateForecast(selectedFile);
+      const result = await generateForecast(selectedFile, horizon);
       setForecast(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Forecast failed');
@@ -131,97 +134,146 @@ export default function UploadPage() {
   const edaSections = eda ? Object.keys(eda) : [];
 
   return (
-    <div>
-      <h2>Upload Dataset</h2>
-      <UploadBox onFileSelect={setSelectedFile} />
-      <button onClick={handleUpload} disabled={disabled}>
-        {loading ? 'Uploading...' : 'Upload'}
-      </button>
-      <button onClick={runEda} disabled={disabled || !profile}>
-        Run EDA
-      </button>
-      <button onClick={runInsights} disabled={disabled || !profile}>
-        Generate Insights
-      </button>
-      <button onClick={runForecast} disabled={disabled || !profile}>
-        Forecast
-      </button>
-      <button onClick={runReport} disabled={disabled || !profile}>
-        Generate Report
-      </button>
-      {error ? <p>{error}</p> : null}
-      {working ? <p>{working}</p> : null}
-      {profile ? (
-        <div>
-          <DatasetSummary profile={profile} />
-          <PreviewTable preview={profile.preview} />
+    <div className="upload-page">
+      <header className="hero-block">
+        <p className="hero-eyebrow">Auto Data Analyst</p>
+        <h1>Operational analytics cockpit</h1>
+        <p>Upload once, run EDA, generate insights, forecast trends, and export a report from one workflow.</p>
+      </header>
 
-          {eda ? (
-            <section>
-              <h3>EDA Overview</h3>
-              <p>Sections: {edaSections.join(', ')}</p>
-            </section>
-          ) : null}
+      <div className="layout-grid">
+        <aside className="control-panel fade-in">
+          <UploadBox onFileSelect={setSelectedFile} selectedFileName={selectedFile?.name} />
 
-          {insights ? (
-            <section>
-              <h3>Insights</h3>
-              {insightList.length ? (
-                <ul>
-                  {insightList.map((insight, index) => (
-                    <li key={`${insight.title}-${index}`}>
-                      <strong>{insight.title}</strong>: {insight.description}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p>No insights generated.</p>
-              )}
-            </section>
-          ) : null}
+          <button className="primary-btn" onClick={handleUpload} disabled={disabled}>
+            {loading ? 'Uploading...' : 'Upload Dataset'}
+          </button>
 
-          {forecast ? (
-            <section>
-              <h3>Forecast</h3>
-              <p>
-                Target: {forecast.target} | Model: {forecast.model} | Horizon: {forecast.horizon}
-              </p>
-              {forecastRows.length ? (
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Prediction</th>
-                      <th>Lower</th>
-                      <th>Upper</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {forecastRows.map((point) => (
-                      <tr key={point.date}>
-                        <td>{point.date}</td>
-                        <td>{point.prediction}</td>
-                        <td>{point.lower}</td>
-                        <td>{point.upper}</td>
-                      </tr>
+          <div className="panel-section">
+            <label htmlFor="forecast-horizon">Forecast horizon</label>
+            <input
+              id="forecast-horizon"
+              className="horizon-input"
+              type="number"
+              min={1}
+              max={24}
+              value={horizon}
+              onChange={(event) => setHorizon(Math.max(1, Math.min(24, Number(event.target.value) || 1)))}
+            />
+          </div>
+
+          <div className="action-grid">
+            <button className="action-btn" onClick={runEda} disabled={disabled || !profile}>
+              Run EDA
+            </button>
+            <button className="action-btn" onClick={runInsights} disabled={disabled || !profile}>
+              Generate Insights
+            </button>
+            <button className="action-btn" onClick={runForecast} disabled={disabled || !profile}>
+              Run Forecast
+            </button>
+            <button className="action-btn" onClick={runReport} disabled={disabled || !profile}>
+              Export Report
+            </button>
+          </div>
+
+          {error ? <p className="status-banner status-error">{error}</p> : null}
+          {working ? <p className="status-banner status-working">{working}</p> : null}
+        </aside>
+
+        <main className="results-panel fade-in delayed">
+          {!profile ? (
+            <div className="empty-state">
+              <h3>No dataset loaded yet</h3>
+              <p>Select a file and upload to begin analysis.</p>
+            </div>
+          ) : (
+            <>
+              <DatasetSummary profile={profile} />
+
+              <section className="result-card">
+                <h3>Preview</h3>
+                <PreviewTable preview={profile.preview} />
+              </section>
+
+              {eda ? (
+                <section className="result-card">
+                  <h3>EDA modules complete</h3>
+                  <div className="chip-row">
+                    {edaSections.map((section) => (
+                      <span key={section} className="data-chip">
+                        {section}
+                      </span>
                     ))}
-                  </tbody>
-                </table>
-              ) : (
-                <p>No forecast points returned.</p>
-              )}
-            </section>
-          ) : null}
+                  </div>
+                </section>
+              ) : null}
 
-          {report ? (
-            <section>
-              <h3>Report</h3>
-              <p>Report ID: {report.report_id}</p>
-              <a href={report.download_url}>Download PDF report</a>
-            </section>
-          ) : null}
-        </div>
-      ) : null}
+              {insights ? (
+                <section className="result-card">
+                  <h3>Insights</h3>
+                  {insightList.length ? (
+                    <ul className="insight-list">
+                      {insightList.map((insight, index) => (
+                        <li key={`${insight.title}-${index}`}>
+                          <strong>{insight.title}</strong>
+                          <p>{insight.description}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="muted">No insights generated.</p>
+                  )}
+                </section>
+              ) : null}
+
+              {forecast ? (
+                <section className="result-card">
+                  <h3>Forecast</h3>
+                  <p className="forecast-meta">
+                    Target: {forecast.target} | Model: {forecast.model} | Horizon: {forecast.horizon}
+                  </p>
+                  <ForecastChart points={forecastRows} target={forecast.target} />
+                  {forecastRows.length ? (
+                    <div className="table-shell">
+                      <table className="result-table">
+                        <thead>
+                          <tr>
+                            <th>Date</th>
+                            <th>Prediction</th>
+                            <th>Lower</th>
+                            <th>Upper</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {forecastRows.map((point) => (
+                            <tr key={point.date}>
+                              <td>{point.date}</td>
+                              <td>{point.prediction}</td>
+                              <td>{point.lower}</td>
+                              <td>{point.upper}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
+
+              {report ? (
+                <section className="result-card">
+                  <h3>Report export ready</h3>
+                  <p>Report ID: {report.report_id}</p>
+                  <a className="download-link" href={report.download_url}>
+                    Download PDF report
+                  </a>
+                </section>
+              ) : null}
+            </>
+          )}
+        </main>
+      </div>
     </div>
   );
 }

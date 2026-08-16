@@ -2,13 +2,15 @@ import React from 'react';
 
 type UploadBoxProps = {
   onFileSelect: (file: File) => void;
+  selectedFileName?: string;
 };
 
-export default function UploadBox({ onFileSelect }: UploadBoxProps) {
+export default function UploadBox({ onFileSelect, selectedFileName }: UploadBoxProps) {
   return (
-    <div>
-      <h3>Upload Dataset</h3>
+    <div className="upload-box">
+      <h3>Upload dataset</h3>
       <input
+        className="upload-input"
         type="file"
         accept=".csv,.xlsx,.xls"
         onChange={(event) => {
@@ -17,6 +19,8 @@ export default function UploadBox({ onFileSelect }: UploadBoxProps) {
           }
         }}
       />
+      <p className="upload-hint">Supported: CSV, XLSX, XLS</p>
+      {selectedFileName ? <p className="selected-file">Selected: {selectedFileName}</p> : null}
     </div>
   );
 }
