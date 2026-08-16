@@ -5,11 +5,11 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from backend.app.services.workspace_service import WorkspaceService
+from backend.app.services.workspace_service import get_workspace_service
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 
-_workspace_service = WorkspaceService()
+_workspace_service = get_workspace_service()
 
 
 class WorkspaceCreate(BaseModel):

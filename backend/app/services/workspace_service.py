@@ -49,6 +49,15 @@ class WorkspaceService:
         self.workspaces[workspace.id] = workspace
         return self._workspace_to_dict(workspace)
 
+    def has_workspace(self, workspace_id: str) -> bool:
+        return workspace_id in self.workspaces
+
+    def get_project(self, project_id: str) -> Dict[str, Any] | None:
+        project = self.projects.get(project_id)
+        if not project:
+            return None
+        return self._project_to_dict(project)
+
     def create_project(self, workspace_id: str, name: str) -> Dict[str, Any]:
         workspace = self.workspaces.get(workspace_id)
         if not workspace:
@@ -63,6 +72,10 @@ class WorkspaceService:
         project = self.projects.get(project_id)
         if not project:
             raise ValueError("Project not found")
+        if workspace_id not in self.workspaces:
+            raise ValueError("Workspace not found")
+        if project.workspace_id != workspace_id:
+            raise ValueError("Project does not belong to workspace")
 
         dataset = Dataset(
             id=str(uuid.uuid4())[:8],
@@ -102,3 +115,10 @@ class WorkspaceService:
             "chat_history": dataset.chat_history,
             "created_at": dataset.created_at,
         }
+
+
+_workspace_service_singleton = WorkspaceService()
+
+
+def get_workspace_service() -> WorkspaceService:
+    return _workspace_service_singleton

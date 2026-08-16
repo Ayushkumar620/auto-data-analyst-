@@ -10,6 +10,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from backend.app.config import UPLOAD_DIR
 from backend.app.eda.orchestrator import EDAOrchestrator
 from backend.app.services.dataset_service import DatasetService
+from backend.app.services.workspace_service import get_workspace_service
 from backend.app.visualization.charts import ChartFactory
 from backend.app.visualization.serializers import figure_to_json
 
@@ -39,9 +40,26 @@ def list_datasets() -> dict[str, Any]:
 
 
 @router.post("/upload")
-def upload_dataset(file: UploadFile = File(...)) -> dict[str, Any]:
+def upload_dataset(
+    file: UploadFile = File(...),
+    workspace_id: str | None = Form(None),
+    project_id: str | None = Form(None),
+) -> dict[str, Any]:
     service = DatasetService(upload_folder=str(UPLOAD_DIR))
+    workspace_service = get_workspace_service()
     try:
+        resolved_workspace_id = workspace_id
+        if project_id:
+            project = workspace_service.get_project(project_id)
+            if project is None:
+                raise ValueError("Project not found")
+            if resolved_workspace_id and project["workspace_id"] != resolved_workspace_id:
+                raise ValueError("Project does not belong to workspace")
+            resolved_workspace_id = project["workspace_id"]
+
+        if resolved_workspace_id and not workspace_service.has_workspace(resolved_workspace_id):
+            raise ValueError("Workspace not found")
+
         result = service.upload_dataset(file)
         dataframe = service._read_dataframe(str(UPLOAD_DIR / result["dataset"]["name"]))
         profile = service.profile_dataset(
@@ -50,6 +68,22 @@ def upload_dataset(file: UploadFile = File(...)) -> dict[str, Any]:
             file_type=result["dataset"]["file_type"],
             file_size=result["metadata"]["file_size"],
         )
+
+        linked_dataset: dict[str, Any] | None = None
+        if resolved_workspace_id and project_id:
+            linked_dataset = workspace_service.create_dataset(
+                project_id=project_id,
+                workspace_id=resolved_workspace_id,
+                name=result["dataset"]["name"],
+                rows=result["dataset"]["rows"],
+                columns=result["dataset"]["columns"],
+                schema=result["metadata"]["column_names"],
+                stats={
+                    "missing_values": result["metadata"]["missing_values"],
+                    "duplicate_rows": result["metadata"]["duplicate_rows"],
+                    "memory_usage": result["metadata"]["memory_usage"],
+                },
+            )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -73,6 +107,9 @@ def upload_dataset(file: UploadFile = File(...)) -> dict[str, Any]:
         "categorical_analysis": profile["categorical_analysis"],
         "preview": profile["preview"],
         "recommendations": profile["recommendations"],
+        "workspace_id": resolved_workspace_id,
+        "project_id": project_id,
+        "workspace_dataset_id": linked_dataset["id"] if linked_dataset else None,
     }
     return payload
 
