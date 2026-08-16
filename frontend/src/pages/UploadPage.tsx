@@ -3,19 +3,11 @@ import UploadBox from '../components/UploadBox';
 import DatasetSummary from '../components/DatasetSummary';
 import PreviewTable from '../components/PreviewTable';
 import { uploadDataset } from '../services/uploadService';
-
-type Profile = {
-  dataset_name: string;
-  rows: number;
-  columns: number;
-  missing_values: number;
-  duplicates: number;
-  preview: Array<Record<string, unknown>>;
-};
+import type { DatasetProfile } from '../types';
 
 export default function UploadPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<DatasetProfile | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 

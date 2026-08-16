@@ -7,8 +7,5 @@ export type DatasetProfile = {
   duplicates: number;
   preview: Array<Record<string, unknown>>;
   data_types?: Record<string, string>;
-  numeric_columns?: string[];
-  categorical_columns?: string[];
-  date_columns?: string[];
   memory_usage?: string;
 };
