@@ -48,9 +48,11 @@ from backend.app.api.v1.datasets import router as datasets_router
 from backend.app.api.v1.forecasting import router as forecasting_router
 from backend.app.api.v1.insights import router as insights_router
 from backend.app.api.v1.reports import router as reports_router
+from backend.app.api.v1.workspaces import router as workspaces_router
 
 app.include_router(datasets_router, prefix=settings.api_v1_prefix)
 app.include_router(insights_router, prefix=settings.api_v1_prefix)
 app.include_router(chat_router, prefix=settings.api_v1_prefix)
 app.include_router(forecasting_router, prefix=settings.api_v1_prefix)
 app.include_router(reports_router, prefix=settings.api_v1_prefix)
+app.include_router(workspaces_router, prefix=settings.api_v1_prefix)
