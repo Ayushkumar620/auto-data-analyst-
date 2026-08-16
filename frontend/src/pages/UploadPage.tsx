@@ -13,7 +13,8 @@ import {
   type ReportResponse,
 } from '../services/analysisService';
 import { uploadDataset } from '../services/uploadService';
-import type { DatasetProfile } from '../types';
+import { createProject, createWorkspace } from '../services/workspaceService';
+import type { DatasetProfile, Project, Workspace } from '../types';
 import './upload-page.css';
 
 export default function UploadPage() {
@@ -27,6 +28,11 @@ export default function UploadPage() {
   const [working, setWorking] = useState('');
   const [error, setError] = useState('');
   const [horizon, setHorizon] = useState(6);
+  const [workspaceOwner, setWorkspaceOwner] = useState('demo');
+  const [workspaceName, setWorkspaceName] = useState('Default Workspace');
+  const [projectName, setProjectName] = useState('Imported Project');
+  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
 
   const resetDerivedResults = () => {
     setEda(null);
@@ -127,6 +133,51 @@ export default function UploadPage() {
     }
   };
 
+  const handleCreateWorkspace = async () => {
+    if (!workspaceName.trim()) {
+      setError('Workspace name is required.');
+      return;
+    }
+    if (!workspaceOwner.trim()) {
+      setError('Owner is required.');
+      return;
+    }
+
+    setWorking('Creating workspace...');
+    setError('');
+    try {
+      const created = await createWorkspace({ name: workspaceName.trim(), owner: workspaceOwner.trim() });
+      setWorkspace(created);
+      setProject(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Workspace creation failed');
+    } finally {
+      setWorking('');
+    }
+  };
+
+  const handleCreateProject = async () => {
+    if (!workspace?.id) {
+      setError('Create a workspace before creating a project.');
+      return;
+    }
+    if (!projectName.trim()) {
+      setError('Project name is required.');
+      return;
+    }
+
+    setWorking('Creating project...');
+    setError('');
+    try {
+      const created = await createProject({ workspaceId: workspace.id, name: projectName.trim() });
+      setProject(created);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Project creation failed');
+    } finally {
+      setWorking('');
+    }
+  };
+
   const disabled = loading || Boolean(working);
 
   const insightList = insights?.insights ?? [];
@@ -143,6 +194,47 @@ export default function UploadPage() {
 
       <div className="layout-grid">
         <aside className="control-panel fade-in">
+          <section className="context-panel">
+            <h3>Workspace context</h3>
+            <div className="panel-section">
+              <label htmlFor="workspace-owner">Owner</label>
+              <input
+                id="workspace-owner"
+                className="horizon-input"
+                value={workspaceOwner}
+                onChange={(event) => setWorkspaceOwner(event.target.value)}
+                placeholder="e.g. demo"
+              />
+            </div>
+            <div className="panel-section">
+              <label htmlFor="workspace-name">Workspace name</label>
+              <input
+                id="workspace-name"
+                className="horizon-input"
+                value={workspaceName}
+                onChange={(event) => setWorkspaceName(event.target.value)}
+                placeholder="e.g. Sales Workspace"
+              />
+            </div>
+            <button className="action-btn" onClick={handleCreateWorkspace} disabled={disabled}>
+              Create Workspace
+            </button>
+
+            <div className="panel-section">
+              <label htmlFor="project-name">Project name</label>
+              <input
+                id="project-name"
+                className="horizon-input"
+                value={projectName}
+                onChange={(event) => setProjectName(event.target.value)}
+                placeholder="e.g. Revenue Review"
+              />
+            </div>
+            <button className="action-btn" onClick={handleCreateProject} disabled={disabled || !workspace}>
+              Create Project
+            </button>
+          </section>
+
           <UploadBox onFileSelect={setSelectedFile} selectedFileName={selectedFile?.name} />
 
           <button className="primary-btn" onClick={handleUpload} disabled={disabled}>
@@ -190,6 +282,14 @@ export default function UploadPage() {
           ) : (
             <>
               <DatasetSummary profile={profile} />
+
+              {(workspace || project) ? (
+                <section className="result-card">
+                  <h3>Active context</h3>
+                  {workspace ? <p>Workspace: {workspace.name} ({workspace.id})</p> : null}
+                  {project ? <p>Project: {project.name} ({project.id})</p> : null}
+                </section>
+              ) : null}
 
               <section className="result-card">
                 <h3>Preview</h3>
