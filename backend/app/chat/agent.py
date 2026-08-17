@@ -151,5 +151,3 @@ class ChatAgent:
         metrics = list(dataframe.select_dtypes(include="number").columns); metric = metrics[0] if metrics else "data"
         category = group or self._categorical_column(dataframe)
         return [f"Which {category} has the highest {metric}?" if category else f"What is the total {metric}?", f"Show a chart of {metric}.", f"Are there anomalies in {metric}?"]
-    @staticmethod
-    def _format(value: Any) -> str: return f"{value:,.2f}" if isinstance(value, float) else f"{value:,}" if isinstance(value, int) else str(value)
