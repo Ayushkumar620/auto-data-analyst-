@@ -111,9 +111,9 @@ def test_tool_evidence_is_deterministic_and_referenced():
     executor = DataExecutor()
     schema = executor.get_dataset_schema(_sales_df())
     assert schema["rows"] == 6
-    assert "revenue" in schema["columns"]
-    group = executor.group_by(_sales_df(), "region", "revenue", "sum")
+    assert "sales" in schema["columns"]
+    group = executor.group_by(_sales_df(), "region", "sales", "sum")
     assert group[0]["region"] == "North"
-    assert group[0]["revenue"] == 3100
-    stats = executor.get_column_statistics(_sales_df(), "revenue")
+    assert group[0]["sales"] == 3100
+    stats = executor.get_column_statistics(_sales_df(), "sales")
     assert stats["mean"] == pytest.approx(775.0)
