@@ -5,24 +5,29 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import bcrypt
 import jwt
-from passlib.context import CryptContext
 
 from backend.app.config import settings
 
-# bcrypt-based hashing context (default for passlib)
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Max bcrypt input length (bytes). Longer inputs are truncated to stay safe.
+_BCRYPT_MAX_BYTES = 72
+
+
+def _to_bytes(password: str) -> bytes:
+    return password.encode("utf-8")[:_BCRYPT_MAX_BYTES]
 
 
 def hash_password(password: str) -> str:
-    """Return a bcrypt hash for the given plaintext password."""
-    return _pwd_context.hash(password)
+    """Return a bcrypt hash (as a str) for the given plaintext password."""
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(_to_bytes(password), salt).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plaintext password against a stored bcrypt hash."""
     try:
-        return _pwd_context.verify(plain_password, hashed_password)
+        return bcrypt.checkpw(_to_bytes(plain_password), hashed_password.encode("utf-8"))
     except Exception:
         return False
 
