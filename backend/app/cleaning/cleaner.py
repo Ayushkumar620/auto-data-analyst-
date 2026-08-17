@@ -15,7 +15,7 @@ class DataCleaner:
     def __init__(self, dataframe: pd.DataFrame):
         self.dataframe = dataframe.copy()
 
-    def clean(self) -> Dict[str, Any]:
+    def transform(self) -> tuple[pd.DataFrame, Dict[str, Any]]:
         pipeline = CleaningPipeline(
             step1=self._standardize_columns,
             step2=self._handle_missing_values,
@@ -24,6 +24,15 @@ class DataCleaner:
             step5=self._detect_outliers,
         )
         cleaned_df, report = pipeline.run(self.dataframe)
+        return cleaned_df, {
+            "messages": report.get("messages", []),
+            "missing_values_fixed": report.get("missing_values_fixed", 0),
+            "datatype_conversions": report.get("datatype_conversions", 0),
+            "outliers_detected": report.get("outliers_detected", 0),
+        }
+
+    def clean(self) -> Dict[str, Any]:
+        cleaned_df, report = self.transform()
         quality_before = self._quality_score(self.dataframe)
         quality_after = self._quality_score(cleaned_df)
         return {

@@ -1,10 +1,16 @@
-const API_BASE_URL = (import.meta as ImportMeta & { env?: { VITE_API_BASE_URL?: string } }).env?.VITE_API_BASE_URL ?? '';
+export function getApiBaseUrl(): string {
+  return (import.meta as ImportMeta & { env?: { VITE_API_BASE_URL?: string } }).env?.VITE_API_BASE_URL ?? '';
+}
+
+export function joinUrl(base: string, path: string): string {
+  if (!path.startsWith('/')) {
+    return `${base}/${path}`;
+  }
+  return `${base}${path}`;
+}
 
 export function buildApiUrl(path: string): string {
-  if (!path.startsWith('/')) {
-    return `${API_BASE_URL}/${path}`;
-  }
-  return `${API_BASE_URL}${path}`;
+  return joinUrl(getApiBaseUrl(), path);
 }
 
 const TOKEN_KEY = 'auth_token';

@@ -60,3 +60,21 @@ app.include_router(forecasting_router, prefix=settings.api_v1_prefix)
 app.include_router(reports_router, prefix=settings.api_v1_prefix)
 app.include_router(workspaces_router, prefix=settings.api_v1_prefix)
 app.include_router(projects_router, prefix=settings.api_v1_prefix)
+
+
+def _compat_routes(self):
+    flattened = []
+
+    def walk(route_list):
+        for route in route_list:
+            original = getattr(route, "original_router", None)
+            if original is not None:
+                walk(original.routes)
+            elif getattr(route, "path", None):
+                flattened.append(route)
+
+    walk(self.router.routes)
+    return flattened
+
+
+FastAPI.routes = property(_compat_routes)

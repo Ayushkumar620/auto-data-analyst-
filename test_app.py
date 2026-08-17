@@ -1,8 +1,8 @@
-import sys
-sys.path.insert(0, '/c/users/ayush/Desktop/auto-data-analyst')
-
 from backend.app.main import app
 
-print(f"App title: {app.title}")
-print(f"App version: {app.version}")
-print(f"Routes: {[r.path for r in app.routes]}")
+
+def test_fastapi_app_metadata():
+    assert app.title == "Auto Data Analyst Agent"
+    assert app.version == "1.0.0"
+    assert any(getattr(route, "path", None) == "/health" for route in app.routes)
+    assert any(getattr(route, "path", None) == "/api/v1/health" for route in app.routes)

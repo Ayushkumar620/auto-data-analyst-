@@ -7,6 +7,13 @@ export type UserOut = {
   is_active: boolean;
 };
 
+export type Project = {
+  id: number;
+  name: string;
+  description: string | null;
+  datasets: unknown[];
+};
+
 export type TokenResponse = {
   access_token: string;
   token_type: string;

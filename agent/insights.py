@@ -290,7 +290,7 @@ class InsightsEngine:
             return {"error": "No data available for insight generation."}
 
         numeric = df.select_dtypes(include=[np.number])
-        cat = df.select_dtypes(include=["object", "category"])
+        cat = df.select_dtypes(include=["object", "string", "category"])
         findings = []
         drivers = []
         anomalies = []

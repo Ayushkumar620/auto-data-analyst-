@@ -2,8 +2,8 @@ import React, { useEffect, useRef } from 'react';
 import Plotly from 'plotly.js-dist-min';
 
 export type ChartSpec = {
-  data: Partial<Plotly.PlotData>[];
-  layout?: Partial<Plotly.Layout>;
+  data: unknown[];
+  layout?: Record<string, unknown>;
 };
 
 export default function PlotlyChart({ data, layout }: ChartSpec) {
@@ -11,9 +11,8 @@ export default function PlotlyChart({ data, layout }: ChartSpec) {
 
   useEffect(() => {
     if (ref.current) {
-      // Clear previous render
       ref.current.innerHTML = '';
-      Plotly.newPlot(ref.current, data as Plotly.PlotData[], {
+      Plotly.newPlot(ref.current, data, {
         responsive: true,
         margin: { t: 24, r: 12, b: 36, l: 48 },
         ...layout,

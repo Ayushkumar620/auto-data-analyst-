@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { listProjects } from '../services/authService';
-import type { Project } from '../types';
+import { listProjects, type Project } from '../services/authService';
 
 export default function ProjectViewPage() {
   const { projectId } = useParams<{ projectId: string }>();

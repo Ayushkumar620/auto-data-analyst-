@@ -35,7 +35,7 @@ class DataCleaner:
         actions = []
 
         # 1. Trim whitespace in string columns
-        str_cols = df.select_dtypes(include=["object"]).columns
+        str_cols = df.select_dtypes(include=["object", "string"]).columns
         trimmed = 0
         for col in str_cols:
             cleaned = df[col].astype(str).str.strip()

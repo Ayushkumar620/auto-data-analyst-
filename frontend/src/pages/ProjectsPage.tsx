@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { createProject, listProjects } from '../services/authService';
-import type { Project as ProjectType } from '../types';
+import { createProject, listProjects, type Project } from '../services/authService';
 
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<ProjectType[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
@@ -13,8 +12,8 @@ export default function ProjectsPage() {
     setLoading(true);
     setError('');
     try {
-      const listed = await listProjects();
-      setProjects(listed as ProjectType[]);
+            const listed = await listProjects();
+      setProjects(listed);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load projects');
     } finally {
