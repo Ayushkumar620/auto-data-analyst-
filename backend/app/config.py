@@ -16,7 +16,11 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/auto_data_analyst"
     redis_url: str = "redis://localhost:6379/0"
     openai_api_key: str = ""
+    openai_base_url: str = "https://api.openai.com/v1"
     openai_model: str = "gpt-4o-mini"
+    jwt_secret: str = "change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 60 * 24  # 24 hours
     cors_origins: list[str] = ["*"]
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
