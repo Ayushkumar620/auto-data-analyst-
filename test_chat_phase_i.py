@@ -75,7 +75,7 @@ def test_predict_next_month_sales():
 
 
 def test_correlation_question():
-    response = _respond(_sales_df(), "are revenue and profit correlated")
+    response = _respond(_sales_df(), "are sales and profit correlated")
     assert response.intent == "correlation"
     assert response.status == "success"
     assert response.evidence["correlation"] is not None
