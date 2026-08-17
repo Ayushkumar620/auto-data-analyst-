@@ -68,7 +68,7 @@ class ChatAgent:
                 visualization = self._chart_visualization(dataframe, "line", target, metric)
                 evidence = {"x": target, "y": metric, "chart": "line"}
                 return ChatResponse(f"I prepared a line chart of {metric} over {target}.", "visualization", "success", evidence, visualization, self._metric_questions(dataframe))
-        if any(word in text for word in ("anomal", "outlier")):
+        if any(word in text for word in ("anomal", "outlier", "unusual")):
             evidence = self.tools.execute("detect_anomalies", dataframe, column=metric)
             answer = f"I found {evidence['anomaly_count']} potential anomalies in {metric}."
             return ChatResponse(answer, "anomaly_detection", "success", evidence, suggested_questions=self._metric_questions(dataframe))
