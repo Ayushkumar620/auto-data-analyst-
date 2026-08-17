@@ -26,7 +26,7 @@ def test_schema_question():
     response = _respond(_sales_df(), "what columns and schema does this dataset have")
     assert response.status == "success"
     assert response.intent == "schema"
-    assert "revenue" in response.message
+    assert "sales" in response.message
 
 
 def test_which_region_highest_revenue():
