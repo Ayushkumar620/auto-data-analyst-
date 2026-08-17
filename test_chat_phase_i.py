@@ -13,7 +13,7 @@ def _sales_df():
                                 "2024-03-01", "2024-03-08"]),
         "region": ["North", "South", "North", "South", "North", "South"],
         "product": ["A", "B", "A", "B", "A", "B"],
-        "revenue": [1000, 500, 1200, 600, 900, 450],
+        "sales": [1000, 500, 1200, 600, 900, 450],
         "profit": [100, 50, 120, 60, 90, 45],
     })
 
@@ -30,7 +30,7 @@ def test_schema_question():
 
 
 def test_which_region_highest_revenue():
-    response = _respond(_sales_df(), "which region has the highest revenue")
+    response = _respond(_sales_df(), "which region has the highest sales")
     assert response.intent == "aggregation"
     assert response.status == "success"
     assert "North" in response.message
@@ -46,10 +46,10 @@ def test_which_product_highest_profit():
 
 def test_why_did_revenue_decrease():
     # All revenue periods we can measure fluctuate; verify trend intent fires
-    response = _respond(_sales_df(), "why did revenue decrease")
+    response = _respond(_sales_df(), "why did sales decrease")
     assert response.intent == "trend"
     assert response.status == "success"
-    assert "revenue" in response.message
+    assert "sales" in response.message
 
 
 def test_show_monthly_sales():
@@ -61,7 +61,7 @@ def test_show_monthly_sales():
 
 
 def test_find_unusual_transactions():
-    response = _respond(_sales_df(), "find unusual transactions in revenue")
+    response = _respond(_sales_df(), "find unusual transactions in sales")
     assert response.intent == "anomaly_detection"
     assert response.status == "success"
     assert "anomal" in response.message.lower()
