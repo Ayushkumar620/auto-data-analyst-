@@ -26,15 +26,16 @@ def generate_insights(
         resolved_workspace_id, resolved_project_id = resolve_context(workspace_id, project_id)
         uploaded = service.upload_dataset(file)
         dataset_path = UPLOAD_DIR / uploaded["dataset"]["name"]
+        dataset_name = uploaded["dataset"]["name"]
         dataframe = service._read_dataframe(str(dataset_path))
         eda = EDAOrchestrator().analyze(dataframe)
-        result = InsightEngine().generate(dataframe, eda)
+        result = InsightEngine().synthesize(dataframe, dataset_name=dataset_name, eda_results=eda)
         linked_dataset = link_uploaded_dataset(uploaded, resolved_workspace_id, resolved_project_id)
         dataset_id = uploaded["dataset"]["id"]
         _ANALYSES[dataset_id] = {
             "dataframe": dataframe,
             "eda": eda,
-            "dataset_name": uploaded["dataset"]["name"],
+            "dataset_name": dataset_name,
             "insights": result["insights"],
         }
     except ValueError as exc:
@@ -44,6 +45,7 @@ def generate_insights(
 
     return {
         **result,
+        "dataset_name": dataset_name,
         "workspace_id": resolved_workspace_id,
         "project_id": resolved_project_id,
         "workspace_dataset_id": linked_dataset["id"] if linked_dataset else None,
