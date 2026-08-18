@@ -52,6 +52,27 @@ class InsightRules:
                     f"Investigate whether additional investment in {category} could support continued performance."))
         return insights
 
+    def recommendations(self, facts: Dict[str, Any]) -> List[str]:
+        """Derive conservative, evidence-backed recommendations from measured facts."""
+        recommendations: List[str] = []
+        if facts["missing_percentage"] > 20:
+            recommendations.append("Address the high share of missing values before making high-impact decisions.")
+        recommendations.extend(
+            f"Investigate the drivers of the {self._label(g['column']).lower()} decline."
+            for g in facts["growth"] if g["growth_percentage"] < -10
+        )
+        for correlation in facts["correlations"]:
+            if abs(correlation["correlation"]) >= 0.7:
+                recommendations.append(
+                    f"Monitor the strong {self._label(correlation['left']).lower()}-"
+                    f"{self._label(correlation['right']).lower()} association as a leading indicator."
+                )
+        recommendations.extend(
+            "Review detected unusual values to determine whether they are valid exceptions or data issues."
+            for anomaly in facts["anomalies"] if anomaly["anomaly_count"] > 0
+        )
+        return recommendations
+
     @staticmethod
     def _label(value: str) -> str:
         return str(value).replace("_", " ").title()

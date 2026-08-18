@@ -19,6 +19,7 @@ from backend.app.api.workspace import workspace_bp
 from backend.app.api.insights import insights_bp
 from backend.app.chat import chat_bp
 from backend.app.api.forecasting import forecasting_bp
+from backend.app.api.reports import reports_bp
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100MB
@@ -29,6 +30,7 @@ app.register_blueprint(workspace_bp)
 app.register_blueprint(insights_bp)
 app.register_blueprint(chat_bp)
 app.register_blueprint(forecasting_bp)
+app.register_blueprint(reports_bp)
 
 ALLOWED_EXTENSIONS = {
     "csv", "xlsx", "xls", "json", "txt", "pdf", "db", "sqlite", "sqlite3",

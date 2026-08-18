@@ -7,8 +7,23 @@ export type DatasetProfile = {
   duplicates: number;
   preview: Array<Record<string, unknown>>;
   data_types?: Record<string, string>;
-  numeric_columns?: string[];
-  categorical_columns?: string[];
-  date_columns?: string[];
   memory_usage?: string;
+  workspace_id?: string;
+  project_id?: string;
+  workspace_dataset_id?: string;
+};
+
+export type Workspace = {
+  id: string;
+  name: string;
+  owner: string;
+  projects?: Project[];
+};
+
+export type Project = {
+  id: string;
+  workspace_id: string;
+  name: string;
+  datasets?: Array<Record<string, unknown>>;
+  sessions?: Array<Record<string, unknown>>;
 };

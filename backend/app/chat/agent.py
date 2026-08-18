@@ -36,7 +36,39 @@ class ChatAgent:
             first = evidence["forecast"][0]
             answer = f"The {evidence['model']} model forecasts {metric} at approximately {self._format(first['prediction'])} for {first['date']}, with an estimated range of {self._format(first['lower'])}–{self._format(first['upper'])}. Forecasts are estimates, not guarantees."
             return ChatResponse(answer, "forecast", "success", evidence, evidence.get("visualization"), self._metric_questions(dataframe))
-        if any(word in text for word in ("anomal", "outlier")):
+        if any(word in text for word in ("why", "reason", "cause", "decrease", "decline", "drop", "increase", "rise", "grew", "fall", "fell", "trend")):
+            date = self._date_column(dataframe)
+            if date:
+                try:
+                    growth = self.tools.execute("calculate_growth", dataframe, metric_column=metric, date_column=date)
+                except ValueError as exc:
+                    return ChatResponse(f"{exc} Please check that '{metric}' and '{date}' are valid columns.", "trend", "unsupported")
+                if growth:
+                    most_recent = growth[-1]
+                    change = most_recent.get("growth_percent")
+                    evidence = {"metric": metric, "date_column": date, "periods": growth}
+                    if change is None:
+                        answer = f"Across the periods I could measure, {metric} shows {self._describe_trend(growth)}. I don't have enough earlier data to compute a precise period-over-period change."
+                    elif change < 0:
+                        answer = f"Looking at the data, {metric} {self._describe_trend(growth)}. The most recent period changed by {self._format(abs(change))}% compared with the prior period — that is what drives the decrease. Correlation is not causation, so this is an observed change, not a proven explanation."
+                    else:
+                        answer = f"Looking at the data, {metric} {self._describe_trend(growth)}. The most recent period changed by {self._format(abs(change))}% compared with the prior period. This describes the observed trend rather than proving a cause."
+                    return ChatResponse(answer, "trend", "success", evidence, self._chart_visualization(dataframe, "line", date, metric), self._metric_questions(dataframe))
+        if any(word in text for word in ("correlat", "related", "relationship")) and len(self._numeric_columns(dataframe)) >= 2:
+            left, right = self._numeric_columns(dataframe)[:2]
+            evidence = self.tools.execute("calculate_correlation", dataframe, left=left, right=right)
+            value = evidence.get("correlation")
+            strength = "strong" if abs(value or 0) >= 0.7 else "moderate" if abs(value or 0) >= 0.4 else "weak"
+            answer = f"{left} and {right} show a {strength} {'positive' if (value or 0) > 0 else 'negative'} relationship (correlation {self._format(value)})."
+            return ChatResponse(answer, "correlation", "success", evidence, suggested_questions=self._metric_questions(dataframe))
+        if any(word in text for word in ("show", "display", "visualize", "chart", "plot", "monthly", "over time", "trend")):
+            date = self._date_column(dataframe)
+            target = date or self._categorical_column(dataframe)
+            if target:
+                visualization = self._chart_visualization(dataframe, "line", target, metric)
+                evidence = {"x": target, "y": metric, "chart": "line"}
+                return ChatResponse(f"I prepared a line chart of {metric} over {target}.", "visualization", "success", evidence, visualization, self._metric_questions(dataframe))
+        if any(word in text for word in ("anomal", "outlier", "unusual")):
             evidence = self.tools.execute("detect_anomalies", dataframe, column=metric)
             answer = f"I found {evidence['anomaly_count']} potential anomalies in {metric}."
             return ChatResponse(answer, "anomaly_detection", "success", evidence, suggested_questions=self._metric_questions(dataframe))
@@ -91,10 +123,31 @@ class ChatAgent:
     def _categorical_column(dataframe: pd.DataFrame) -> str | None:
         return next((c for c in dataframe.columns if not pd.api.types.is_numeric_dtype(dataframe[c])), None)
     @staticmethod
+    def _numeric_columns(dataframe: pd.DataFrame) -> list[str]:
+        return [c for c in dataframe.columns if pd.api.types.is_numeric_dtype(dataframe[c])]
+    @staticmethod
+    def _describe_trend(growth: list[dict[str, Any]]) -> str:
+        changes = [g.get("growth_percent") for g in growth if g.get("growth_percent") is not None]
+        if not changes:
+            return "an essentially flat pattern over the measured periods"
+        if all(c > 0 for c in changes):
+            return "increased in every measured period"
+        if all(c < 0 for c in changes):
+            return "decreased in every measured period"
+        rising = sum(1 for c in changes if c > 0)
+        return f"a mixed pattern ({rising} rising of {len(changes)} measured periods)"
+    def _chart_visualization(self, dataframe: pd.DataFrame, chart_type: str, x: str, y: str | None) -> dict[str, Any] | None:
+        try:
+            tool = f"create_{chart_type}_chart"
+            args = {"x": x, "y": y} if y else {"x": x}
+            return self.tools.execute(tool, dataframe, **args)
+        except Exception:
+            return None
+    @staticmethod
+    def _format(value: Any) -> str: return f"{value:,.2f}" if isinstance(value, float) else f"{value:,}" if isinstance(value, int) else str(value)
+    @staticmethod
     def _ambiguous(text: str, metric: str | None, group: str | None) -> bool: return "best" in text and not metric
     def _metric_questions(self, dataframe: pd.DataFrame, group: str | None = None) -> list[str]:
         metrics = list(dataframe.select_dtypes(include="number").columns); metric = metrics[0] if metrics else "data"
         category = group or self._categorical_column(dataframe)
         return [f"Which {category} has the highest {metric}?" if category else f"What is the total {metric}?", f"Show a chart of {metric}.", f"Are there anomalies in {metric}?"]
-    @staticmethod
-    def _format(value: Any) -> str: return f"{value:,.2f}" if isinstance(value, float) else f"{value:,}" if isinstance(value, int) else str(value)

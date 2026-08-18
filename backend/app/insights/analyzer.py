@@ -48,20 +48,40 @@ class FactAnalyzer:
         return facts
 
     def _growth_facts(self, dataframe: pd.DataFrame) -> List[Dict[str, Any]]:
-        date_columns = [column for column in dataframe.columns if pd.api.types.is_datetime64_any_dtype(dataframe[column])]
+        candidate_date_columns = [
+            column for column in dataframe.columns
+            if pd.api.types.is_datetime64_any_dtype(dataframe[column])
+            or any(token in str(column).lower() for token in ("date", "time", "month", "day", "year"))
+        ]
+
+        date_columns: List[str] = []
+        for column in candidate_date_columns:
+            series = dataframe[column]
+            converted = pd.to_datetime(series, errors="coerce")
+            if converted.notna().sum() >= max(1, series.notna().sum() * 0.8):
+                date_columns.append(column)
+
         numeric_columns = list(dataframe.select_dtypes(include="number").columns)
         if not date_columns or not numeric_columns:
             return []
+
         date_column = date_columns[0]
+        data = dataframe[[date_column, *numeric_columns]].copy()
+        data[date_column] = pd.to_datetime(data[date_column], errors="coerce")
+        data = data.dropna(subset=[date_column]).sort_values(date_column)
+
         results: List[Dict[str, Any]] = []
         for numeric_column in numeric_columns:
-            data = dataframe[[date_column, numeric_column]].dropna().sort_values(date_column)
-            if len(data) < 2 or data[numeric_column].iloc[0] == 0:
+            numeric_data = data[[date_column, numeric_column]].dropna(subset=[numeric_column])
+            if numeric_data.empty or len(numeric_data) < 2:
                 continue
-            first, last = float(data[numeric_column].iloc[0]), float(data[numeric_column].iloc[-1])
+            first_value = float(numeric_data[numeric_column].iloc[0])
+            last_value = float(numeric_data[numeric_column].iloc[-1])
+            if first_value == 0:
+                continue
             results.append({"date_column": str(date_column), "column": str(numeric_column),
-                            "growth_percentage": round((last - first) / abs(first) * 100, 2),
-                            "start_value": first, "end_value": last})
+                            "growth_percentage": round((last_value - first_value) / abs(first_value) * 100, 2),
+                            "start_value": first_value, "end_value": last_value})
         return results
 
     @staticmethod

@@ -6,6 +6,15 @@ from typing import Any, Dict, List
 import pandas as pd
 from werkzeug.utils import secure_filename
 
+from backend.app.cleaning.cleaner import DataCleaner
+from backend.app.profilers.dataset_profiler import DatasetProfiler
+
+
+def _get_upload_stream(uploaded_file: Any):
+    if hasattr(uploaded_file, "file"):
+        return uploaded_file.file
+    return getattr(uploaded_file, "stream", uploaded_file)
+
 
 class DatasetService:
     def __init__(self, upload_folder: str):
@@ -13,10 +22,14 @@ class DatasetService:
         os.makedirs(self.upload_folder, exist_ok=True)
 
     def upload_dataset(self, uploaded_file: Any) -> Dict[str, Any]:
-        if uploaded_file is None or getattr(uploaded_file, "filename", "") == "":
+        if uploaded_file is None:
             raise ValueError("Empty file upload. Please choose a file.")
 
-        filename = secure_filename(uploaded_file.filename)
+        filename = getattr(uploaded_file, "filename", None) or getattr(uploaded_file, "name", "")
+        if not filename:
+            raise ValueError("Empty file upload. Please choose a file.")
+
+        filename = secure_filename(filename)
         if not filename:
             raise ValueError("Empty file upload. Please choose a file.")
 
@@ -24,19 +37,30 @@ class DatasetService:
         if extension not in {".csv", ".xlsx", ".xls"}:
             raise ValueError("Unsupported file type. Only CSV and Excel files are allowed.")
 
+        stream = _get_upload_stream(uploaded_file)
         file_size = 0
         try:
-            uploaded_file.stream.seek(0, os.SEEK_END)
-            file_size = uploaded_file.stream.tell()
-            uploaded_file.stream.seek(0)
+            stream.seek(0, os.SEEK_END)
+            file_size = stream.tell()
+            stream.seek(0)
         except Exception:
-            file_size = 0
+            try:
+                content = stream.read()
+                file_size = len(content)
+                stream.seek(0)
+            except Exception:
+                file_size = 0
 
         if file_size > 100 * 1024 * 1024:
             raise ValueError("File is too large. Maximum size is 100MB.")
 
         destination = os.path.join(self.upload_folder, filename)
-        uploaded_file.save(destination)
+        if hasattr(uploaded_file, "save"):
+            uploaded_file.save(destination)
+        else:
+            with open(destination, "wb") as destination_file:
+                stream.seek(0)
+                destination_file.write(stream.read())
 
         try:
             dataframe = self._read_dataframe(destination)
@@ -60,6 +84,43 @@ class DatasetService:
             "dataset": dataset_object,
             "metadata": metadata,
             "preview": preview,
+        }
+
+    def profile_dataset(self, dataframe: pd.DataFrame, filename: str, file_type: str, file_size: int) -> Dict[str, Any]:
+        profiler = DatasetProfiler()
+        size_value = self._coerce_size_bytes(file_size)
+        result = profiler.profile(
+            dataframe=dataframe,
+            filename=filename,
+            file_type=file_type,
+            file_size=self._format_memory_usage(size_value),
+        )
+        return result
+
+    def clean_dataset(self, uploaded_file: Any) -> Dict[str, Any]:
+        result = self.upload_dataset(uploaded_file)
+        dataframe = self._read_dataframe(os.path.join(self.upload_folder, result["dataset"]["name"]))
+        cleaner = DataCleaner(dataframe)
+        cleaned = cleaner.clean()
+        profile = self.profile_dataset(
+            dataframe=dataframe,
+            filename=result["dataset"]["name"],
+            file_type=result["dataset"]["file_type"],
+            file_size=result["metadata"]["file_size"],
+        )
+
+        return {
+            "status": "cleaned",
+            "dataset": result["dataset"],
+            "quality_before": cleaned["quality_before"],
+            "quality_after": cleaned["quality_after"],
+            "rows_removed": cleaned["rows_removed"],
+            "missing_values_fixed": cleaned["missing_values_fixed"],
+            "datatype_conversions": cleaned["datatype_conversions"],
+            "outliers_detected": cleaned["outliers_detected"],
+            "cleaning_report": cleaned["cleaning_report"],
+            "preview": cleaned["cleaned_data"],
+            "profile": profile["profile"],
         }
 
     def _read_dataframe(self, file_path: str) -> pd.DataFrame:
@@ -89,6 +150,17 @@ class DatasetService:
         for row in preview_rows:
             normalized.append({key: None if pd.isna(value) else value for key, value in row.items()})
         return normalized
+
+    def _coerce_size_bytes(self, size_value: Any) -> int:
+        if isinstance(size_value, (int, float)):
+            return int(size_value)
+        if isinstance(size_value, str):
+            numeric = size_value.split(" ")[0].strip()
+            try:
+                return int(float(numeric))
+            except ValueError:
+                return 0
+        return 0
 
     def _format_memory_usage(self, size_bytes: int) -> str:
         for unit in ["B", "KB", "MB", "GB"]:

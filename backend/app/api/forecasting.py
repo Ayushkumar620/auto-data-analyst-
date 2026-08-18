@@ -23,4 +23,6 @@ def create_forecast() -> Any:
         result = Forecaster().forecast(analysis["dataframe"], forecast_request.horizon, forecast_request.target, forecast_request.date_column)
     except ValueError as exc:
         return jsonify({"status": "unsupported", "message": str(exc)}), 422
-    return jsonify({"status": "success", **result.to_dict()})
+    payload = result.to_dict()
+    analysis["forecast"] = payload
+    return jsonify({"status": "success", **payload})

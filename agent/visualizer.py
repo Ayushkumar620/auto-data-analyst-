@@ -49,14 +49,14 @@ class DataVisualizer:
         numeric = df.select_dtypes(include=[np.number])
         if len(numeric.columns) >= 2:
             return "scatter"
-        cat_cols = df.select_dtypes(include=["object", "category"]).columns
+        cat_cols = df.select_dtypes(include=["object", "string", "category"]).columns
         if len(cat_cols) >= 1:
             return "bar"
         return "line"
 
     def _make_chart(self, df, chart_type, x, y):
         numeric = df.select_dtypes(include=[np.number])
-        cat_cols = df.select_dtypes(include=["object", "category"]).columns
+        cat_cols = df.select_dtypes(include=["object", "string", "category"]).columns
 
         if chart_type in ("auto", "chart", "plot", "graph", "visualize"):
             chart_type = self._infer_chart(df)

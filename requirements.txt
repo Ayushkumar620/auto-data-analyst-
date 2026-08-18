@@ -8,3 +8,4 @@ openpyxl
 opencv-python
 PyPDF2
 reportlab
+python-pptx

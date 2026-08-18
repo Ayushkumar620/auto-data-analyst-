@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, Literal
 
-InsightType = Literal["key_finding", "trend", "anomaly", "risk", "opportunity"]
+InsightType = Literal["key_finding", "trend", "anomaly", "risk", "opportunity", "recommendation"]
 Severity = Literal["info", "warning", "critical"]
 Confidence = Literal["high", "medium", "low"]
 
@@ -19,6 +19,7 @@ class Insight:
     confidence: Confidence = "high"
     evidence: Dict[str, Any] = field(default_factory=dict)
     recommendation: str | None = None
+    source: str = "rule"
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

@@ -137,7 +137,7 @@ class DataPredictor:
         y = df[target].copy()
 
         # Encode categorical features
-        for col in X.select_dtypes(include=["object", "category"]).columns:
+        for col in X.select_dtypes(include=["object", "string", "category"]).columns:
             le = LabelEncoder()
             X[col] = le.fit_transform(X[col].astype(str))
 

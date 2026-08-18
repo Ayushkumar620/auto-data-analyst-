@@ -13,9 +13,9 @@ insights_bp = Blueprint("insights_bp", __name__, url_prefix="/api/insights")
 _analyses: Dict[str, Dict[str, Any]] = {}
 
 
-def register_analysis(dataset_id: str, dataframe: pd.DataFrame, eda: Dict[str, Any]) -> None:
+def register_analysis(dataset_id: str, dataframe: pd.DataFrame, eda: Dict[str, Any], **context: Any) -> None:
     """Store source evidence for endpoints during the current server session."""
-    _analyses[dataset_id] = {"dataframe": dataframe.copy(), "eda": eda, "insights": []}
+    _analyses[dataset_id] = {"dataframe": dataframe.copy(), "eda": eda, "insights": [], **context}
 
 
 @insights_bp.route("/generate", methods=["POST"])

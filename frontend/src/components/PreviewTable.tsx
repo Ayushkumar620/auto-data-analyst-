@@ -6,28 +6,30 @@ type PreviewTableProps = {
 
 export default function PreviewTable({ preview }: PreviewTableProps) {
   if (!preview.length) {
-    return <p>No preview available.</p>;
+    return <p className="muted">No preview available.</p>;
   }
 
   const columns = Object.keys(preview[0]);
   return (
-    <table>
-      <thead>
-        <tr>
-          {columns.map((column) => (
-            <th key={column}>{column}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {preview.map((row, index) => (
-          <tr key={index}>
+    <div className="table-shell">
+      <table className="result-table">
+        <thead>
+          <tr>
             {columns.map((column) => (
-              <td key={column}>{String(row[column] ?? '')}</td>
+              <th key={column}>{column}</th>
             ))}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {preview.map((row, index) => (
+            <tr key={index}>
+              {columns.map((column) => (
+                <td key={column}>{String(row[column] ?? '')}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
