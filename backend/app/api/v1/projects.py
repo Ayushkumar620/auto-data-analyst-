@@ -94,7 +94,7 @@ def update_project(project_id: int, payload: ProjectUpdate, db: Db, current: Cur
     return _project_out(project)
 
 
-@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 def delete_project(project_id: int, db: Db, current: CurrentUser) -> None:
     project = _get_owned_project(db, current, project_id)
     db.delete(project)
