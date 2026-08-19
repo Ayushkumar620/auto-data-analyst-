@@ -147,3 +147,184 @@ class TemporalIntelligenceEngine:
                     "daily", "weekly", "monthly", "quarterly", "yearly",
                 }
         return field
+
+    # ------------------------------------------------------------------
+    # Validated trend analysis
+    # ------------------------------------------------------------------
+    def analyze_trends(self, dataframe: pd.DataFrame,
+                       temporal_columns: list[str] | None = None,
+                       target_columns: list[str] | None = None) -> list[dict[str, Any]]:
+        """Return validated trends for each (temporal, target) pair.
+
+        Each trend follows: chronological ordering -> frequency inference ->
+        aggregation -> trend calculation -> validation.  Pairs that fail any
+        step are reported with status='insufficient' and no trend numbers.
+        """
+        date_fields = self.detect_fields(dataframe)
+        if not date_fields:
+            return []
+        selected_dates = temporal_columns or [field["column"] for field in date_fields
+                                              if field["temporal_kind"] in {"date", "datetime", "timestamp"}]
+        if not selected_dates:
+            return []
+
+        if target_columns is None:
+            target_columns = [column for column in dataframe.select_dtypes(include="number").columns]
+        else:
+            target_columns = [column for column in target_columns
+                              if column in dataframe.columns]
+
+        results: list[dict[str, Any]] = []
+        for date_column in selected_dates:
+            if date_column not in dataframe.columns:
+                continue
+            for target in target_columns:
+                results.append(self._trend_pair(dataframe, date_column, target))
+        return results
+
+    def _trend_pair(self, dataframe: pd.DataFrame, date_column: str, target: str) -> dict[str, Any]:
+        base: dict[str, Any] = {
+            "date_column": date_column,
+            "target_column": target,
+            "status": "insufficient",
+            "frequency": None,
+            "aggregation": None,
+            "periods": 0,
+        }
+        parsed = pd.to_datetime(dataframe[date_column], errors="coerce", format="mixed")
+        numeric = pd.to_numeric(dataframe[target], errors="coerce")
+        data = pd.DataFrame({date_column: parsed, target: numeric}).dropna()
+        if len(data) < self.MIN_TREND_OBSERVATIONS:
+            base["reason"] = "Fewer than two usable (date, value) observations"
+            return base
+
+        # Chronological ordering.
+        data = data.sort_values(date_column)
+
+        # Detect frequency from the sorted timeline.
+        gaps = data[date_column].sort_values().diff().dropna()
+        if gaps.empty:
+            base["reason"] = "Only one distinct date"
+            return base
+        median_gap = float(gaps.median().total_seconds())
+        frequency, offset = self._frequency_for_gap(median_gap)
+
+        # Appropriate aggregation (roll up duplicate timestamps).
+        aggregated = data.set_index(date_column).resample(offset)[target].agg(["sum", "count"]).reset_index()
+        aggregated = aggregated.dropna(subset=["sum"])
+        aggregated.columns = [date_column, target, "_count"]
+        periods = len(aggregated)
+        base["frequency"] = frequency
+        base["aggregation"] = "sum"
+        base["periods"] = int(periods)
+
+        if periods < self.MIN_TREND_OBSERVATIONS:
+            base["reason"] = f"Only {periods} aggregated period(s); at least {self.MIN_TREND_OBSERVATIONS} are required"
+            return base
+
+        values = aggregated[target].to_numpy(dtype=float)
+        start_value = float(values[0])
+        end_value = float(values[-1])
+        if start_value == 0:
+            growth_percentage = None
+            absolute_change = float(end_value - start_value)
+        else:
+            growth_percentage = round((end_value - start_value) / abs(start_value) * 100, 2)
+            absolute_change = round(end_value - start_value, 6)
+
+        # Direction from period-over-period changes (validated by majority).
+        changes = np.diff(values)
+        rising = int((changes > 0).sum())
+        falling = int((changes < 0).sum())
+        flat = int((changes == 0).sum())
+        if rising > 0 and rising > falling and rising > flat:
+            direction = "up"
+        elif falling > 0 and falling > rising and falling > flat:
+            direction = "down"
+        else:
+            direction = "flat"
+
+        volatility = round(float(np.std(values, ddof=1)), 6) if periods > 1 else 0.0
+        confidence = self._trend_confidence(periods, growth_percentage, rising, falling)
+
+        return {
+            **base,
+            "status": "valid",
+            "start_value": round(start_value, 6),
+            "end_value": round(end_value, 6),
+            "growth_percentage": growth_percentage,
+            "absolute_change": absolute_change,
+            "direction": direction,
+            "period_changes_rising": rising,
+            "period_changes_falling": falling,
+            "period_changes_flat": flat,
+            "volatility": volatility,
+            "confidence": confidence,
+            "period_series": [
+                {"period": str(row[date_column].to_period("D")),
+                 "value": round(float(row[target]), 6)}
+                for _, row in aggregated.iterrows()
+            ][-12:],
+        }
+
+    def _frequency_for_gap(self, median_gap_seconds: float) -> tuple[str, str]:
+        if median_gap_seconds < 3600:
+            return "hourly", "h"
+        if median_gap_seconds < 86400:
+            return "daily", "D"
+        if median_gap_seconds < 7 * 86400:
+            return "weekly", "W"
+        if median_gap_seconds < 31 * 86400:
+            return "monthly", "ME"
+        if median_gap_seconds < 93 * 86400:
+            return "quarterly", "QE"
+        return "yearly", "YE"
+
+    def _trend_confidence(self, periods: int, growth: float | None,
+                          rising: int, falling: int) -> float:
+        if periods < self.MIN_CONFIDENT_TREND_OBSERVATIONS:
+            return 0.35
+        confidence = 0.6 + 0.05 * min(periods, 10)
+        if growth is not None:
+            confidence += 0.1 if abs(growth) >= 5 else 0.05
+        if rising > 0 and falling == 0:
+            confidence += 0.1
+        elif falling > 0 and rising == 0:
+            confidence += 0.1
+        elif rising == falling:
+            confidence -= 0.1
+        return round(min(0.98, confidence), 3)
+
+    # ------------------------------------------------------------------
+    # Convenience helpers used by other engines
+    # ------------------------------------------------------------------
+    def primary_time_field(self, dataframe: pd.DataFrame) -> dict[str, Any] | None:
+        fields = self.detect_fields(dataframe)
+        for field in fields:
+            if field["temporal_kind"] in {"date", "datetime", "timestamp"}:
+                return field
+        return None
+
+    def growth_facts(self, dataframe: pd.DataFrame) -> list[dict[str, Any]]:
+        """Map trends into the compact fact shape consumed by the insight rules.
+
+        Only 'valid' trends produce growth facts; nothing is reported when the
+        temporal structure is insufficient.
+        """
+        facts: list[dict[str, Any]] = []
+        for trend in self.analyze_trends(dataframe):
+            if trend["status"] != "valid":
+                continue
+            facts.append({
+                "date_column": trend["date_column"],
+                "column": trend["target_column"],
+                "growth_percentage": trend["growth_percentage"],
+                "start_value": trend["start_value"],
+                "end_value": trend["end_value"],
+                "periods": trend["periods"],
+                "frequency": trend["frequency"],
+                "direction": trend["direction"],
+                "confidence": trend["confidence"],
+                "status": "valid",
+            })
+        return facts
