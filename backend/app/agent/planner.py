@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 
-from backend.app.core.semantic import detect_identifiers, detect_semantic_roles
+from backend.app.core.semantic import detect_identifiers, SemanticSchemaAgent
 from backend.app.core.temporal import TemporalIntelligenceEngine
 from backend.app.core.anomalies import AnomalyDetectionEngine
 from backend.app.core.relationships import RelationshipDiscoveryEngine
@@ -139,7 +139,8 @@ class PlannerAgent:
     
     def _run_schema_task(self, action: str, dataframe: Any) -> dict[str, Any]:
         if action == 'detect_semantic_roles':
-            roles = detect_semantic_roles(dataframe)
+            agent = SemanticSchemaAgent()
+            roles = agent.classify(dataframe)
             return {'semantic_roles': roles}
         elif action == 'detect_identifiers':
             identifiers = detect_identifiers(dataframe)
