@@ -176,9 +176,9 @@ class SemanticSchemaAgent:
 
         # 3) Date / time / datetime
         if pd.api.types.is_datetime64_any_dtype(series):
-            timed = (non_null - non_null.min()).mean()
-            time_component = hasattr(timed, "total_seconds") and timed.total_seconds() == 0
-            role, conf = ("date", 0.95) if time_component else ("datetime", 0.95)
+            has_time_component = bool(((non_null.dt.hour != 0) | (non_null.dt.minute != 0) |
+                                       (non_null.dt.second != 0) | (non_null.dt.microsecond != 0)).any())
+            role, conf = ("datetime", 0.95) if has_time_component else ("date", 0.95)
             candidates.append({"role": role, "confidence": conf})
             if _token_hits(normalized, self.hints.get("time_words", ())):
                 candidates.append({"role": "time", "confidence": 0.4})
@@ -207,6 +207,12 @@ class SemanticSchemaAgent:
             return ColumnSemantics(
                 column, temporal_int["role"], temporal_int["confidence"],
                 temporal_int["candidates"], temporal_int["rationale"]).to_dict()
+
+        # 6) Identifier detection (statistical + name hints)
+        identifier_result = self._identifier_candidate(series, column, unique, total, unique_ratio)
+        if identifier_result is not None:
+            role, conf, cands, reasons = identifier_result
+            return ColumnSemantics(column, role, conf, cands, reasons).to_dict()
 
         # 7) Numeric columns -> metrics / derived metrics
         if _is_numeric(series):
@@ -360,6 +366,8 @@ def detect_identifiers(dataframe: pd.DataFrame) -> list[str]:
         series = dataframe[column]
         total = len(series)
         if total == 0:
+            continue
+        if pd.api.types.is_datetime64_any_dtype(series):
             continue
         non_null = series.dropna()
         if non_null.empty:
