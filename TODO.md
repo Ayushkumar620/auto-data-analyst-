@@ -16,7 +16,7 @@
 - [x] 3. Add Chat with Data interface to `templates/index.html` (ChatPage.tsx exists at `/chat` route)
 - [x] 4. Add chat styles to `static/css/style.css` (styles already in `frontend/src/index.css`)
 - [x] 5. Test planner orchestration and chat end-to-end
-- [ ] 6. Update README and TODO
+- [x] 6. Update README and TODO
 
 ## Future (roadmap)
 - [ ] Dashboard builder
