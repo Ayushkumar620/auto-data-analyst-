@@ -258,6 +258,95 @@ class SemanticSchemaAgent:
             if candidates[0]["role"] == "category":
                 return ColumnSemantics(column, "entity", 0.6, candidates, rationale).to_dict()
 
+    def _temporal_integer(self, series: pd.Series, normalized: str) -> dict[str, Any] | None:
+        if not _is_integer_dtype(series):
+            return None
+        non_null = series.dropna()
+        if non_null.empty:
+            return None
+        unique = int(non_null.nunique())
+        year_hits = _token_hits(normalized, ("year", "yr"))
+        month_hits = _token_hits(normalized, ("month", "mth"))
+        quarter_hits = _token_hits(normalized, ("quarter", "qtr"))
+
+        if year_hits and unique <= 60:
+            values = non_null.astype(int)
+            if ((values >= 1900) & (values <= 2100)).mean() >= 0.95:
+                return {"role": "year", "confidence": 0.9,
+                        "candidates": [{"role": "year", "confidence": 0.9},
+                                       {"role": "category", "confidence": 0.2}],
+                        "rationale": ["Integer column with year-scale values and matching name hint"]}
+        if month_hits and unique <= 12:
+            values = non_null.astype(int)
+            if ((values >= 1) & (values <= 12)).mean() >= 0.95:
+                return {"role": "month", "confidence": 0.9,
+                        "candidates": [{"role": "month", "confidence": 0.9},
+                                       {"role": "category", "confidence": 0.2}],
+                        "rationale": ["Integer column with 1..12 values and matching name hint"]}
+        if quarter_hits and unique <= 4:
+            values = non_null.astype(int)
+            if ((values >= 1) & (values <= 4)).mean() >= 0.95:
+                return {"role": "quarter", "confidence": 0.9,
+                        "candidates": [{"role": "quarter", "confidence": 0.9},
+                                       {"role": "category", "confidence": 0.2}],
+                        "rationale": ["Integer column with 1..4 values and matching name hint"]}
+        return None
+
+    def _identifier_candidate(self, series: pd.Series, column: str, unique: int,
+                              total: int, unique_ratio: float) -> tuple[str, float, list[dict[str, float]], list[str]] | None:
+        normalized = _normalize(column)
+        name_hits = _token_hits(normalized, self.hints.get("identifier", ()))
+        exact_id = normalized in {"id", "identifier", "key", "sku", "uuid", "guid"}
+        if not (name_hits or exact_id):
+            return None
+        if unique_ratio < 0.5:
+            return None
+        dtype_score = 0.0
+        if _is_numeric(series):
+            if _is_integer_dtype(series):
+                dtype_score = 0.2
+        else:
+            avg_len = float(series.dropna().astype(str).str.len().mean()) if series.notna().any() else 99
+            dtype_score = 0.25 if avg_len <= 24 else 0.0
+        conf = 0.5 + 0.25 * unique_ratio + dtype_score
+        conf = min(0.98, conf)
+        return ("identifier", conf,
+                [{"role": "identifier", "confidence": conf},
+                 {"role": "text", "confidence": max(0.0, 1.0 - conf)}],
+                [f"Name hints ({', '.join(name_hits) or normalized}) and uniqueness ratio {unique_ratio:.2f}"])
+
+
+def detect_identifiers(dataframe: pd.DataFrame) -> list[str]:
+    """Statistical identifier detection without name hints.
+
+    Identifier columns typically have near-unique values, no repeated
+    pattern, integer dtype (or short string), and no natural ordering.
+    """
+    identified: list[str] = []
+    for column in dataframe.columns:
+        series = dataframe[column]
+        total = len(series)
+        if total == 0:
+            continue
+        non_null = series.dropna()
+        if non_null.empty:
+            continue
+        unique_ratio = non_null.nunique() / total
+        if unique_ratio < 0.9:
+            continue
+        if pd.api.types.is_float_dtype(series):
+            continue
+        if pd.api.types.is_numeric_dtype(series):
+            values = non_null.astype(int)
+            if ((values >= 1900) & (values <= 2100)).mean() >= 0.9:
+                continue
+            identified.append(str(column))
+        else:
+            avg_len = float(non_null.astype(str).str.len().mean())
+            if avg_len <= 40:
+                identified.append(str(column))
+    return identified
+
         best = max(candidates, key=lambda item: item["confidence"])
         return ColumnSemantics(column, best["role"], best["confidence"],
                                candidates, rationale).to_dict()
