@@ -187,9 +187,7 @@ class SemanticSchemaAgent:
 
         # 4) Time-only columns (string columns that parse to time of day)
         if not _is_numeric(series):
-            parsed_time = pd.to_datetime(non_null, errors="coerce", format="%H:%M:%S")
-            if parsed_time.notna().mean() < 0.8:
-                parsed_time = pd.to_datetime(non_null, errors="coerce")
+            parsed_time = pd.to_datetime(non_null, errors="coerce", format="mixed")
             time_only = (parsed_time.notna().mean() >= 0.8 and
                          ((parsed_time.dt.hour != 0) | (parsed_time.dt.minute != 0) |
                           (parsed_time.dt.second != 0)).mean() > 0 and
