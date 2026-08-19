@@ -131,22 +131,42 @@ class TemporalIntelligenceEngine:
             median_gap = float(values.sort_values().diff().dropna().median().total_seconds())
             field["span_seconds"] = round((values.max() - values.min()).total_seconds(), 3)
             if median_gap > 0:
-                if median_gap < 3600:
-                    field["frequency"] = "hourly"
-                elif median_gap < 86400:
-                    field["frequency"] = "daily"
-                elif median_gap < 7 * 86400:
-                    field["frequency"] = "weekly"
-                elif median_gap < 31 * 86400:
-                    field["frequency"] = "monthly"
-                elif median_gap < 93 * 86400:
-                    field["frequency"] = "quarterly"
-                else:
-                    field["frequency"] = "yearly"
+                field["frequency"] = self.frequency_label(median_gap)
                 field["aggregation_required"] = field["frequency"] in {
                     "daily", "weekly", "monthly", "quarterly", "yearly",
                 }
         return field
+
+    # ------------------------------------------------------------------
+    # Shared frequency inference
+    # ------------------------------------------------------------------
+    @staticmethod
+    def frequency_label(median_gap_seconds: float) -> str:
+        if median_gap_seconds < 3600:
+            return "hourly"
+        if median_gap_seconds < 86400 * 1.5:
+            return "daily"
+        if median_gap_seconds < 86400 * 14:
+            return "weekly"
+        if median_gap_seconds < 86400 * 34:
+            return "monthly"
+        if median_gap_seconds < 86400 * 100:
+            return "quarterly"
+        return "yearly"
+
+    @staticmethod
+    def frequency_offset(median_gap_seconds: float) -> str:
+        if median_gap_seconds < 3600:
+            return "h"
+        if median_gap_seconds < 86400 * 1.5:
+            return "D"
+        if median_gap_seconds < 86400 * 14:
+            return "W"
+        if median_gap_seconds < 86400 * 34:
+            return "ME"
+        if median_gap_seconds < 86400 * 100:
+            return "QE"
+        return "YE"
 
     # ------------------------------------------------------------------
     # Validated trend analysis
@@ -268,17 +288,7 @@ class TemporalIntelligenceEngine:
         }
 
     def _frequency_for_gap(self, median_gap_seconds: float) -> tuple[str, str]:
-        if median_gap_seconds < 3600:
-            return "hourly", "h"
-        if median_gap_seconds < 86400:
-            return "daily", "D"
-        if median_gap_seconds < 7 * 86400:
-            return "weekly", "W"
-        if median_gap_seconds < 31 * 86400:
-            return "monthly", "ME"
-        if median_gap_seconds < 93 * 86400:
-            return "quarterly", "QE"
-        return "yearly", "YE"
+        return self.frequency_label(median_gap_seconds), self.frequency_offset(median_gap_seconds)
 
     def _trend_confidence(self, periods: int, growth: float | None,
                           rising: int, falling: int) -> float:
