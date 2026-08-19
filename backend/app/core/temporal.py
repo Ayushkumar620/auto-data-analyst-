@@ -94,3 +94,56 @@ class TemporalIntelligenceEngine:
             if any(token in normalized for token in ("quarter", "qtr")) and values.nunique() <= 4:
                 if ((values >= 1) & (values <= 4)).mean() >= 0.95:
                     return self._field(column, "quarter", 0.9, series)
+
+        # 4) Numeric unix-style timestamps.
+        if pd.api.types.is_numeric_dtype(series):
+            name_hint = any(token in normalized for token in ("timestamp", "ts", "epoch", "unix"))
+            if name_hint:
+                large = non_null.astype(float)
+                mean_magnitude = float(np.abs(large).mean()) if len(large) else 0.0
+                if mean_magnitude > 1e9:
+                    unit = "s"
+                elif mean_magnitude > 1e6:
+                    unit = "ms"
+                else:
+                    unit = None
+                if unit is not None:
+                    parsed = pd.to_datetime(large, unit=unit, errors="coerce")
+                    if parsed.notna().mean() >= 0.8:
+                        return self._field(column, "timestamp", 0.85, series, parsed=parsed)
+        return None
+
+    def _field(self, column: str, kind: str, confidence: float, series: pd.Series,
+               parsed: pd.Series | None = None) -> dict[str, Any]:
+        values = parsed if parsed is not None else series
+        values = pd.to_datetime(values, errors="coerce").dropna()
+        field: dict[str, Any] = {
+            "column": str(column),
+            "temporal_kind": kind,
+            "confidence": round(confidence, 3),
+            "min": values.min().isoformat() if not values.empty else None,
+            "max": values.max().isoformat() if not values.empty else None,
+            "unique_count": int(values.nunique()) if not values.empty else 0,
+            "frequency": None,
+            "aggregation_required": False,
+        }
+        if len(values) >= 2:
+            median_gap = float(values.sort_values().diff().dropna().median().total_seconds())
+            field["span_seconds"] = round((values.max() - values.min()).total_seconds(), 3)
+            if median_gap > 0:
+                if median_gap < 3600:
+                    field["frequency"] = "hourly"
+                elif median_gap < 86400:
+                    field["frequency"] = "daily"
+                elif median_gap < 7 * 86400:
+                    field["frequency"] = "weekly"
+                elif median_gap < 31 * 86400:
+                    field["frequency"] = "monthly"
+                elif median_gap < 93 * 86400:
+                    field["frequency"] = "quarterly"
+                else:
+                    field["frequency"] = "yearly"
+                field["aggregation_required"] = field["frequency"] in {
+                    "daily", "weekly", "monthly", "quarterly", "yearly",
+                }
+        return field
