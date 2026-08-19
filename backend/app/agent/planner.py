@@ -12,7 +12,7 @@ from backend.app.cleaning.cleaner import DataCleaner
 from backend.app.eda.orchestrator import EDAOrchestrator
 from backend.app.insights.engine import InsightEngine
 from backend.app.visualization.engine import VisualizationEngine
-from backend.app.forecasting.forecaster import ForecastingEngine
+from backend.app.forecasting.forecaster import Forecaster
 
 @dataclass
 class Task:
@@ -184,7 +184,7 @@ class PlannerAgent:
     
     def _run_forecasting_task(self, action: str, dataframe: Any) -> dict[str, Any]:
         if action == 'forecast':
-            engine = ForecastingEngine()
+            engine = Forecaster()
             try:
                 result = engine.forecast(dataframe)
                 return {'forecast': result}
