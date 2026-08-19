@@ -251,12 +251,18 @@ class DataQualityEngine:
     def _quality_score(self, rows: int, columns: int, issues: list[dict[str, Any]]) -> int:
         if rows == 0 or columns == 0:
             return 0
-        weight = {"critical": 8, "warning": 3, "info": 1}
-        penalty = sum(weight.get(issue["severity"], 1) * min(issue.get("percentage", 1) or 1, 50)
-                      for issue in issues
-                      if issue["issue"] != "outliers")
-        score = max(0, 100 - int(penalty))
-        return min(100, score)
+        penalty = 0.0
+        for issue in issues:
+            if issue["issue"] == "outliers":
+                continue
+            percentage = min(float(issue.get("percentage") or 0.0), 50.0)
+            if issue["severity"] == "critical":
+                penalty += percentage * 1.5
+            elif issue["severity"] == "warning":
+                penalty += percentage * 0.6
+            else:
+                penalty += percentage * 0.2
+        return max(0, min(100, int(round(100 - penalty))))
 
     def _recommendations(self, issues: list[dict[str, Any]]) -> list[str]:
         recommendations: list[str] = []
