@@ -183,3 +183,70 @@ class RelationshipDiscoveryEngine:
             results.append(duplicated)
 
         return results
+
+    def _functional_dependency(self, a: pd.Series, b: pd.Series,
+                               left: str, right: str) -> dict[str, Any] | None:
+        clean = pd.DataFrame({"a": a, "b": b}).dropna()
+        if len(clean) < 5:
+            return None
+        consistent = clean.groupby("a")["b"].nunique()
+        left_determines_right = float((consistent <= 1).mean())
+        consistent_rev = clean.groupby("b")["a"].nunique()
+        right_determines_left = float((consistent_rev <= 1).mean())
+
+        if left_determines_right >= 0.98:
+            return {"type": "functional_dependency", "columns": [left, right],
+                    "determinant": left, "dependent": right,
+                    "consistency": round(left_determines_right, 4),
+                    "confidence": round(0.5 + 0.45 * left_determines_right, 3),
+                    "description": f"{left} functionally determines {right} (consistent for {left_determines_right:.0%} of values)."}
+        if right_determines_left >= 0.98:
+            return {"type": "functional_dependency", "columns": [left, right],
+                    "determinant": right, "dependent": left,
+                    "consistency": round(right_determines_left, 4),
+                    "confidence": round(0.5 + 0.45 * right_determines_left, 3),
+                    "description": f"{right} functionally determines {left} (consistent for {right_determines_left:.0%} of values)."}
+        return None
+
+    def _duplicated_info(self, a: np.ndarray, b: np.ndarray,
+                         left: str, right: str) -> dict[str, Any] | None:
+        scale = np.maximum(np.abs(a).max(), np.abs(b).max()) or 1.0
+        diff = np.abs(a - b) / scale
+        identical_fraction = float((diff <= self.absolute_tolerance).mean())
+        if identical_fraction >= 0.98:
+            return {"type": "duplicated_information", "columns": [left, right],
+                    "identical_fraction": round(identical_fraction, 4),
+                    "confidence": round(0.5 + 0.45 * identical_fraction, 3),
+                    "description": f"{left} and {right} carry effectively identical values."}
+        return None
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _numeric_pairs(numeric: list[str], max_pairs: int) -> list[tuple[str, str]]:
+        pairs: list[tuple[str, str]] = []
+        for i, left in enumerate(numeric):
+            for right in numeric[i + 1:]:
+                pairs.append((left, right))
+                if len(pairs) >= max_pairs:
+                    return pairs
+        return pairs
+
+    def _dedupe(self, relationships: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        seen: set[tuple[str, ...]] = set()
+        unique: list[dict[str, Any]] = []
+        for item in relationships:
+            key = (item["type"], tuple(sorted(item.get("columns", []))))
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(item)
+        return unique
+
+    @staticmethod
+    def _count_types(relationships: list[dict[str, Any]]) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for item in relationships:
+            counts[item["type"]] = counts.get(item["type"], 0) + 1
+        return counts
