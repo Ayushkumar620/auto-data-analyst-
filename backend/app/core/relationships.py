@@ -129,3 +129,57 @@ class RelationshipDiscoveryEngine:
             "confidence": round(min(0.99, confidence), 3),
             "description": f"{target} closely matches {formula}.",
         }
+
+    # ------------------------------------------------------------------
+    # Pairwise relationships
+    # ------------------------------------------------------------------
+    def _pair_relationships(self, dataframe: pd.DataFrame, left: str, right: str) -> list[dict[str, Any]]:
+        a = pd.to_numeric(dataframe[left], errors="coerce")
+        b = pd.to_numeric(dataframe[right], errors="coerce")
+        clean = pd.DataFrame({"a": a, "b": b}).replace([np.inf, -np.inf], np.nan).dropna()
+        if len(clean) < 5:
+            return []
+        results: list[dict[str, Any]] = []
+        a_vals = clean["a"].to_numpy(dtype=float)
+        b_vals = clean["b"].to_numpy(dtype=float)
+
+        # 1) Pearson correlation.
+        if a_vals.std() > 0 and b_vals.std() > 0:
+            correlation = float(np.corrcoef(a_vals, b_vals)[0, 1])
+            if not np.isnan(correlation):
+                results.append({
+                    "type": "correlation",
+                    "columns": [left, right],
+                    "correlation": round(correlation, 4),
+                    "confidence": round(min(0.98, abs(correlation)), 3),
+                    "description": f"{left} and {right} have a Pearson correlation of {correlation:.3f}.",
+                })
+
+        # 2) Monotonic relationship (Spearman rank correlation).
+        if len(clean) >= 10:
+            rank_a = pd.Series(a_vals).rank().to_numpy(dtype=float)
+            rank_b = pd.Series(b_vals).rank().to_numpy(dtype=float)
+            if rank_a.std() > 0 and rank_b.std() > 0:
+                spearman = float(np.corrcoef(rank_a, rank_b)[0, 1])
+                if not np.isnan(spearman) and abs(spearman) >= 0.8:
+                    results.append({
+                        "type": "monotonic",
+                        "columns": [left, right],
+                        "spearman_correlation": round(spearman, 4),
+                        "confidence": round(min(0.98, abs(spearman)), 3),
+                        "description": (f"{left} and {right} move "
+                                        f"{'together' if spearman > 0 else 'in opposite directions'} "
+                                        f"monotonically (Spearman {spearman:.3f})."),
+                    })
+
+        # 3) Functional dependency (left determines right, or vice versa).
+        dependency = self._functional_dependency(a, b, left, right)
+        if dependency is not None:
+            results.append(dependency)
+
+        # 4) Duplicated information.
+        duplicated = self._duplicated_info(a_vals, b_vals, left, right)
+        if duplicated is not None:
+            results.append(duplicated)
+
+        return results
