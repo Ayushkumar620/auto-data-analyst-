@@ -11,9 +11,9 @@
 
 ## In Progress: Milestone 3 — AI Multi-Agent Workflow & Chat
 ### Steps
-- [ ] 1. Create `agent/planner.py` — Planner Agent that routes requests across specialized agents
-- [ ] 2. Add `/api/chat` endpoint in `app.py` for chat-style data Q&A
-- [ ] 3. Add Chat with Data interface to `templates/index.html`
+- [x] 1. Create `agent/planner.py` — Planner Agent that routes requests across specialized agents
+- [x] 2. Add `/api/chat` endpoint in `app.py` for chat-style data Q&A (already exists in `backend/app/api/v1/chat.py`)
+- [x] 3. Add Chat with Data interface to `templates/index.html` (ChatPage.tsx exists at `/chat` route)
 - [ ] 4. Add chat styles to `static/css/style.css`
 - [ ] 5. Test planner orchestration and chat end-to-end
 - [ ] 6. Update README and TODO
