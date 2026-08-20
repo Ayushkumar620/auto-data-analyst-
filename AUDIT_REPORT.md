@@ -95,4 +95,34 @@ The current Auto Data Analyst system works for basic conditions but has signific
 - **Visualization column selection is heuristic** - `visualizer.py` lines 88, 97: picks first categorical/numeric
 - **No validation of processing outputs** - Cleaned data not verified against expectations
 
+---
+
+## 7. Result Validation Failures
+
+**Current Implementation:** `backend/app/forecasting/validator.py` (ForecastValidator) - only for forecasting
+
+**Problems:**
+- **Validation only exists for forecasting** - No validation for analysis, insights, charts, predictions
+- **No cross-checking** - Results not verified against source data
+- **No schema validation** - Agent outputs not validated against expected schemas
+- **Silent failures** - Invalid columns in chart requests produce empty charts instead of errors
+- **No evidence linking** - Results don't reference source rows/columns used
+
+**Evidence:** Only `validator.py` exists; no validators for other agent outputs
+
+---
+
+## 8. AI Explanation Failures
+
+**Current Implementation:** `backend/app/insights/interpreter.py` (InsightInterpreter) + `backend/app/insights/rules.py` (InsightRules)
+
+**Problems:**
+- **No fact/observation/inference distinction** - All insights presented equally
+- **Correlation presented as causation** - `rules.py` line 36-38: "Strong X-Y Relationship" implies causation
+- **LLM can hallucinate** - `_looks_like_new_facts()` heuristic (line 142-153) is weak guard
+- **No evidence citations in narrative** - LLM output not grounded to specific fact IDs
+- **Confidence only 3 levels** - high/medium/low, no numerical scores
+- **Recommendations not traced to evidence** - `rules.py` line 55-74 generates recommendations without explicit links
+
+**Evidence:** `interpreter.py` lines 142-153 (weak hallucination guard), `rules.py` lines 36-38 (correlation language)
 **Evidence:** `cleaner.py` lines 90-111 (hardcoded fill strategies), `predictor.py` lines 65-75 (simple linear regression)
