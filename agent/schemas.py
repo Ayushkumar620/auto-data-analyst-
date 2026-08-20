@@ -84,3 +84,22 @@ class ValidationSeverity(str, Enum):
     WARNING = "warning"
     ERROR = "error"
     CRITICAL = "critical"
+@dataclass
+class DatasetKnowledge:
+    """
+    Complete semantic understanding of a dataset.
+    This object is created once and shared with all downstream agents.
+    """
+    dataset_id: str
+    dataset_type: str                # "transactional", "time_series", "cross_sectional", "panel", "unknown"
+    entities: List[Dict[str, Any]]   # Business entities identified (customers, products, etc.)
+    metrics: List[SemanticMapping]   # Columns that are measurable metrics (revenue, quantity, etc.)
+    dimensions: List[SemanticMapping] # Columns for grouping/filtering (region, category, etc.)
+    temporal_columns: List[SemanticMapping]  # Date/time columns
+    identifiers: List[SemanticMapping]       # Primary/foreign keys
+    semantic_mappings: List[SemanticMapping] # All column mappings
+    relationships: List[Dict[str, Any]]      # Detected relationships (FK, hierarchy, etc.)
+    data_quality: Dict[str, Any]    # Quality metrics per column
+    overall_confidence: float        # Aggregate confidence in understanding
+    created_at: datetime = field(default_factory=datetime.now)
+    metadata: Dict[str, Any] = field(default_factory=dict)
