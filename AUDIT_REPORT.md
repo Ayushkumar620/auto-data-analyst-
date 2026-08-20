@@ -121,6 +121,143 @@ The current Auto Data Analyst system works for basic conditions but has signific
 - **Correlation presented as causation** - `rules.py` line 36-38: "Strong X-Y Relationship" implies causation
 - **LLM can hallucinate** - `_looks_like_new_facts()` heuristic (line 142-153) is weak guard
 - **No evidence citations in narrative** - LLM output not grounded to specific fact IDs
+---
+
+## 9. Error Handling Failures
+
+**Current Implementation:** Try/catch in BaseAgent._error() and various agent run() methods
+
+**Problems:**
+- **Errors lose context** - Only error message preserved, no input state
+- **No retry logic** - Transient failures (LLM timeout) not retried
+- **No graceful degradation** - If one agent fails, pipeline stops
+- **Error types not distinguished** - Validation error = runtime error = LLM error
+- **No user-facing error explanation** - Technical errors shown to users
+
+**Evidence:** `base.py` lines 45-56 (_error), `planner.py` lines 134-139 (run_agent catches all exceptions)
+
+---
+
+## 10. Agent Communication Failures
+
+**Current Implementation:** Sequential pipeline in `PlannerAgent.run_pipeline()` + in-memory `_analyses` dict in `backend/app/api/insights.py`
+
+**Problems:**
+- **No structured message format** - Agents pass raw dicts, no schema
+- **No intermediate result validation** - Pipeline passes output directly to next agent
+- **In-memory only** - `_analyses` dict lost on restart, no persistence
+- **No async/parallel execution** - All steps sequential
+- **No feedback loops** - Later agents can't request clarification from earlier ones
+- **Context not shared** - Each agent re-discovers dataset properties
+
+**Evidence:** `planner.py` lines 141-173 (linear pipeline), `insights.py` line 13 (global dict)
+
+---
+
+## Proposed Reliability Architecture
+
+```
+User Request
+    │
+    ▼
+┌─────────────────────────────────────┐
+│ Intent Analyzer                     │
+---
+
+## Implementation Priority
+
+### Phase 1: Foundation (Week 1)
+1. **Standardized AgentResult schema** - All agents return consistent structure
+2. **Semantic Schema Agent** - Column mapping with confidence scores
+3. **Dataset Knowledge Object** - Centralized semantic understanding
+
+### Phase 2: Validation & Reliability (Week 2)
+4. **Result Validator** - Cross-check all agent outputs
+5. **Retry/Repair mechanism** - Automatic recovery from common failures
+6. **Error taxonomy** - Structured error types with user-friendly messages
+
+### Phase 3: Intelligence (Week 3)
+7. **Intent Analyzer v2** - Semantic parsing with confidence
+8. **Task Planner v2** - Dynamic planning with fallbacks
+9. **Evidence tracking** - Full lineage from question to answer
+
+### Phase 4: Evaluation (Week 4)
+10. **Evaluation framework** - Test datasets + metrics
+11. **Automated tests** - Normal, messy, ambiguous, adversarial cases
+
+---
+
+## Files to Create/Modify
+
+### New Core Files:
+- `agent/schemas.py` - Standardized AgentResult, DatasetKnowledge, SemanticMapping
+- `agent/semantic_schema_agent.py` - Semantic column understanding
+- `agent/intent_analyzer.py` - Improved intent detection
+- `agent/task_planner.py` - Dynamic planning with fallbacks
+- `agent/result_validator.py` - Validation with repair
+- `agent/dataset_knowledge.py` - Dataset Knowledge Object
+- `agent/evidence.py` - Evidence tracking utilities
+
+### Modified Files:
+- `agent/base.py` - Update BaseAgent to use AgentResult
+- `agent/planner.py` - Replace with TaskPlanner
+- `agent/nlp_parser.py` - Enhance or replace with IntentAnalyzer
+- `agent/agents.py` - Update all agents to return AgentResult
+- `backend/app/insights/schemas.py` - Add FACT/OBSERVATION/CORRELATION/INFERENCE/RECOMMENDATION types
+
+### Test Files:
+- `test_reliability_framework.py` - Core reliability tests
+- `test_semantic_schema.py` - Semantic mapping tests
+- `test_result_validator.py` - Validation tests
+- `evaluation/` - Evaluation datasets and harness
+│ - Semantic parsing                  │
+│ - Confidence scoring                │
+│ - Ambiguity detection               │
+└─────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────┐
+│ Task Planner                        │
+│ - Dynamic agent selection           │
+│ - Tool capability matching          │
+│ - Dependency graph                  │
+│ - Fallback planning                 │
+└─────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────┐
+│ Semantic Schema Agent               │
+│ - Column → semantic concept mapping │
+│ - Confidence scores                 │
+│ - Dataset Knowledge Object          │
+└─────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────┐
+│ Agent Execution (with Evidence)     │
+│ - Standardized AgentResult schema   │
+│ - Evidence tracking                 │
+│ - Confidence propagation            │
+└─────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────┐
+│ Result Validator                    │
+│ - Schema validation                 │
+│ - Data cross-checking               │
+│ - Evidence verification             │
+│ - Repair/ retry logic               │
+└─────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────┐
+│ Evidence-based Response             │
+│ - FACT / OBSERVATION / CORRELATION  │
+│   / INFERENCE / RECOMMENDATION      │
+│ - Confidence intervals              │
+│ - Source tracing                    │
+└─────────────────────────────────────┘
+```
 - **Confidence only 3 levels** - high/medium/low, no numerical scores
 - **Recommendations not traced to evidence** - `rules.py` line 55-74 generates recommendations without explicit links
 
