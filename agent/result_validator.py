@@ -274,8 +274,8 @@ def _cross_check_columns(self, evidence: Evidence, ref: Dict[str, Any],
                 continue
             for name in names:
                 if isinstance(name, str) and name not in actual_columns:
-                    vr.add_issue(
-                        ValidationSeverity.WARNING, "EVIDENCE_UNKNOWN_COLUMN",
+                                        vr.add_issue(
+                        ValidationSeverity.CRITICAL, "EVIDENCE_UNKNOWN_COLUMN",
                         f"Evidence references column '{name}' that is not "
                         "present in the dataset.",
                         field=f"{field}.{key}", expected=name,
@@ -285,8 +285,8 @@ def _cross_check_columns(self, evidence: Evidence, ref: Dict[str, Any],
                     )
         single_col = ref.get("column") or ref.get("col")
         if isinstance(single_col, str) and single_col not in actual_columns:
-            vr.add_issue(
-                ValidationSeverity.WARNING, "EVIDENCE_UNKNOWN_COLUMN",
+                        vr.add_issue(
+                ValidationSeverity.CRITICAL, "EVIDENCE_UNKNOWN_COLUMN",
                 f"Evidence references column '{single_col}' that is not "
                 "present in the dataset.",
                 field=field, expected=single_col, actual=actual_columns,
