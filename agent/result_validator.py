@@ -214,9 +214,11 @@ class ResultValidator:
     def _cross_check(self, result: AgentResult, vr: ValidationResult,
                      context: Optional[Dict[str, Any]]) -> None:
         """Verify evidence references against real data when context is given."""
-        if not context:
+                if not context:
             return
-        data = context.get("dataframe") or context.get("data")
+        data = context.get("dataframe")
+        if data is None:
+            data = context.get("data")
         if data is None:
             return
 
@@ -381,9 +383,11 @@ class ResultValidator:
     def _references_unknown_column(
         evidence: Evidence, context: Optional[Dict[str, Any]]
     ) -> bool:
-        if not context:
+                if not context:
             return False
-        data = context.get("dataframe") or context.get("data")
+        data = context.get("dataframe")
+        if data is None:
+            data = context.get("data")
         if data is None:
             return False
         columns = context.get("columns")

@@ -227,7 +227,8 @@ def test_repair_drops_hallucinated_column_evidence():
 
 
 def test_repair_stamps_missing_finished_at():
-    r = make_result(finished_at=None)
+    r = make_result()
+    r.finished_at = None
     repaired, vr = ResultValidator().repair(r)
     assert repaired.finished_at is not None
     assert vr.repaired is True
