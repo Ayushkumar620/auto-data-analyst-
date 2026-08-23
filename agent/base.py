@@ -10,6 +10,7 @@ from .schemas import (
     AgentResult,
     AgentError,
     AgentStatus,
+    ClaimType,
     Evidence,
     ErrorCategory,
     ValidationResult,
@@ -101,6 +102,34 @@ class BaseAgent:
     def run(self, task) -> AgentResult:
         """Execute the task. Subclasses must override and return AgentResult."""
         raise NotImplementedError("Subclasses must implement run() and return AgentResult")
+
+    # ------------------------------------------------------------------
+    # Evidence helper
+    # ------------------------------------------------------------------
+    def make_evidence(
+        self,
+        method: str,
+        data_ref: Dict[str, Any],
+        confidence: float = 0.9,
+        claim_type: "ClaimType" = ClaimType.OBSERVATION,
+        raw_value: Any = None,
+        metadata: Dict[str, Any] = None,
+    ) -> Evidence:
+        """Build an Evidence object with this agent as the source.
+
+        Every claim an agent makes should be traceable back to the exact
+        computation (method), the data it was derived from (data_ref), and a
+        numeric confidence.
+        """
+        return Evidence(
+            source=self.name,
+            method=method,
+            data_ref=data_ref,
+            confidence=confidence,
+            claim_type=claim_type,
+            raw_value=raw_value,
+            metadata={"agent_id": self.agent_id, **(metadata or {})},
+        )
 
     # Backward compatibility: allow dict-like access for existing code
     def to_legacy_dict(self, result: AgentResult) -> Dict[str, Any]:

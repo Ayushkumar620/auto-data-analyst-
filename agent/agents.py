@@ -1,5 +1,8 @@
 """
 Specialized Agents - Each agent handles a specific type of analysis task.
+Every agent attaches `Evidence` describing how its output was computed so
+downstream consumers (planner, validator, report) can trace every claim to
+the underlying data and method.
 """
 import pandas as pd
 
@@ -9,6 +12,16 @@ from .visualizer import DataVisualizer
 from .predictor import DataPredictor
 from .insights import InsightsEngine
 from .cleaner import DataCleaner
+from .schemas import ClaimType, Evidence, ErrorCategory
+
+
+def _frames(data):
+    """Return a list of (name, DataFrame) pairs for single or multi-table data."""
+    if isinstance(data, dict):
+        return list(data.items())
+    if isinstance(data, pd.DataFrame):
+        return [("data", data)]
+    return []
 
 
 class DataLoadingAgent(BaseAgent):
