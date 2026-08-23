@@ -212,3 +212,72 @@ Based on the audit and AUDIT_REPORT.md priorities:
 8. **Wrap all modern engines as agents** - Profiling, Cleaning, EDA, Viz, Insight, Forecast
 9. **Enforce evidence types** - FACT/OBSERVATION/CORRELATION/INFERENCE/RECOMMENDATION in all outputs
 10. **Add validation gates** - Pre/post execution verification with repair/retry
+---
+
+## Recommendation: Start With Task #1
+
+**Implement `AgentResult` / `AgentError` / `BaseAgent` contract first.**
+
+**Why:**
+- Everything else depends on standardized agent communication
+- Low risk, high leverage - touches all agents
+- Enables validation, retry, evidence tracking
+- Can be done incrementally without breaking existing tests
+- The `agent/schemas.py` already has the dataclass definitions - just need to enforce them
+
+**Approach:**
+1. Extend `agent/schemas.py` with complete `AgentResult`, `AgentError`, `Evidence` classes
+2. Modify `agent/base.py` `BaseAgent._finish()` / `_error()` to return `AgentResult` instances
+3. Update one agent (e.g., `AnalysisAgent`) as proof-of-concept
+4. Run existing tests to ensure backward compatibility
+5. Gradually migrate remaining agents
+
+---
+
+## Appendix: File Map
+
+```
+agent/
+├── base.py              # BaseAgent - NEEDS: enforce AgentResult return
+├── schemas.py           # AgentResult, DatasetKnowledge, Evidence - NEEDS: completion + enforcement
+├── agents.py            # Legacy agents - NEEDS: migrate to BaseAgent + AgentResult
+├── planner.py           # Static REQUEST_MAP - NEEDS: replace with TaskPlanner
+├── nlp_parser.py        # Keyword parser - NEEDS: replace with IntentAnalyzer
+├── analyzer.py          # DataAnalyzer - WORKS
+├── cleaner.py           # DataCleaner - WORKS
+├── visualizer.py        # DataVisualizer - WORKS
+├── insights.py          # InsightsEngine - WORKS (legacy)
+├── predictor.py         # DataPredictor - WORKS
+├── command_parser.py    # Dispatcher - NEEDS: use modern intent analyzer
+├── loader.py            # Data loading - WORKS
+├── report_generator.py  # PDF reports - WORKS (legacy)
+├── llm_router.py        # LLM fallback - NEEDS: structured contracts
+├── config.py            # Config - WORKS
+├── bank_parser.py       # Bank parsing - WORKS
+
+backend/app/
+├── core/
+│   ├── semantic.py      # SemanticSchemaAgent - COMPLETE, needs agent wrapper
+│   ├── evidence.py      # Evidence system - COMPLETE, needs integration
+│   ├── quality.py       # DataQualityEngine - COMPLETE
+│   ├── relationships.py # RelationshipDiscoveryEngine - COMPLETE
+│   ├── anomalies.py     # AnomalyDetectionEngine - COMPLETE
+│   ├── temporal.py      # TemporalIntelligenceEngine - COMPLETE
+│   └── specialists/     # (empty)
+├── agent/
+│   └── planner.py       # Modern PlannerAgent - PARTIAL, needs AgentResult
+├── eda/
+│   └── orchestrator.py  # EDAOrchestrator - COMPLETE
+├── insights/
+│   ├── engine.py        # InsightEngine - COMPLETE
+│   ├── analyzer.py      # FactAnalyzer - COMPLETE
+│   ├── rules.py         # InsightRules - COMPLETE
+│   ├── interpreter.py   # InsightInterpreter - COMPLETE
+│   └── schemas.py       # Insight schema - COMPLETE
+├── cleaning/            # Modular cleaners - COMPLETE
+├── visualization/       # ChartSelector, ChartFactory - COMPLETE
+├── forecasting/         # Forecaster pipeline - COMPLETE
+├── api/v1/              # REST endpoints - COMPLETE
+├── models.py            # SQLAlchemy models - COMPLETE
+└── database.py          # DB setup - COMPLETE
+```
