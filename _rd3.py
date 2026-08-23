@@ -1,0 +1,5 @@
+data = open("_p2.txt", encoding="utf-8", errors="ignore").read()
+data = data.replace("\x00", "")
+lines = data.splitlines()
+print("TOTAL LINES:", len(lines))
+print("".join(lines[-90:]))
