@@ -185,9 +185,9 @@ Based on the audit and AUDIT_REPORT.md priorities:
 | Order | Task | Files to Create/Modify | Status |
 |-------|------|------------------------|--------|
 | 1 | **Standardized `AgentResult` / `AgentError`** | `agent/schemas.py` (extend), `agent/base.py` (refactor) | ✅ **DONE 2026-08-23** |
-| 2 | **Evidence Model Integration** | `agent/schemas.py` → all agents | 🔳 Next |
+| 2 | **Evidence Model Integration** | `agent/schemas.py` → all agents | ✅ **DONE 2026-08-23** |
 | 3 | **BaseAgent Contract** | `agent/base.py` (enforce `AgentResult` return) | ✅ **DONE 2026-08-23** |
-| 4 | **Result Validator** | `agent/result_validator.py` (new) | 🔳 |
+| 4 | **Result Validator** | `agent/result_validator.py` (new) | 🔳 Next |
 | 5 | **Confidence Handling** | Numerical propagation through pipeline | 🔳 |
 | 6 | **Retry/Repair Mechanism** | `agent/retry.py` (new) | 🔳 |
 
