@@ -1,0 +1,16 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\ayush\Desktop\auto-data-analyst\venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\ayush\Desktop\auto-data-analyst
+plugins: anyio-4.14.2, langsmith-0.11.0
+collecting ... collected 7 items
+
+test_chat.py::test_planner_agent_runs_single_actions_and_pipeline PASSED [ 14%]
+test_chat.py::test_command_parser_handles_summary_and_chart_requests PASSED [ 28%]
+test_pipeline.py::test_analysis_pipeline_generates_dataset_metadata PASSED [ 42%]
+test_pipeline.py::test_analysis_pipeline_preserves_original_and_keeps_cleaned_copy_separate PASSED [ 57%]
+test_pipeline.py::test_analysis_pipeline_returns_eda_visualizations_and_insights PASSED [ 71%]
+test_cleaning.py::test_cleaning_pipeline_reports_actions PASSED          [ 85%]
+test_eda.py::test_eda_orchestrator_returns_sections PASSED               [100%]
+
+============================== 7 passed in 3.29s ==============================
