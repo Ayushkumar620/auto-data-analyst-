@@ -143,8 +143,8 @@ def test_correlation_evidence_without_causation_passes():
         confidence=0.9,
         claim_type=ClaimType.CORRELATION,
         metadata={"interpretation": "Discount and profit show a strong negative "
-                                   "association in the sample."},
-        )
+                                                                      "association in the sample."},
+    )
     r = make_result(evidence=[ev])
     vr = ResultValidator().validate(r)
     assert vr.passed is True
