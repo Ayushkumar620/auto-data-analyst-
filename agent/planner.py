@@ -10,7 +10,11 @@ It can run a single atomic task or a full autonomous pipeline:
   upload -> clean -> EDA -> insights -> report
 """
 import time
+from typing import Any, Dict, Optional
 
+import pandas as pd
+
+from .result_validator import ResultValidator
 from .agents import (
     DataLoadingAgent,
     AnalysisAgent,
@@ -114,8 +118,9 @@ class PlannerAgent:
         },
     }
 
-    def __init__(self, data=None):
+        def __init__(self, data=None, validator: ResultValidator = None):
         self.data = data
+        self._validator = validator or ResultValidator()
 
     def run_agent(self, request, data=None):
         """Execute a single atomic request using the appropriate agent."""
@@ -131,12 +136,37 @@ class PlannerAgent:
 
         agent = entry["agent"]()
         task = entry["task"](data, req)
-        agent._start()
+                agent._start()
         try:
             result = agent.run(task)
-            return result
         except Exception as e:
-            return agent._error(str(e))
+            result = agent._error(str(e))
+        context = self._validation_context(data or self.data)
+        # Validate + repair every AgentResult before it leaves the planner so
+        # downstream consumers never see an unvalidated/unrepaired result.
+        self._validator.repair(result, context)
+        return result
+
+    @staticmethod
+    def _validation_context(
+        data: Any,
+    ) -> Optional[Dict[str, Any]]:
+        """Build the validation context the ResultValidator uses to cross-check
+        evidence against the real dataset."""
+        if data is None:
+            return None
+        if isinstance(data, pd.DataFrame):
+            return {
+                "dataframe": data,
+                "columns": [str(c) for c in data.columns],
+                "row_count": len(data),
+            }
+        if isinstance(data, dict):
+            frames = [f for f in data.values() if isinstance(f, pd.DataFrame)]
+            columns = sorted({str(c) for f in frames for c in f.columns})
+            row_count = max((len(f) for f in frames), default=0)
+            return {"dataframe": data, "columns": columns, "row_count": row_count}
+        return None
 
     def run_pipeline(self, data=None, steps=None):
         """Run an autonomous pipeline of agents in sequence.
