@@ -212,6 +212,31 @@ class AgentResult:
             "retry_count": self.retry_count,
         }
 
+    # ------------------------------------------------------------------
+    # Backward-compatibility helpers: allow dict-style access so existing
+    # callers (planner.py, app.py, ReportAgent) work with AgentResult
+    # without modification. New code should prefer attribute access.
+    # ------------------------------------------------------------------
+    def get(self, key: str, default: Any = None) -> Any:
+        """Dict-style get(). Supports 'status' -> string, 'output' -> dict."""
+        if hasattr(self, key):
+            value = getattr(self, key)
+            if key == "status":
+                return value.value if isinstance(value, AgentStatus) else value
+            if key == "output":
+                return value if value is not None else {}
+            return value
+        return default
+
+    def __getitem__(self, key: str) -> Any:
+        value = self.get(key)
+        if value is not None or hasattr(self, key):
+            return value
+        raise KeyError(key)
+
+    def __contains__(self, key: str) -> bool:
+        return hasattr(self, key)
+
     @classmethod
     def success(cls, agent: str, role: str, agent_id: str, started_at: datetime,
                 output: Dict[str, Any], evidence: List[Evidence] = None,
