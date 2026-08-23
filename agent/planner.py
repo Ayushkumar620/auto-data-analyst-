@@ -141,7 +141,7 @@ class PlannerAgent:
             result = agent.run(task)
         except Exception as e:
             result = agent._error(str(e))
-        context = self._validation_context(data or self.data)
+        context = self._validation_context(data)
         # Validate + repair every AgentResult before it leaves the planner so
         # downstream consumers never see an unvalidated/unrepaired result.
         self._validator.repair(result, context)
