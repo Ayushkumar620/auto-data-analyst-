@@ -20,6 +20,22 @@ The Auto Data Analyst project has substantial working code across two parallel a
 | Date | Task | Files Changed | Verification |
 |------|------|---------------|--------------|
 | 2026-08-23 | **Task 1: Standardized `AgentResult` / `AgentError` / `BaseAgent` contract** | `agent/schemas.py`, `agent/base.py` | 73 unit tests pass (18 agent/pipeline/viz + 55 backend/api/chat) |
+| 2026-08-23 | **Task 2: Evidence Model Integration** | `agent/base.py`, `agent/agents.py` | 73 unit tests pass; all 8 agents produce evidence-carrying `AgentResult` |
+
+**What Task 2 delivered:**
+- `agent/base.py` — Added `BaseAgent.make_evidence()` helper (auto-fills `source=agent name`, `metadata.agent_id`).
+- `agent/agents.py` — All 8 specialized agents now attach concrete `Evidence` on success:
+  - `DataLoadingAgent`: per-frame FACT evidence (rows/columns/columns_names).
+  - `AnalysisAgent`: evidence keyed to the exact pandas method used (`REQUEST_METHOD` map); correlations use `claim_type=CORRELATION`, everything else `FACT`; confidence 0.85 (correlation) / 0.95.
+  - `VisualizationAgent`: per-chart `OBSERVATION` evidence (`matplotlib.<chart_type>`).
+  - `PredictionAgent`: `FACT` evidence with model, features, train/test sizes; numeric confidence derived from R²/accuracy; `"error"` results return confidence 0.0 + warning instead of pretending success.
+  - `ForecastAgent`: `INFERENCE` evidence (`history_points`, `date_col`, trend); confidence 0.7 + warning "Forecasts are estimates."
+  - `CleaningAgent`: per-frame `FACT` evidence with original/cleaned shape + actions.
+  - `InsightAgent`: evidence claim-type mapped per request (`REQUEST_CLAIM`: text=FACT, smart/anomalies=OBSERVATION, report=INFERENCE, aggregate=FACT); smart/summary insights carry confidence 0.8 with anti-causation warning.
+  - `ReportAgent`: `INFERENCE` evidence referencing each upstream agent_id/status/confidence.
+- Added shared `_frames()` helper for single/multi-table frames; normalized logical request aliases to canonical keys so evidence is exact.
+
+**Note (pre-existing bug logged, not a regression):** `agent/predictor.py` line 151 raises `AttributeError` when the target is classification and gets `LabelEncoder`-transformed (ndarray has no `.notna()`). The agent already trapped this to `status=error` before this change; it is now scheduled for the **Result Validator / repair** milestone.
 
 **What Task 1 delivered:**
 - `agent/schemas.py` — Complete data contracts: `AgentResult` (with `success()`/`failure()`/`retrying()` factories, `to_dict()`, dict-style `get()`/`__getitem__` for backward compat), `AgentError` (typed with `ErrorCategory`, recovery hints), `ValidationResult` + `ValidationIssue`, `Evidence` (with `ClaimType`), `SemanticMapping`, `DatasetKnowledge`, enums `AgentStatus`, `ClaimType`, `ValidationSeverity`, `ErrorCategory`.
@@ -217,8 +233,8 @@ Based on the audit and AUDIT_REPORT.md priorities:
 
 1. ✅ **Define `AgentResult` and `AgentError` schemas** in `agent/schemas.py` - **DONE 2026-08-23**
 2. ✅ **Refactor `BaseAgent`** to enforce `AgentResult` return type - **DONE 2026-08-23**
-3. **Attach evidence to agent outputs** - Every successful agent result carries `Evidence` items (task 2 in Phase 1)
-4. **Create `ResultValidator`** - Validates schema, cross-checks data, verifies evidence
+3. ✅ **Attach evidence to agent outputs** - All 8 specialized agents now carry `Evidence` - **DONE 2026-08-23**
+4. **Create `ResultValidator`** - Validates schema, cross-checks data, verifies evidence (also fixes the predictor classification `AttributeError` via repair)
 5. **Build `DatasetKnowledge` object** - Single shared semantic understanding (already defined in schemas; needs population logic)
 6. **Wrap `SemanticSchemaAgent`** as proper `BaseAgent` returning `AgentResult`
 7. **Implement `IntentAnalyzer`** - Semantic parsing with confidence, replaces `NLPCommandParser`
