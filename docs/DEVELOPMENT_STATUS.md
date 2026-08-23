@@ -143,3 +143,72 @@ The Auto Data Analyst project has substantial working code across two parallel a
 5. **LLM Integration Optional** - `InsightInterpreter` has LLM but no structured prompt/response contracts
 6. **Test Dependencies** - Integration tests require live server; no unit test mocks for external services
 7. **Async/Sync Mix** - FastAPI is async but core engines are sync; no thread pool for CPU-bound work
+---
+
+## F. Architecture Improvements 🏗️
+
+### Immediate (Reliability First)
+1. **Unify Agent Contract** - Single `AgentResult` schema used by ALL agents (legacy + modern)
+2. **Create Dataset Knowledge Object** - Single source of truth for dataset understanding
+3. **Build Intent Analyzer v2** - Replace keyword parser with semantic + LLM hybrid
+4. **Implement Task Planner v2** - Dynamic, capability-aware, with fallbacks
+5. **Add Result Validator** - Validate every agent output before passing downstream
+
+### Structural
+6. **Consolidate Architectures** - Migrate legacy agents to modern `BaseAgent` + `AgentResult`
+7. **Extract Shared Kernels** - `SemanticSchemaAgent`, `DataQualityEngine`, etc. already reusable
+8. **Define Tool Registry** - Agents declare capabilities/requirements for planner matching
+
+### Quality
+9. **Evidence-First Output** - Every insight/claim carries `Evidence` with type + confidence
+10. **Deterministic Core** - All math in pandas; LLM only for narrative (already mostly true)
+---
+
+## G. Recommended Implementation Order 🚀
+
+Based on the audit and AUDIT_REPORT.md priorities:
+
+### Phase 1: Reliability Foundation (Week 1-2) - **DO FIRST**
+| Order | Task | Files to Create/Modify |
+|-------|------|------------------------|
+| 1 | **Standardized `AgentResult` / `AgentError`** | `agent/schemas.py` (extend), `agent/base.py` (refactor) |
+| 2 | **Evidence Model Integration** | `agent/schemas.py` → all agents |
+| 3 | **BaseAgent Contract** | `agent/base.py` (enforce `AgentResult` return) |
+| 4 | **Result Validator** | `agent/result_validator.py` (new) |
+| 5 | **Confidence Handling** | Numerical propagation through pipeline |
+| 6 | **Retry/Repair Mechanism** | `agent/retry.py` (new) |
+
+### Phase 2: Dataset Knowledge & Semantic Understanding (Week 2-3)
+| Order | Task | Files to Create/Modify |
+|-------|------|------------------------|
+| 7 | **Dataset Knowledge Object** | `agent/dataset_knowledge.py` (new), populate from profilers |
+| 8 | **Semantic Schema Agent** | Wrap `backend/app/core/semantic.py` as agent |
+| 9 | **Improved Intent Analyzer** | `agent/intent_analyzer.py` (new, replace `nlp_parser.py`) |
+
+### Phase 3: Automated Pipeline (Week 3-4)
+| Order | Task | Files to Create/Modify |
+|-------|------|------------------------|
+| 10 | **Dynamic Task Planner** | `agent/task_planner.py` (new, replace `planner.py`) |
+| 11 | **Agent Wrappers** | Wrap each modern engine as `BaseAgent` subclass |
+| 12 | **Evidence-Based Insight Engine** | Extend `InsightEngine` to emit typed evidence |
+
+### Phase 4: Evaluation & Hardening (Week 4+)
+| Order | Task | Files to Create/Modify |
+|-------|------|------------------------|
+| 13 | **Evaluation Framework** | `evaluation/` directory with test datasets |
+| 14 | **Automated Reliability Tests** | Extend test suite with adversarial cases |
+
+---
+
+## Next 10 Implementation Tasks (Prioritized)
+
+1. **Define `AgentResult` and `AgentError` schemas** in `agent/schemas.py` - Foundation for everything
+2. **Refactor `BaseAgent`** to enforce `AgentResult` return type - Contract enforcement
+3. **Create `ResultValidator`** - Validates schema, cross-checks data, verifies evidence
+4. **Build `DatasetKnowledge` object** - Single shared semantic understanding
+5. **Wrap `SemanticSchemaAgent`** as proper `BaseAgent` returning `AgentResult`
+6. **Implement `IntentAnalyzer`** - Semantic parsing with confidence, replaces `NLPCommandParser`
+7. **Build `TaskPlanner`** - Dynamic DAG with capability matching and fallbacks
+8. **Wrap all modern engines as agents** - Profiling, Cleaning, EDA, Viz, Insight, Forecast
+9. **Enforce evidence types** - FACT/OBSERVATION/CORRELATION/INFERENCE/RECOMMENDATION in all outputs
+10. **Add validation gates** - Pre/post execution verification with repair/retry
