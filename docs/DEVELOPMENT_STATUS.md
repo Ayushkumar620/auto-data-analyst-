@@ -55,3 +55,67 @@ The Auto Data Analyst project has substantial working code across two parallel a
 ### Tests
 - [x] 73 passing unit tests covering core engines
 - [x] Integration test framework (requires running server)
+---
+
+## B. Partially Completed Features ⚠️
+
+| Feature | Status | Gaps |
+|---------|--------|------|
+| **Agent Framework** | Core engines exist but no unified `BaseAgent` contract | Agents return arbitrary dicts; no `AgentResult` standardization |
+| **Planner Agent** | `backend/app/agent/planner.py` exists with task DAG | No dynamic fallback, no capability awareness, no retry/repair |
+| **Intent Analysis** | Legacy `NLPCommandParser` (keyword-based) + `LLMRouter` | No semantic parsing, no confidence, no ambiguity detection |
+| **Dataset Knowledge Object** | `agent/schemas.py` defines `DatasetKnowledge` | Not populated/used by planner; semantic roles not shared |
+| **Semantic Schema** | `SemanticSchemaAgent` classifies columns | Confidence not propagated; no alias/synonym resolution for metrics |
+| **Validation Layer** | Individual engine validation exists | No cross-agent `ResultValidator` with repair/retry |
+| **Chat Agent** | `/api/v1/chat` endpoint exists | Uses legacy command parser, not modern intent analyzer |
+| **Report Generation** | Legacy `ReportGenerator` (PDF via reportlab) | Modern architecture lacks report agent; no evidence tracing in reports |
+
+---
+
+## C. Missing Features ❌
+
+### Reliability Foundation (Critical - AUDIT_REPORT.md Phase 1)
+- [ ] **Standardized `AgentResult`** - Every agent must return structured result with status, output, evidence, confidence, errors
+- [ ] **Standardized `AgentError`** - Typed error taxonomy with recovery hints
+- [ ] **Evidence Model** - `agent/schemas.py` has `Evidence` class but not integrated into agent outputs
+- [ ] **BaseAgent Contract** - Abstract base class enforcing `AgentResult` return type
+- [ ] **Result Validator** - Schema validation + data cross-checking + evidence verification
+- [ ] **Confidence Handling** - Numerical confidence propagation (not just high/medium/low)
+- [ ] **Retry/Repair Mechanism** - Automatic retry with exponential backoff + targeted repair strategies
+
+### Dataset Knowledge & Semantic Understanding
+- [ ] **Dataset Knowledge Object** - Single shared object created once, passed to all agents
+- [ ] **Semantic Column Mapping** - Revenue synonyms (`sales`, `sales_amount`, `net_revenue`, `turnover`) mapped to concept with confidence
+- [ ] **Ambiguity Detection** - Explicit "low confidence → ask clarification" instead of silent guessing
+
+### Automated Analysis Pipeline
+- [ ] **Intent Analyzer v2** - Semantic parsing with structured output + confidence
+- [ ] **Dynamic Task Planner** - Capability-aware agent selection, dependency graph, fallback plans
+- [ ] **Evidence Collection** - Automatic lineage from question → data → computation → claim
+
+### Specialized Agents (Modern Architecture)
+- [ ] **File/Data Agent** - Wraps ingestion, returns `DatasetKnowledge`
+- [ ] **Profiling Agent** - Wraps semantic schema + quality + temporal + relationships
+- [ ] **Cleaning Agent** - Wraps cleaning pipeline with evidence
+- [ ] **EDA Agent** - Wraps `EDAOrchestrator` with `AgentResult`
+- [ ] **Visualization Agent** - Wraps `VisualizationEngine` with `AgentResult`
+- [ ] **Insight Agent** - Wraps `InsightEngine` with evidence-typed output
+- [ ] **Forecast Agent** - Wraps `Forecaster` with `AgentResult`
+- [ ] **Report Agent** - Composes evidence-backed narrative reports
+- [ ] **Chat/Data Query Agent** - NL → intent → plan → execute → validate → answer
+
+### Evidence-Based Insight Types
+- [ ] Enforce FACT/OBSERVATION/CORRELATION/INFERENCE/RECOMMENDATION distinction in all outputs
+- [ ] Never present correlation as causation (enforced in `evidence.py` but not used)
+
+### Validation Gates
+- [ ] Pre-execution: verify columns exist, types compatible, data sufficient
+- [ ] Post-execution: verify calculations, aggregations, date ranges, statistics
+- [ ] Evidence verification: every claim traces to source data + computation
+
+### Testing (AUDIT_REPORT.md Phase 4)
+- [ ] Evaluation framework with test datasets + metrics
+- [ ] Automated tests: normal, messy, ambiguous, adversarial cases
+- [ ] Hallucinated column detection
+- [ ] Incorrect calculation detection
+- [ ] Evidence validation tests
