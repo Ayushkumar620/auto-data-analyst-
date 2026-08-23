@@ -403,8 +403,13 @@ class ResultValidator:
             real = [str(c) for c in columns]
         ref = evidence.data_ref or {}
         names = ref.get("column_names") or ref.get("columns") or []
-        if not isinstance(names, (list, tuple)):
-            names = [ref.get("column")] if ref.get("column") else []
+        if isinstance(names, str):
+            names = [names]
+        elif not isinstance(names, (list, tuple)):
+            names = []
+        single_col = ref.get("column") or ref.get("col")
+        if isinstance(single_col, str):
+            names = list(names) + [single_col]
         return any(isinstance(n, str) and n not in real for n in names)
 
 
