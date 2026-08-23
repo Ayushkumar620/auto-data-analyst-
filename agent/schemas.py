@@ -3,6 +3,7 @@ Core Schemas - Standardized data contracts for the reliability architecture.
 
 Defines:
 - AgentResult: Standardized output from every agent
+- AgentError: Standardized error with recovery hints
 - DatasetKnowledge: Semantic understanding of a dataset
 - SemanticMapping: Column-to-concept mapping with confidence
 - Evidence: Traceable proof for claims
@@ -13,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 import uuid
 
 
@@ -24,22 +25,55 @@ class AgentStatus(str, Enum):
     COMPLETED = "completed"
     ERROR = "error"
     RETRYING = "retrying"
+    VALIDATION_FAILED = "validation_failed"
+
+
+class ClaimType(str, Enum):
+    """Explicit distinction between types of claims - never conflate."""
+    FACT = "fact"
+    OBSERVATION = "observation"
+    CORRELATION = "correlation"
+    INFERENCE = "inference"
+    RECOMMENDATION = "recommendation"
+
+
+class ValidationSeverity(str, Enum):
+    """Severity of validation issues."""
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+    CRITICAL = "critical"
+
+
+class ErrorCategory(str, Enum):
+    """Category of agent error for recovery routing."""
+    INPUT_VALIDATION = "input_validation"
+    DATA_QUALITY = "data_quality"
+    COMPUTATION = "computation"
+    RESOURCE = "resource"
+    SEMANTIC = "semantic"
+    DEPENDENCY = "dependency"
+    UNKNOWN = "unknown"
+
+
 @dataclass
 class Evidence:
     """Traceable evidence supporting a claim or result."""
-    source: str                      # Agent/tool that produced this
-    method: str                      # How it was computed
-    data_ref: Dict[str, Any]         # Reference to source data (column, rows, query)
-    confidence: float                # 0.0 - 1.0
-    raw_value: Any = None            # The actual computed value
+    source: str
+    method: str
+    data_ref: Dict[str, Any]
+    confidence: float
+    claim_type: ClaimType = ClaimType.OBSERVATION
+    raw_value: Any = None
     metadata: Dict[str, Any] = field(default_factory=dict)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "source": self.source,
             "method": self.method,
             "data_ref": self.data_ref,
             "confidence": self.confidence,
+            "claim_type": self.claim_type.value,
             "raw_value": self.raw_value,
             "metadata": self.metadata,
         }
@@ -48,14 +82,14 @@ class Evidence:
 @dataclass
 class SemanticMapping:
     """Maps a physical column to a semantic concept with confidence."""
-    column_name: str                 # Actual column name in dataset
-    semantic_concept: str            # Business concept (e.g., "revenue", "customer_id", "transaction_date")
-    concept_category: str            # "metric", "dimension", "identifier", "temporal", "entity"
-    confidence: float                # 0.0 - 1.0 based on evidence
-    evidence: List[Evidence]         # Why this mapping was made
-    aliases: List[str] = field(default_factory=list)  # Other names this could be
+    column_name: str
+    semantic_concept: str
+    concept_category: str
+    confidence: float
+    evidence: List[Evidence]
+    aliases: List[str] = field(default_factory=list)
     description: str = ""
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "column_name": self.column_name,
@@ -66,40 +100,3 @@ class SemanticMapping:
             "aliases": self.aliases,
             "description": self.description,
         }
-    VALIDATION_FAILED = "validation_failed"
-
-
-class ClaimType(str, Enum):
-    """Explicit distinction between types of claims - never conflate."""
-    FACT = "fact"                    # Directly computable from data (e.g., "sum of sales = 100")
-    OBSERVATION = "observation"      # Pattern seen in data (e.g., "sales peak in December")
-    CORRELATION = "correlation"      # Statistical relationship (e.g., "sales correlates with marketing spend")
-    INFERENCE = "inference"          # Reasoned conclusion (e.g., "marketing drives sales")
-    RECOMMENDATION = "recommendation"  # Suggested action (e.g., "increase marketing in Q4")
-
-
-class ValidationSeverity(str, Enum):
-    """Severity of validation issues."""
-    INFO = "info"
-    WARNING = "warning"
-    ERROR = "error"
-    CRITICAL = "critical"
-@dataclass
-class DatasetKnowledge:
-    """
-    Complete semantic understanding of a dataset.
-    This object is created once and shared with all downstream agents.
-    """
-    dataset_id: str
-    dataset_type: str                # "transactional", "time_series", "cross_sectional", "panel", "unknown"
-    entities: List[Dict[str, Any]]   # Business entities identified (customers, products, etc.)
-    metrics: List[SemanticMapping]   # Columns that are measurable metrics (revenue, quantity, etc.)
-    dimensions: List[SemanticMapping] # Columns for grouping/filtering (region, category, etc.)
-    temporal_columns: List[SemanticMapping]  # Date/time columns
-    identifiers: List[SemanticMapping]       # Primary/foreign keys
-    semantic_mappings: List[SemanticMapping] # All column mappings
-    relationships: List[Dict[str, Any]]      # Detected relationships (FK, hierarchy, etc.)
-    data_quality: Dict[str, Any]    # Quality metrics per column
-    overall_confidence: float        # Aggregate confidence in understanding
-    created_at: datetime = field(default_factory=datetime.now)
-    metadata: Dict[str, Any] = field(default_factory=dict)
