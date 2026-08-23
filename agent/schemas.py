@@ -15,7 +15,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
-import uuid
 
 
 class AgentStatus(str, Enum):
@@ -100,6 +99,8 @@ class SemanticMapping:
             "aliases": self.aliases,
             "description": self.description,
         }
+
+
 @dataclass
 class AgentError:
     """Standardized error with recovery hints."""
