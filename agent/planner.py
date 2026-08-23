@@ -118,7 +118,7 @@ class PlannerAgent:
         },
     }
 
-        def __init__(self, data=None, validator: ResultValidator = None):
+    def __init__(self, data=None, validator: ResultValidator = None):
         self.data = data
         self._validator = validator or ResultValidator()
 
@@ -136,7 +136,7 @@ class PlannerAgent:
 
         agent = entry["agent"]()
         task = entry["task"](data, req)
-                agent._start()
+        agent._start()
         try:
             result = agent.run(task)
         except Exception as e:
