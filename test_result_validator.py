@@ -144,7 +144,169 @@ def test_correlation_evidence_without_causation_passes():
         claim_type=ClaimType.CORRELATION,
         metadata={"interpretation": "Discount and profit show a strong negative "
                                    "association in the sample."},
-    )
+        )
     r = make_result(evidence=[ev])
     vr = ResultValidator().validate(r)
     assert vr.passed is True
+
+
+# ---------------------------------------------------------------------------
+# Data cross-checking
+# ---------------------------------------------------------------------------
+def test_cross_check_unknown_column_fails():
+    df = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
+    ev = _fact_evidence(data_ref={"frame": "data", "column_names": ["a", "ghost"]})
+    r = make_result(evidence=[ev])
+    vr = ResultValidator().validate(r, {"dataframe": df})
+    assert vr.passed is False
+    assert any(i.code == "EVIDENCE_UNKNOWN_COLUMN" for i in vr.issues)
+
+
+def test_cross_check_row_count_exceeded_warns():
+    df = pd.DataFrame({"a": [1, 2]})  # 2 rows
+    ev = _fact_evidence(data_ref={"frame": "data", "rows": 42})
+    r = make_result(evidence=[ev])
+    vr = ResultValidator().validate(r, {"dataframe": df})
+    assert any(i.code == "EVIDENCE_ROWS_EXCEEDED" for i in vr.issues)
+
+
+def test_cross_check_recomputes_null_statistics():
+    df = pd.DataFrame({"a": [1, None, 3], "b": [1, 2, None]})  # 2 nulls total
+    ev = Evidence(
+        source="Analysis Agent",
+        method="pandas.DataFrame.isnull().sum()",
+        data_ref={"frame": "data"},
+        confidence=0.99,
+        claim_type=ClaimType.FACT,
+        raw_value=2.0,  # matches the real null count
+    )
+    r = make_result(evidence=[ev])
+    vr = ResultValidator().validate(r, {"dataframe": df})
+    assert vr.passed is True
+
+    bad = Evidence(
+        source="Analysis Agent",
+        method="pandas.DataFrame.isnull().sum()",
+        data_ref={"frame": "data"},
+        confidence=0.99,
+        claim_type=ClaimType.FACT,
+        raw_value=99.0,  # does not match the real null count
+    )
+    r2 = make_result(evidence=[bad])
+    vr2 = ResultValidator().validate(r2, {"dataframe": df})
+    assert vr2.passed is False
+    assert any(i.code == "CALCULATION_MISMATCH" for i in vr2.issues)
+
+
+# ---------------------------------------------------------------------------
+# Repair
+# ---------------------------------------------------------------------------
+def test_repair_clamps_confidence_and_marks_repaired():
+    r = make_result(confidence=2.0)
+    repaired, vr = ResultValidator().repair(r)
+    assert repaired.confidence == 1.0
+    assert vr.repaired is True
+    assert any("Clamped" in a for a in vr.repair_actions)
+
+
+def test_repair_drops_broken_evidence():
+    r = make_result(evidence=[_fact_evidence(conf=7.0), _fact_evidence(conf=0.8)])
+    repaired, vr = ResultValidator().repair(r)
+    assert len(repaired.evidence) == 1
+    assert repaired.evidence[0].confidence == 0.8
+    assert vr.repaired is True
+
+
+def test_repair_drops_hallucinated_column_evidence():
+    df = pd.DataFrame({"a": [1, 2]})
+    ev = _fact_evidence(data_ref={"frame": "data", "column_names": ["a", "ghost"]})
+    r = make_result(evidence=[ev])
+    repaired, vr = ResultValidator().repair(r, {"dataframe": df})
+    assert len(repaired.evidence) == 0
+    assert vr.repaired is True
+
+
+def test_repair_stamps_missing_finished_at():
+    r = make_result(finished_at=None)
+    repaired, vr = ResultValidator().repair(r)
+    assert repaired.finished_at is not None
+    assert vr.repaired is True
+
+
+def test_repair_noop_on_clean_result():
+    r = make_result()
+    repaired, vr = ResultValidator().repair(r)
+    assert vr.repaired is False
+    assert repaired.evidence == []
+
+
+# ---------------------------------------------------------------------------
+# Convenience wrapper
+# ---------------------------------------------------------------------------
+def test_validate_agent_result_convenience_returns_validation():
+    r = make_result()
+    vr = validate_agent_result(r)
+    assert vr.passed is True
+    assert r.validation is vr
+
+
+# ---------------------------------------------------------------------------
+# End-to-end with a real BaseAgent + real data
+# ---------------------------------------------------------------------------
+def test_real_agent_output_passes_validation():
+    from agent.loader import load_data
+
+    data = load_data("sample_data.csv")
+
+    class _MiniAgent(BaseAgent):
+        name = "Mini Analysis Agent"
+        role = "analysis"
+
+        def run(self, task):
+            self._start()
+            return self._finish(
+                {"request": "summary", "reports": []},
+                evidence=[self.make_evidence(
+                    method="pandas.DataFrame.describe(include='all')",
+                    data_ref={"frame": "data",
+                              "rows": len(data),
+                              "columns": len(data.columns)},
+                    confidence=0.95,
+                    claim_type=ClaimType.FACT,
+                )],
+            )
+
+    result = _MiniAgent().run({})
+    vr = ResultValidator().validate(result, {"dataframe": data})
+    assert vr.passed is True
+
+
+def test_real_agent_output_with_bad_context_fails_and_repairs():
+    from agent.loader import load_data
+
+    data = load_data("sample_data.csv")
+
+    class _BadAgent(BaseAgent):
+        name = "Bad Agent"
+        role = "analysis"
+
+        def run(self, task):
+            self._start()
+            return self._finish(
+                {"request": "summary"},
+                evidence=[self.make_evidence(
+                    method="pandas.DataFrame.describe()",
+                    data_ref={"frame": "data", "column_names": ["a", "ghost_col"]},
+                    confidence=0.9,
+                    claim_type=ClaimType.FACT,
+                )],
+            )
+
+    result = _BadAgent().run({})
+    vr = ResultValidator().validate(result, {"dataframe": data})
+    assert vr.passed is False
+
+    repaired, after = ResultValidator().repair(result, {"dataframe": data})
+    assert len(repaired.evidence) == 0
+    assert after.repaired is True
+    assert after.passed is True
