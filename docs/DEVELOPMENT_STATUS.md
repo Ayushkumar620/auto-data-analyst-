@@ -119,3 +119,27 @@ The Auto Data Analyst project has substantial working code across two parallel a
 - [ ] Hallucinated column detection
 - [ ] Incorrect calculation detection
 - [ ] Evidence validation tests
+---
+
+## D. Critical Bugs 🐛
+
+| Bug | Location | Impact |
+|-----|----------|--------|
+| **Pytest collection error** | `test_output.txt` (binary) collected as test | Blocks CI; fixed by removing file |
+| **Integration tests fail** | Require running server on localhost:8000 | Not runnable in isolation; need test fixtures |
+| **Legacy/Modern split** | Two parallel agent systems (`agent/` vs `backend/app/`) | Confusion, duplicate code, inconsistent contracts |
+| **No AgentResult standardization** | All agents return arbitrary dicts | Cannot chain agents reliably; no validation |
+| **Intent parser keyword-only** | `agent/nlp_parser.py` hardcoded keywords | Fails on paraphrasing, synonyms, ambiguous columns |
+| **Planner static mapping** | `agent/planner.py` `REQUEST_MAP` fixed dict | Cannot adapt to data characteristics or agent failures |
+
+---
+
+## E. Technical Debt 📦
+
+1. **Dual Architecture** - Legacy Flask (`agent/`, `app.py`) and Modern FastAPI (`backend/app/`) coexist with different patterns
+2. **No Shared Types** - `agent/schemas.py` defines modern contracts but legacy agents don't use them
+3. **Hardcoded Keywords** - Column detection, intent parsing, chart selection all use brittle keyword lists
+4. **No Confidence Propagation** - Engines compute confidence but it's not threaded through pipeline
+5. **LLM Integration Optional** - `InsightInterpreter` has LLM but no structured prompt/response contracts
+6. **Test Dependencies** - Integration tests require live server; no unit test mocks for external services
+7. **Async/Sync Mix** - FastAPI is async but core engines are sync; no thread pool for CPU-bound work
