@@ -100,3 +100,71 @@ class SemanticMapping:
             "aliases": self.aliases,
             "description": self.description,
         }
+@dataclass
+class AgentError:
+    """Standardized error with recovery hints."""
+    category: ErrorCategory
+    message: str
+    details: Dict[str, Any] = field(default_factory=dict)
+    recoverable: bool = True
+    retry_after_ms: Optional[int] = None
+    suggested_fix: Optional[str] = None
+    fallback_agent: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "category": self.category.value,
+            "message": self.message,
+            "details": self.details,
+            "recoverable": self.recoverable,
+            "retry_after_ms": self.retry_after_ms,
+            "suggested_fix": self.suggested_fix,
+            "fallback_agent": self.fallback_agent,
+        }
+
+
+@dataclass
+class ValidationIssue:
+    """A single validation issue found during result validation."""
+    severity: ValidationSeverity
+    code: str
+    message: str
+    field: Optional[str] = None
+    expected: Any = None
+    actual: Any = None
+    repair_hint: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "severity": self.severity.value,
+            "code": self.code,
+            "message": self.message,
+            "field": self.field,
+            "expected": self.expected,
+            "actual": self.actual,
+            "repair_hint": self.repair_hint,
+        }
+
+
+@dataclass
+class ValidationResult:
+    """Validation outcome with repair suggestions."""
+    passed: bool
+    issues: List[ValidationIssue] = field(default_factory=list)
+    repaired: bool = False
+    repair_actions: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "passed": self.passed,
+            "issues": [i.to_dict() for i in self.issues],
+            "repaired": self.repaired,
+            "repair_actions": self.repair_actions,
+        }
+
+    def add_issue(self, severity: ValidationSeverity, code: str, message: str,
+                  field: Optional[str] = None, expected: Any = None, actual: Any = None,
+                  repair_hint: Optional[str] = None) -> None:
+        self.issues.append(ValidationIssue(severity, code, message, field, expected, actual, repair_hint))
+        if severity in (ValidationSeverity.ERROR, ValidationSeverity.CRITICAL):
+            self.passed = False
