@@ -15,6 +15,19 @@ The Auto Data Analyst project has substantial working code across two parallel a
 
 ---
 
+## Change Log
+
+| Date | Task | Files Changed | Verification |
+|------|------|---------------|--------------|
+| 2026-08-23 | **Task 1: Standardized `AgentResult` / `AgentError` / `BaseAgent` contract** | `agent/schemas.py`, `agent/base.py` | 73 unit tests pass (18 agent/pipeline/viz + 55 backend/api/chat) |
+
+**What Task 1 delivered:**
+- `agent/schemas.py` — Complete data contracts: `AgentResult` (with `success()`/`failure()`/`retrying()` factories, `to_dict()`, dict-style `get()`/`__getitem__` for backward compat), `AgentError` (typed with `ErrorCategory`, recovery hints), `ValidationResult` + `ValidationIssue`, `Evidence` (with `ClaimType`), `SemanticMapping`, `DatasetKnowledge`, enums `AgentStatus`, `ClaimType`, `ValidationSeverity`, `ErrorCategory`.
+- `agent/base.py` — `BaseAgent._finish()` and `_error()` now return standardized `AgentResult` (not raw dicts). `run()` signature updated to return `AgentResult`. All existing legacy agents inherit this automatically; dict-style `.get()` compatibility means planner/app/ReportAgent keep working unchanged.
+- `docs/DEVELOPMENT_STATUS.md` — This status document.
+
+---
+
 ## A. Completed Features ✅
 
 ### Data Ingestion & Loading
@@ -169,14 +182,14 @@ The Auto Data Analyst project has substantial working code across two parallel a
 Based on the audit and AUDIT_REPORT.md priorities:
 
 ### Phase 1: Reliability Foundation (Week 1-2) - **DO FIRST**
-| Order | Task | Files to Create/Modify |
-|-------|------|------------------------|
-| 1 | **Standardized `AgentResult` / `AgentError`** | `agent/schemas.py` (extend), `agent/base.py` (refactor) |
-| 2 | **Evidence Model Integration** | `agent/schemas.py` → all agents |
-| 3 | **BaseAgent Contract** | `agent/base.py` (enforce `AgentResult` return) |
-| 4 | **Result Validator** | `agent/result_validator.py` (new) |
-| 5 | **Confidence Handling** | Numerical propagation through pipeline |
-| 6 | **Retry/Repair Mechanism** | `agent/retry.py` (new) |
+| Order | Task | Files to Create/Modify | Status |
+|-------|------|------------------------|--------|
+| 1 | **Standardized `AgentResult` / `AgentError`** | `agent/schemas.py` (extend), `agent/base.py` (refactor) | ✅ **DONE 2026-08-23** |
+| 2 | **Evidence Model Integration** | `agent/schemas.py` → all agents | 🔳 Next |
+| 3 | **BaseAgent Contract** | `agent/base.py` (enforce `AgentResult` return) | ✅ **DONE 2026-08-23** |
+| 4 | **Result Validator** | `agent/result_validator.py` (new) | 🔳 |
+| 5 | **Confidence Handling** | Numerical propagation through pipeline | 🔳 |
+| 6 | **Retry/Repair Mechanism** | `agent/retry.py` (new) | 🔳 |
 
 ### Phase 2: Dataset Knowledge & Semantic Understanding (Week 2-3)
 | Order | Task | Files to Create/Modify |
@@ -202,16 +215,16 @@ Based on the audit and AUDIT_REPORT.md priorities:
 
 ## Next 10 Implementation Tasks (Prioritized)
 
-1. **Define `AgentResult` and `AgentError` schemas** in `agent/schemas.py` - Foundation for everything
-2. **Refactor `BaseAgent`** to enforce `AgentResult` return type - Contract enforcement
-3. **Create `ResultValidator`** - Validates schema, cross-checks data, verifies evidence
-4. **Build `DatasetKnowledge` object** - Single shared semantic understanding
-5. **Wrap `SemanticSchemaAgent`** as proper `BaseAgent` returning `AgentResult`
-6. **Implement `IntentAnalyzer`** - Semantic parsing with confidence, replaces `NLPCommandParser`
-7. **Build `TaskPlanner`** - Dynamic DAG with capability matching and fallbacks
-8. **Wrap all modern engines as agents** - Profiling, Cleaning, EDA, Viz, Insight, Forecast
-9. **Enforce evidence types** - FACT/OBSERVATION/CORRELATION/INFERENCE/RECOMMENDATION in all outputs
-10. **Add validation gates** - Pre/post execution verification with repair/retry
+1. ✅ **Define `AgentResult` and `AgentError` schemas** in `agent/schemas.py` - **DONE 2026-08-23**
+2. ✅ **Refactor `BaseAgent`** to enforce `AgentResult` return type - **DONE 2026-08-23**
+3. **Attach evidence to agent outputs** - Every successful agent result carries `Evidence` items (task 2 in Phase 1)
+4. **Create `ResultValidator`** - Validates schema, cross-checks data, verifies evidence
+5. **Build `DatasetKnowledge` object** - Single shared semantic understanding (already defined in schemas; needs population logic)
+6. **Wrap `SemanticSchemaAgent`** as proper `BaseAgent` returning `AgentResult`
+7. **Implement `IntentAnalyzer`** - Semantic parsing with confidence, replaces `NLPCommandParser`
+8. **Build `TaskPlanner`** - Dynamic DAG with capability matching and fallbacks
+9. **Wrap all modern engines as agents** - Profiling, Cleaning, EDA, Viz, Insight, Forecast
+10. **Enforce evidence types + validation gates** - FACT/OBSERVATION/CORRELATION/INFERENCE/RECOMMENDATION in all outputs; pre/post execution verification |
 ---
 
 ## Recommendation: Start With Task #1
