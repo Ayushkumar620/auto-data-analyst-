@@ -168,3 +168,129 @@ class ValidationResult:
         self.issues.append(ValidationIssue(severity, code, message, field, expected, actual, repair_hint))
         if severity in (ValidationSeverity.ERROR, ValidationSeverity.CRITICAL):
             self.passed = False
+@dataclass
+class AgentResult:
+    """
+    Standardized output from every agent.
+
+    All agents must return this structure (or a subclass) from their run() method.
+    The BaseAgent._finish() and _error() methods construct this automatically.
+    """
+    agent: str
+    role: str
+    agent_id: str
+    status: AgentStatus
+    started_at: datetime
+    finished_at: Optional[datetime] = None
+    duration_ms: float = 0.0
+    output: Dict[str, Any] = field(default_factory=dict)
+    evidence: List[Evidence] = field(default_factory=list)
+    confidence: float = 1.0
+    validation: Optional[ValidationResult] = None
+    errors: List[AgentError] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    retry_count: int = 0
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize to dictionary for API responses / storage."""
+        return {
+            "agent": self.agent,
+            "role": self.role,
+            "agent_id": self.agent_id,
+            "status": self.status.value,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "finished_at": self.finished_at.isoformat() if self.finished_at else None,
+            "duration_ms": self.duration_ms,
+            "output": self.output,
+            "evidence": [e.to_dict() for e in self.evidence],
+            "confidence": self.confidence,
+            "validation": self.validation.to_dict() if self.validation else None,
+            "errors": [e.to_dict() for e in self.errors],
+            "warnings": self.warnings,
+            "metadata": self.metadata,
+            "retry_count": self.retry_count,
+        }
+
+    @classmethod
+    def success(cls, agent: str, role: str, agent_id: str, started_at: datetime,
+                output: Dict[str, Any], evidence: List[Evidence] = None,
+                confidence: float = 1.0, duration_ms: float = 0.0,
+                warnings: List[str] = None, metadata: Dict[str, Any] = None) -> "AgentResult":
+        """Factory for successful result."""
+        return cls(
+            agent=agent,
+            role=role,
+            agent_id=agent_id,
+            status=AgentStatus.COMPLETED,
+            started_at=started_at,
+            finished_at=datetime.now(),
+            duration_ms=duration_ms,
+            output=output,
+            evidence=evidence or [],
+            confidence=confidence,
+            warnings=warnings or [],
+            metadata=metadata or {},
+        )
+
+    @classmethod
+    def failure(cls, agent: str, role: str, agent_id: str, started_at: datetime,
+                errors: List[AgentError], duration_ms: float = 0.0,
+                output: Dict[str, Any] = None, warnings: List[str] = None,
+                metadata: Dict[str, Any] = None) -> "AgentResult":
+        """Factory for failed result."""
+        return cls(
+            agent=agent,
+            role=role,
+            agent_id=agent_id,
+            status=AgentStatus.ERROR,
+            started_at=started_at,
+            finished_at=datetime.now(),
+            duration_ms=duration_ms,
+            output=output or {},
+            evidence=[],
+            confidence=0.0,
+            errors=errors,
+            warnings=warnings or [],
+            metadata=metadata or {},
+        )
+
+    @classmethod
+    def retrying(cls, agent: str, role: str, agent_id: str, started_at: datetime,
+                 retry_count: int, output: Dict[str, Any] = None,
+                 errors: List[AgentError] = None) -> "AgentResult":
+        """Factory for retry state."""
+        return cls(
+            agent=agent,
+            role=role,
+            agent_id=agent_id,
+            status=AgentStatus.RETRYING,
+            started_at=started_at,
+            duration_ms=0.0,
+            output=output or {},
+            evidence=[],
+            confidence=0.5,
+            errors=errors or [],
+            retry_count=retry_count,
+        )
+
+
+@dataclass
+class DatasetKnowledge:
+    """
+    Complete semantic understanding of a dataset.
+    This object is created once and shared with all downstream agents.
+    """
+    dataset_id: str
+    dataset_type: str
+    entities: List[Dict[str, Any]]
+    metrics: List[SemanticMapping]
+    dimensions: List[SemanticMapping]
+    temporal_columns: List[SemanticMapping]
+    identifiers: List[SemanticMapping]
+    semantic_mappings: List[SemanticMapping]
+    relationships: List[Dict[str, Any]]
+    data_quality: Dict[str, Any]
+    overall_confidence: float
+    created_at: datetime = field(default_factory=datetime.now)
+    metadata: Dict[str, Any] = field(default_factory=dict)
