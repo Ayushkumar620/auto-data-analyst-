@@ -164,9 +164,10 @@ def test_audit_pipeline_full_synthesis():
 def test_data_validation_agent_auto_repair():
     """Verify DataValidationAgent runs and automatically removes leaking features."""
     agent = DataValidationAgent()
+    np.random.seed(42)
     target = np.array([10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0])
     df = pd.DataFrame({
-        "normal_feat": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        "normal_feat": [5, 1, 9, 2, 8, 3, 7, 4, 6, 2],  # Non-collinear with target
         "leaking_proxy": target * 1.0001,  # Critical leakage
         "target": target,
     })

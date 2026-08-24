@@ -170,7 +170,7 @@ class DataModelValidator:
         }
 
         if min_class <= imbalance_threshold:
-            severity = IssueSeverity.CRITICAL if min_class < 0.05 else IssueSeverity.WARNING
+            severity = IssueSeverity.CRITICAL if min_class <= 0.05 else IssueSeverity.WARNING
             issues.append(
                 ValidationIssue(
                     check_type=ValidationCheckType.CLASS_IMBALANCE,
