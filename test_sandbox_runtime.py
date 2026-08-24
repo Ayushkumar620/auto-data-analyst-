@@ -101,3 +101,4 @@ def test_blocking_dangerous_builtins(sales_df):
         res = sandbox.execute_code(snippet, dataframe=sales_df)
         assert res.success is False
         assert "restricted built-in" in str(res.error).lower()
+

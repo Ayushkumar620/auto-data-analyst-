@@ -223,3 +223,4 @@ class SafeIsolatedExecutionSandbox:
 
 # Global singleton instance
 global_sandbox = SafeIsolatedExecutionSandbox()
+
