@@ -26,6 +26,7 @@ from .agents import (
     CleaningAgent,
     InsightAgent,
     ReportAgent,
+    ModelSelectionAgent,
 )
 
 
@@ -88,6 +89,26 @@ class PlannerAgent:
             "action": "predict",
             "agent": PredictionAgent,
             "task": lambda data, req: {"data": data, "target": req.get("target")},
+        },
+        "model_selection": {
+            "action": "model_selection",
+            "agent": ModelSelectionAgent,
+            "task": lambda data, req: {
+                "data": data,
+                "target": req.get("target"),
+                "features": req.get("features"),
+                "cv_folds": req.get("cv_folds", 5),
+            },
+        },
+        "benchmark": {
+            "action": "model_selection",
+            "agent": ModelSelectionAgent,
+            "task": lambda data, req: {
+                "data": data,
+                "target": req.get("target"),
+                "features": req.get("features"),
+                "cv_folds": req.get("cv_folds", 5),
+            },
         },
         "forecast": {
             "action": "forecast",

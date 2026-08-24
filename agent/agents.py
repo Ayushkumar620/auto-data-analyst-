@@ -12,6 +12,7 @@ from .visualizer import DataVisualizer
 from .predictor import DataPredictor
 from .insights import InsightsEngine
 from .cleaner import DataCleaner
+from .model_selection_agent import ModelSelectionAgent
 from .schemas import ClaimType, Evidence, ErrorCategory
 
 
