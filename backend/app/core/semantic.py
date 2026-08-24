@@ -6,19 +6,158 @@ Classifies every column into a semantic role based on:
   - cardinality / uniqueness
   - statistical characteristics
   - relationships (optional, passed in)
-  - optional LLM reasoning (skipped when no API key is configured)
+  - domain concept matching (revenue, profit, cost, volume, price, churn, etc.)
+  - contextual disambiguation (distinguishing similar concepts using confidence and data distribution)
 
-Never forces a classification when confidence is low.  All hints live in the
-configurable semantic dictionary (SEMANTIC_HINTS) - the statistical detection
-never depends on any particular dataset or column name.
+Never forces a classification when confidence is low. All hints live in the
+configurable semantic dictionary (SEMANTIC_HINTS) and BUSINESS_CONCEPTS.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
 import pandas as pd
+
+from agent.schemas import ClaimType, Evidence, SemanticMapping
+from backend.app.core.dataset_knowledge import DatasetKnowledge
+
+# ---------------------------------------------------------------------------
+# Business concepts registry for contextual semantic matching.
+# Maps canonical concept keys to their category, default aliases, and properties.
+# ---------------------------------------------------------------------------
+BUSINESS_CONCEPTS: Dict[str, Dict[str, Any]] = {
+    "revenue": {
+        "category": "financial",
+        "aliases": (
+            "sales", "sales_amount", "gross_revenue", "net_revenue", "turnover",
+            "top_line", "receipts", "gross_sales", "income", "total_revenue",
+            "net_sales", "billings", "revenue_amount", "revenue_usd",
+        ),
+        "description": "Financial inflow generated from goods or services.",
+        "expected_type": "numeric",
+        "typically_positive": True,
+    },
+    "cost": {
+        "category": "financial",
+        "aliases": (
+            "cogs", "cost_of_goods", "cost_of_sales", "expenses", "expenditure",
+            "operating_expenses", "opex", "capex", "spend", "spending",
+            "total_cost", "unit_cost", "direct_costs", "overhead",
+        ),
+        "description": "Financial expenditure incurred in business operations.",
+        "expected_type": "numeric",
+        "typically_positive": True,
+    },
+    "profit": {
+        "category": "financial",
+        "aliases": (
+            "net_profit", "gross_profit", "margin", "net_income", "ebitda",
+            "operating_income", "earnings", "bottom_line", "profit_amount",
+            "profit_margin", "operating_profit", "ebit",
+        ),
+        "description": "Financial gain representing revenue minus expenses.",
+        "expected_type": "numeric",
+        "typically_positive": False,  # can be negative (loss)
+    },
+    "quantity": {
+        "category": "volume",
+        "aliases": (
+            "qty", "units", "volume", "units_sold", "count", "item_count",
+            "number_of_items", "order_quantity", "quantity_sold", "stock_qty",
+        ),
+        "description": "Discrete or continuous count of units/items.",
+        "expected_type": "numeric",
+        "typically_positive": True,
+    },
+    "price": {
+        "category": "pricing",
+        "aliases": (
+            "unit_price", "rate", "retail_price", "selling_price", "list_price",
+            "price_per_unit", "mrp", "standard_price", "base_price",
+        ),
+        "description": "Per-unit financial charge.",
+        "expected_type": "numeric",
+        "typically_positive": True,
+    },
+    "discount": {
+        "category": "pricing",
+        "aliases": (
+            "discount_amount", "discount_rate", "rebate", "coupon_discount",
+            "price_cut", "promo_discount", "markdown", "pct_discount",
+        ),
+        "description": "Reduction applied to standard price or billings.",
+        "expected_type": "numeric",
+        "typically_positive": True,
+    },
+    "salary": {
+        "category": "hr",
+        "aliases": (
+            "wage", "compensation", "payroll", "bonus", "hourly_rate",
+            "annual_salary", "base_pay", "total_compensation", "remuneration",
+        ),
+        "description": "Personnel compensation and wage figures.",
+        "expected_type": "numeric",
+        "typically_positive": True,
+    },
+    "customer": {
+        "category": "customer",
+        "aliases": (
+            "client", "user", "account", "subscriber", "member", "shopper",
+            "buyer", "customer_name", "client_name", "user_name",
+        ),
+        "description": "Customer, client, or user entity.",
+        "expected_type": "entity",
+    },
+    "churn": {
+        "category": "customer",
+        "aliases": (
+            "attrition", "cancellation", "drop_off", "unsubscribe",
+            "is_churned", "churn_flag", "churn_rate", "exited",
+        ),
+        "description": "Customer attrition or cancellation indicator.",
+        "expected_type": "boolean_or_numeric",
+    },
+    "tenure": {
+        "category": "customer",
+        "aliases": (
+            "duration", "customer_age", "membership_duration", "months_active",
+            "days_active", "account_age", "service_years",
+        ),
+        "description": "Duration or length of active relationship.",
+        "expected_type": "numeric",
+        "typically_positive": True,
+    },
+    "rating": {
+        "category": "quality",
+        "aliases": (
+            "score", "feedback_score", "review_rating", "nps", "csat",
+            "stars", "sentiment_score", "satisfaction", "grade",
+        ),
+        "description": "Numerical or ordinal rating and satisfaction score.",
+        "expected_type": "numeric",
+    },
+    "location": {
+        "category": "geography",
+        "aliases": (
+            "country", "state", "city", "region", "postal_code", "zipcode",
+            "latitude", "longitude", "territory", "zone", "province", "county",
+        ),
+        "description": "Geographic or spatial dimension.",
+        "expected_type": "dimension",
+    },
+    "timestamp": {
+        "category": "temporal",
+        "aliases": (
+            "date", "datetime", "created_at", "order_date", "transaction_date",
+            "time", "timestamp_utc", "updated_at", "event_time", "period",
+        ),
+        "description": "Temporal point or time reference.",
+        "expected_type": "datetime",
+    },
+}
 
 # ---------------------------------------------------------------------------
 # Configurable semantic dictionary.  Hints only: the classifier never
@@ -109,6 +248,265 @@ class SemanticSchemaAgent:
 
     def __init__(self, hints: dict[str, tuple[str, ...]] | None = None) -> None:
         self.hints = hints or SEMANTIC_HINTS
+
+    def match_concept(
+        self,
+        column_name: str,
+        series: Optional[pd.Series] = None,
+        relationships: Optional[List[Dict[str, Any]]] = None,
+    ) -> SemanticMapping:
+        """Contextually match a column to a business semantic concept with confidence and evidence."""
+        norm = _normalize(column_name)
+        best_concept = "unknown"
+        best_category = "general"
+        best_confidence = 0.4
+        best_aliases: List[str] = []
+        best_description = ""
+        matched_token = ""
+
+        for concept_key, concept_info in BUSINESS_CONCEPTS.items():
+            aliases = concept_info["aliases"]
+            cat = concept_info["category"]
+            desc = concept_info["description"]
+
+            # Exact key match
+            if norm == concept_key:
+                score = 0.95
+                matched_token = concept_key
+            # Exact alias match
+            elif norm in aliases:
+                score = 0.92
+                matched_token = norm
+            else:
+                # Token-level hits (e.g. sales in monthly_sales or sales_usd)
+                tokens = norm.split("_")
+                key_in_tokens = concept_key in tokens
+                alias_in_tokens = [a for a in aliases if a in tokens or (f"_{a}" in f"_{norm}" and len(a) > 2)]
+
+                if key_in_tokens:
+                    score = 0.88
+                    matched_token = concept_key
+                elif alias_in_tokens:
+                    # Longer alias matches get higher score
+                    best_alias = max(alias_in_tokens, key=len)
+                    score = 0.82 if len(best_alias) >= 4 else 0.72
+                    matched_token = best_alias
+                elif any(a in norm for a in aliases if len(a) >= 4):
+                    score = 0.68
+                    matched_token = [a for a in aliases if a in norm and len(a) >= 4][0]
+                else:
+                    continue
+
+            # Contextual statistical validation if series is provided
+            if series is not None and not series.dropna().empty:
+                exp_type = concept_info.get("expected_type")
+                if exp_type == "numeric":
+                    if _is_numeric(series):
+                        score = min(0.98, score + 0.05)
+                        if concept_info.get("typically_positive") and len(series.dropna()) > 5:
+                            vals = pd.to_numeric(series.dropna(), errors="coerce")
+                            if (vals >= 0).mean() >= 0.95:
+                                score = min(0.99, score + 0.02)
+                    else:
+                        # Expected numeric but is string/object -> downweight
+                        score = max(0.2, score - 0.3)
+                elif exp_type == "datetime":
+                    if pd.api.types.is_datetime64_any_dtype(series):
+                        score = min(0.99, score + 0.1)
+                    else:
+                        parsed = pd.to_datetime(series.dropna(), errors="coerce")
+                        if parsed.notna().mean() >= 0.8:
+                            score = min(0.95, score + 0.05)
+
+            if score > best_confidence:
+                best_confidence = score
+                best_concept = concept_key
+                best_category = cat
+                best_aliases = list(aliases)
+                best_description = desc
+
+        # If no business concept matched with high confidence, use general classification
+        if best_confidence <= 0.45 and series is not None:
+            if _is_numeric(series):
+                best_concept = "metric"
+                best_category = "numeric"
+                best_confidence = 0.6
+                best_description = "General numeric measure."
+            elif pd.api.types.is_datetime64_any_dtype(series):
+                best_concept = "timestamp"
+                best_category = "temporal"
+                best_confidence = 0.9
+                best_description = "Temporal datetime column."
+            elif series.dropna().nunique() / max(1, len(series.dropna())) <= 0.2:
+                best_concept = "dimension"
+                best_category = "categorical"
+                best_confidence = 0.7
+                best_description = "Categorical grouping dimension."
+            else:
+                best_concept = "attribute"
+                best_category = "text"
+                best_confidence = 0.5
+                best_description = "General textual attribute."
+
+        evidence = [
+            Evidence(
+                source="SemanticSchemaAgent",
+                method="concept_matching",
+                data_ref={
+                    "column": column_name,
+                    "matched_concept": best_concept,
+                    "matched_token": matched_token,
+                    "category": best_category,
+                },
+                confidence=round(best_confidence, 3),
+                claim_type=ClaimType.FACT if best_confidence >= 0.9 else ClaimType.OBSERVATION,
+            )
+        ]
+
+        return SemanticMapping(
+            column_name=column_name,
+            semantic_concept=best_concept,
+            concept_category=best_category,
+            confidence=round(best_confidence, 3),
+            evidence=evidence,
+            aliases=best_aliases,
+            description=best_description or f"Identified as {best_concept} ({best_category})",
+        )
+
+    def extract_semantic_mappings(
+        self,
+        dataframe: pd.DataFrame,
+        relationships: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[SemanticMapping]:
+        """Generate a SemanticMapping for each column in the dataframe."""
+        mappings: List[SemanticMapping] = []
+        for column in dataframe.columns:
+            series = dataframe[column]
+            mapping = self.match_concept(column, series=series, relationships=relationships)
+            mappings.append(mapping)
+        return mappings
+
+    def build_knowledge(
+        self,
+        dataframe: pd.DataFrame,
+        dataset_id: str = "dataset_001",
+        dataset_type: str = "auto",
+    ) -> DatasetKnowledge:
+        """
+        Construct a complete DatasetKnowledge object representing the semantic
+        and analytical profile of the dataset.
+        """
+        from backend.app.core.quality import DataQualityEngine
+        from backend.app.core.relationships import RelationshipDiscoveryEngine
+
+        # 1. Column semantic classifications & mappings
+        rel_engine = RelationshipDiscoveryEngine()
+        relationships_data = rel_engine.discover(dataframe).get("relationships", [])
+        roles = self.roles_map(dataframe)
+        mappings = self.extract_semantic_mappings(dataframe, relationships=relationships_data)
+        mapping_by_col = {m.column_name: m for m in mappings}
+
+        # 2. Categorize column types
+        metrics: List[SemanticMapping] = []
+        dimensions: List[SemanticMapping] = []
+        date_columns: List[SemanticMapping] = []
+        identifiers: List[SemanticMapping] = []
+        categorical_cols: List[str] = []
+        numeric_cols: List[str] = []
+        data_types: Dict[str, str] = {}
+        missing_values: Dict[str, Any] = {}
+        confidence_scores: Dict[str, float] = {}
+        semantic_meanings: Dict[str, str] = {}
+
+        for col in dataframe.columns:
+            series = dataframe[col]
+            dtype_str = str(series.dtype)
+            data_types[str(col)] = dtype_str
+            missing_count = int(series.isna().sum())
+            missing_pct = round((missing_count / max(1, len(dataframe))) * 100, 2)
+            missing_values[str(col)] = {"count": missing_count, "percentage": missing_pct}
+
+            mapping = mapping_by_col.get(str(col))
+            confidence = mapping.confidence if mapping else 0.5
+            confidence_scores[str(col)] = round(float(confidence), 3)
+            semantic_meanings[str(col)] = mapping.description if mapping else roles.get(str(col), "attribute")
+
+            role = roles.get(str(col), "unknown")
+            is_num = _is_numeric(series)
+
+            if is_num:
+                numeric_cols.append(str(col))
+            else:
+                categorical_cols.append(str(col))
+
+            if role in ("metric", "derived_metric", "target_candidate") or (mapping and mapping.concept_category in ("financial", "volume", "pricing", "hr") and is_num):
+                if mapping:
+                    metrics.append(mapping)
+            elif role in ("date", "time", "datetime", "year", "month", "quarter") or (mapping and mapping.concept_category == "temporal"):
+                if mapping:
+                    date_columns.append(mapping)
+            elif role == "identifier" or (mapping and mapping.concept_category == "identifier"):
+                if mapping:
+                    identifiers.append(mapping)
+            else:
+                if mapping:
+                    dimensions.append(mapping)
+
+        # 3. Assess Data Quality
+        quality_engine = DataQualityEngine()
+        quality_data = quality_engine.assess(
+            dataframe,
+            semantic_roles=roles,
+            identifiers=[i.column_name for i in identifiers],
+        )
+
+        # 4. Infer Dataset Type if auto
+        inferred_type = dataset_type
+        if dataset_type == "auto":
+            if date_columns and numeric_cols:
+                inferred_type = "time_series"
+            elif any(m.concept_category == "financial" for m in mappings):
+                inferred_type = "financial"
+            elif any(m.concept_category in ("volume", "pricing") for m in mappings):
+                inferred_type = "transactional"
+            elif any(m.concept_category == "customer" for m in mappings):
+                inferred_type = "customer"
+            else:
+                inferred_type = "tabular"
+
+        # 5. Overall confidence calculation
+        avg_confidence = float(np.mean(list(confidence_scores.values()))) if confidence_scores else 1.0
+        quality_factor = float(quality_data.get("quality_score", 100)) / 100.0
+        overall_confidence = round(min(1.0, max(0.1, avg_confidence * 0.7 + quality_factor * 0.3)), 3)
+
+        metadata = {
+            "row_count": int(len(dataframe)),
+            "column_count": int(len(dataframe.columns)),
+            "memory_usage_bytes": int(dataframe.memory_usage(deep=True).sum()),
+            "roles": roles,
+        }
+
+        return DatasetKnowledge(
+            dataset_id=dataset_id,
+            dataset_type=inferred_type,
+            columns=[str(c) for c in dataframe.columns],
+            data_types=data_types,
+            semantic_meanings=semantic_meanings,
+            metrics=metrics,
+            dimensions=dimensions,
+            date_columns=date_columns,
+            identifiers=identifiers,
+            semantic_mappings=mappings,
+            categorical_columns=categorical_cols,
+            numeric_columns=numeric_cols,
+            relationships=relationships_data,
+            missing_values=missing_values,
+            data_quality=quality_data,
+            confidence_scores=confidence_scores,
+            entities=[],
+            overall_confidence=overall_confidence,
+            metadata=metadata,
+        )
 
     # -- public API ---------------------------------------------------------
     def classify(self, dataframe: pd.DataFrame,
