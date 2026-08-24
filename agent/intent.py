@@ -117,10 +117,14 @@ class IntentAnalyzer:
     def analyze(
         self,
         query: str,
-        knowledge: Optional[DatasetKnowledge] = None,
+        knowledge: Optional[Union[DatasetKnowledge, pd.DataFrame]] = None,
         dataframe: Optional[pd.DataFrame] = None,
     ) -> IntentClassificationResult:
         """Parse natural language query into a structured multi-intent profile."""
+        if isinstance(knowledge, pd.DataFrame) and dataframe is None:
+            dataframe = knowledge
+            knowledge = None
+
         q_norm = query.strip().lower()
         reasoning: List[str] = []
         matched_intents: List[AnalyticalIntent] = []
