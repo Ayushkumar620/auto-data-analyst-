@@ -20,5 +20,7 @@ class ChatResponse:
     evidence: dict[str, Any] = field(default_factory=dict)
     visualization: dict[str, Any] | None = None
     suggested_questions: list[str] = field(default_factory=list)
+    command_result: dict[str, Any] | None = None
+
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
