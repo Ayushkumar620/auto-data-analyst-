@@ -164,3 +164,4 @@ def test_planner_agent_structured_insights(sales_df):
     assert result.validation is not None
     assert result.validation.passed is True
     assert "result" in result.output
+
