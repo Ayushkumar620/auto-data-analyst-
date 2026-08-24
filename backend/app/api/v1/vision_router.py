@@ -36,3 +36,4 @@ def extract_visual_features(req: VisionExtractBatchRequest) -> Dict[str, Any]:
         return report.to_dict()
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Vision extraction failed: {str(e)}")
+

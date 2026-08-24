@@ -66,3 +66,4 @@ def synthesize_smart_join(req: SmartJoinRequest) -> Dict[str, str]:
         return {"smart_join_query": join_sql}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Smart join synthesis failed: {str(e)}")
+
