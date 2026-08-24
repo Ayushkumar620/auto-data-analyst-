@@ -187,3 +187,4 @@ def test_planner_agent_ann_action(classification_dataset):
     assert result.validation is not None
     assert result.validation.passed is True
     assert "loss_curve" in result.output
+
