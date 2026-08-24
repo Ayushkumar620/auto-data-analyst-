@@ -100,12 +100,17 @@ class AutonomousCommandOrchestrator:
         # ------------------------------------------------------------------
         knowledge: DatasetKnowledge = self.semantic_agent.build_knowledge(dataframe)
         n_rows, n_cols = dataframe.shape
+
+        metric_names = [m.column_name if hasattr(m, "column_name") else str(m) for m in knowledge.metrics] or knowledge.numeric_columns
+        dim_names = [d.column_name if hasattr(d, "column_name") else str(d) for d in knowledge.dimensions] or knowledge.categorical_columns
+        date_names = [d.column_name if hasattr(d, "column_name") else str(d) for d in knowledge.date_columns]
+
         dataset_summary = {
             "rows": n_rows,
             "columns": list(dataframe.columns),
-            "metrics": [m.column if hasattr(m, "column") else str(m) for m in knowledge.metrics],
-            "dimensions": [d.column if hasattr(d, "column") else str(d) for d in knowledge.dimensions],
-            "date_columns": [d.column if hasattr(d, "column") else str(d) for d in knowledge.date_columns],
+            "metrics": metric_names,
+            "dimensions": dim_names,
+            "date_columns": date_names,
             "quality_score": knowledge.data_quality.get("quality_score", 100),
         }
 
@@ -135,7 +140,8 @@ class AutonomousCommandOrchestrator:
         # ------------------------------------------------------------------
         # Stage 6: Validation Safety Audit
         # ------------------------------------------------------------------
-        target_col = intent_res.target_column or (knowledge.metrics[0].column if knowledge.metrics else (dataframe.columns[0] if len(dataframe.columns) > 0 else ""))
+        primary_metric = knowledge.get_primary_metric()
+        target_col = intent_res.target_column or primary_metric or (dataframe.columns[0] if len(dataframe.columns) > 0 else "")
         val_report: ValidationAuditReport = self.validator.audit_pipeline(
             df=dataframe,
             target_column=target_col if target_col in dataframe.columns else dataframe.columns[-1],
@@ -275,28 +281,28 @@ class AutonomousCommandOrchestrator:
         command: str,
         intent_res: IntentClassificationResult,
         knowledge: DatasetKnowledge,
-        df: pd.DataFrame,
+        dataframe: pd.DataFrame,
         exec_output: Dict[str, Any],
         model_summary: Optional[Dict[str, Any]],
         required_ops: List[str],
     ) -> str:
         """Compose human-friendly, evidence-backed narrative explanation of what was computed."""
         q = command.lower()
+        df = dataframe
+        dim_cols = [d.column_name if hasattr(d, "column_name") else str(d) for d in knowledge.dimensions] or knowledge.categorical_columns
+        metric_cols = [m.column_name if hasattr(m, "column_name") else str(m) for m in knowledge.metrics] or knowledge.numeric_columns
+        date_cols = [d.column_name if hasattr(d, "column_name") else str(d) for d in knowledge.date_columns]
 
         # 1. Comparison Queries (e.g. "Compare revenue between India and the US")
         if "compare" in q or "between" in q:
-            dim_cols = [d.column if hasattr(d, "column") else str(d) for d in knowledge.dimensions]
-            metric_cols = [m.column if hasattr(m, "column") else str(m) for m in knowledge.metrics]
             if dim_cols and metric_cols:
                 d_col, m_col = dim_cols[0], metric_cols[0]
-                grouped = df.groupby(d_col)[m_col].sum().sort_values(ascending=False)
+                grouped = df.groupby(d_col)[m_col].sum().dropna().sort_values(ascending=False)
                 top_items = [f"**{k}**: {v:,.2f}" for k, v in list(grouped.items())[:3]]
                 return f"Comparison of **{m_col}** across **{d_col}**:\n- " + "\n- ".join(top_items) + f"\n\nTotal volume analyzed across {len(grouped)} distinct categories."
 
         # 2. Driver & "Why" Queries (e.g. "Why did profit decrease last year?")
         if "why" in q or "decrease" in q or "drop" in q or "increase" in q:
-            date_cols = [d.column if hasattr(d, "column") else str(d) for d in knowledge.date_columns]
-            metric_cols = [m.column if hasattr(m, "column") else str(m) for m in knowledge.metrics]
             m_target = intent_res.target_column or (metric_cols[0] if metric_cols else "metric")
 
             lines = [
@@ -304,7 +310,7 @@ class AutonomousCommandOrchestrator:
             ]
             if len(metric_cols) >= 2:
                 secondary = [m for m in metric_cols if m != m_target][0]
-                corr = df[[m_target, secondary]].corr().iloc[0, 1]
+                corr = df[[m_target, secondary]].dropna().corr().iloc[0, 1]
                 lines.append(
                     f"Strong statistical co-movement observed with **{secondary}** (correlation $r = {corr:.2f}$). "
                     f"*Note: Correlation reflects observed historical patterns, not proven causal drivers.*"
@@ -313,11 +319,9 @@ class AutonomousCommandOrchestrator:
 
         # 3. Top-N Ranking Queries (e.g. "Clean this dataset and find the top 10 customers")
         if "top" in q or "best" in q or "rank" in q or "customer" in q:
-            dim_cols = [d.column if hasattr(d, "column") else str(d) for d in knowledge.dimensions]
-            metric_cols = [m.column if hasattr(m, "column") else str(m) for m in knowledge.metrics]
             if dim_cols and metric_cols:
                 d_col, m_col = dim_cols[0], metric_cols[0]
-                top_n = df.groupby(d_col)[m_col].sum().sort_values(ascending=False).head(10)
+                top_n = df.groupby(d_col)[m_col].sum().dropna().sort_values(ascending=False).head(10)
                 items_str = "\n".join([f"{i+1}. **{k}**: {v:,.2f}" for i, (k, v) in enumerate(top_n.items())])
                 return f"Top ranked entities by **{m_col}** (grouped by **{d_col}**):\n\n{items_str}"
 
@@ -342,9 +346,9 @@ class AutonomousCommandOrchestrator:
         df: pd.DataFrame,
     ) -> Optional[Dict[str, Any]]:
         """Generate structured visualization spec when none is generated by steps."""
-        dim_cols = [d.column if hasattr(d, "column") else str(d) for d in knowledge.dimensions]
-        metric_cols = [m.column if hasattr(m, "column") else str(m) for m in knowledge.metrics]
-        date_cols = [d.column if hasattr(d, "column") else str(d) for d in knowledge.date_columns]
+        dim_cols = [d.column_name if hasattr(d, "column_name") else str(d) for d in knowledge.dimensions] or knowledge.categorical_columns
+        metric_cols = [m.column_name if hasattr(m, "column_name") else str(m) for m in knowledge.metrics] or knowledge.numeric_columns
+        date_cols = [d.column_name if hasattr(d, "column_name") else str(d) for d in knowledge.date_columns]
 
         if date_cols and metric_cols:
             return {"chart_type": "line", "x": date_cols[0], "y": metric_cols[0], "title": f"{metric_cols[0]} Over Time"}
