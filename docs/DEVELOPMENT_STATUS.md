@@ -231,16 +231,16 @@ graph TD
 - [x] **Task 6: Multi-Modal Computer Vision Engine with Pretrained Feature Extractors (`backend/app/core/vision_engine.py`)** — **COMPLETED & VERIFIED (249/249 tests passing)**.
 - [x] **Task 7: Executive Multi-Page PDF & PPTX Presentation Builder with Lineage Traceability (`backend/app/core/presentation_builder.py`)** — **COMPLETED & VERIFIED (252/252 tests passing)**.
 - [x] **Task 8: Dynamic Code Sandbox & Safe Isolated Python Runtime (`backend/app/core/sandbox_runtime.py`)** — **COMPLETED & VERIFIED (256/256 tests passing)**.
-- [ ] **Task 9: Complete Backend Gateway Consolidation (FastAPI Routers)**
+- [x] **Task 9: Complete Backend Gateway Consolidation (FastAPI Routers)** — **COMPLETED & VERIFIED (261/261 tests passing)**.
 - [ ] **Task 10: Role-Based Access Control (RBAC) & Enterprise Audit Logging**
 
 ---
 
 ## Recommended Immediate Next Task 🎯
 
-### **Task 9: Complete Backend Gateway Consolidation (FastAPI Routers)**
-- **Objective**: Consolidate legacy endpoints into modern async FastAPI API routers (`backend/app/api/`), including unified `/api/v1/analyze`, `/api/v1/sql`, `/api/v1/sandbox`, `/api/v1/vision`, and `/api/v1/reports` with OpenAPI documentation.
+### **Task 10: Role-Based Access Control (RBAC) & Enterprise Audit Logging**
+- **Objective**: Implement `EnterpriseAccessControlEngine` (`backend/app/core/rbac_audit.py`) providing granular role permissions (Admin, Analyst, Viewer), token verification, dataset row-level and column-level masking policies, and cryptographic tamper-evident audit logging.
 
 ---
 
-> **Awaiting user approval before proceeding to Task 9 implementation.**
+> **Awaiting user approval before proceeding to Task 10 implementation.**
