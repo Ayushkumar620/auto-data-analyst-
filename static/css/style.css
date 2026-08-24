@@ -6,51 +6,73 @@
 
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
+    background: linear-gradient(135deg, #090a16 0%, #121324 50%, #0f172a 100%);
     color: #e0e0e0;
     min-height: 100vh;
+    overflow-x: hidden;
 }
 
 .container {
-    max-width: 1200px;
+    max-width: 1240px;
     margin: 0 auto;
-    padding: 30px 20px;
+    padding: 25px 20px;
 }
 
+/* ==========================================================================
+   Header & Personalized Welcome Banner
+   ========================================================================== */
 header {
     text-align: center;
-    margin-bottom: 30px;
+    margin-bottom: 25px;
     position: relative;
 }
 
 header h1 {
-    font-size: 2.5rem;
-    background: linear-gradient(90deg, #89b4fa, #f38ba8, #a6e3a1);
+    font-size: 2.4rem;
+    background: linear-gradient(90deg, #818cf8, #c084fc, #38bdf8);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
+    font-weight: 800;
 }
 
 .subtitle {
-    color: #a0a0b0;
-    font-size: 1rem;
+    color: #94a3b8;
+    font-size: 0.98rem;
 }
 
 .user-topbar {
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 15px;
+    background: rgba(30, 41, 59, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 10px 18px;
+    border-radius: 14px;
+    margin-bottom: 22px;
+    backdrop-filter: blur(10px);
+}
+
+.welcome-msg {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.95rem;
+    color: #f1f5f9;
+    font-weight: 600;
+}
+
+.welcome-msg span.sparkle {
+    font-size: 1.2rem;
 }
 
 .user-badge {
-    background: rgba(99, 102, 241, 0.15);
-    border: 1px solid rgba(99, 102, 241, 0.35);
+    background: rgba(99, 102, 241, 0.2);
+    border: 1px solid rgba(99, 102, 241, 0.4);
     color: #a5b4fc;
-    padding: 6px 14px;
+    padding: 5px 12px;
     border-radius: 20px;
-    font-size: 0.85rem;
+    font-size: 0.84rem;
     font-weight: 600;
 }
 
@@ -60,7 +82,7 @@ header h1 {
     color: #fca5a5;
     padding: 6px 14px;
     border-radius: 20px;
-    font-size: 0.85rem;
+    font-size: 0.84rem;
     cursor: pointer;
     transition: all 0.2s;
 }
@@ -70,6 +92,82 @@ header h1 {
     color: #ffffff;
 }
 
+/* ==========================================================================
+   Recent Workflows & Quick Actions Hub
+   ========================================================================== */
+.workflows-section {
+    margin-bottom: 26px;
+}
+
+.workflows-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.workflows-header h3 {
+    font-size: 1.05rem;
+    color: #cbd5e1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.workflows-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+}
+
+.workflow-card {
+    background: rgba(30, 41, 59, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.workflow-card:hover {
+    background: rgba(49, 46, 129, 0.35);
+    border-color: #818cf8;
+    transform: translateY(-3px);
+    box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.25);
+}
+
+.workflow-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #f8fafc;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.workflow-desc {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin-bottom: 10px;
+    line-height: 1.4;
+}
+
+.workflow-tag {
+    font-size: 0.75rem;
+    color: #818cf8;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+/* ==========================================================================
+   Main Grid & Panels
+   ========================================================================== */
 .grid {
     display: grid;
     grid-template-columns: 1fr 1.5fr;
@@ -83,23 +181,23 @@ header h1 {
 }
 
 .panel {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(30, 41, 59, 0.45);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 16px;
-    padding: 25px;
-    backdrop-filter: blur(10px);
+    padding: 24px;
+    backdrop-filter: blur(12px);
 }
 
 .panel h2 {
     font-size: 1.1rem;
-    margin-bottom: 15px;
-    color: #89b4fa;
+    margin-bottom: 14px;
+    color: #818cf8;
 }
 
 .drop-zone {
-    border: 2px dashed rgba(137, 180, 250, 0.4);
+    border: 2px dashed rgba(129, 140, 248, 0.4);
     border-radius: 12px;
-    padding: 30px;
+    padding: 28px;
     text-align: center;
     margin-bottom: 15px;
     transition: all 0.3s;
@@ -107,16 +205,16 @@ header h1 {
 }
 
 .drop-zone.dragover {
-    border-color: #89b4fa;
-    background: rgba(137, 180, 250, 0.1);
+    border-color: #818cf8;
+    background: rgba(129, 140, 248, 0.12);
 }
 
 .drop-zone p {
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
 
 .drop-zone .small {
-    color: #888;
+    color: #94a3b8;
     font-size: 0.85rem;
 }
 
@@ -125,86 +223,88 @@ header h1 {
 }
 
 .btn {
-    padding: 10px 20px;
+    padding: 10px 18px;
     border: none;
     border-radius: 8px;
     cursor: pointer;
-    font-size: 0.95rem;
+    font-size: 0.92rem;
     transition: all 0.2s;
 }
 
 .btn-file {
-    background: #89b4fa;
-    color: #1e1e2e;
-    font-weight: 600;
+    background: #818cf8;
+    color: #0f172a;
+    font-weight: 700;
 }
 
 .btn-primary {
-    background: linear-gradient(90deg, #89b4fa, #b4befe);
-    color: #1e1e2e;
-    font-weight: 600;
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: #ffffff;
+    font-weight: 700;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
 }
 
 .btn-primary:hover {
-    opacity: 0.9;
+    opacity: 0.95;
     transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(79, 70, 229, 0.5);
 }
 
 .file-info {
-    background: rgba(166, 227, 161, 0.1);
-    border: 1px solid rgba(166, 227, 161, 0.3);
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.35);
     border-radius: 8px;
-    padding: 10px 15px;
-    margin-bottom: 20px;
+    padding: 10px 14px;
+    margin-bottom: 18px;
 }
 
 .file-type {
-    color: #a6e3a1;
+    color: #34d399;
 }
 
 .command-input {
     display: flex;
     gap: 10px;
-    margin-bottom: 15px;
+    margin-bottom: 14px;
 }
 
 .command-input input {
     flex: 1;
     padding: 12px 16px;
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(15, 23, 42, 0.6);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 8px;
     color: #fff;
-    font-size: 1rem;
+    font-size: 0.98rem;
     outline: none;
 }
 
 .command-input input:focus {
-    border-color: #89b4fa;
-    box-shadow: 0 0 10px rgba(137, 180, 250, 0.3);
+    border-color: #818cf8;
+    box-shadow: 0 0 10px rgba(129, 140, 248, 0.35);
 }
 
 .quick-commands {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 7px;
     align-items: center;
 }
 
 .chip {
     background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 16px;
     padding: 5px 12px;
-    color: #cdd6f4;
+    color: #cbd5e1;
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: 0.84rem;
     transition: all 0.2s;
 }
 
 .chip:hover {
-    background: rgba(137, 180, 250, 0.2);
-    border-color: #89b4fa;
+    background: rgba(99, 102, 241, 0.25);
+    border-color: #818cf8;
     color: #fff;
 }
 
@@ -213,7 +313,7 @@ header h1 {
 }
 
 /* ==========================================================================
-   Full-Screen Glassmorphic Login Overlay
+   Interactive "Child Holding Lamp" Login Overlay
    ========================================================================== */
 #auth-overlay {
     position: fixed;
@@ -221,64 +321,172 @@ header h1 {
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: radial-gradient(circle at center, #1e1b4b 0%, #0f172a 100%);
+    background: #070913;
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 99999;
-    backdrop-filter: blur(12px);
-    transition: opacity 0.3s ease;
+    transition: all 0.5s ease;
+    overflow-y: auto;
+    padding: 20px;
 }
 
-.auth-modal-card {
-    background: rgba(30, 41, 59, 0.75);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 40px rgba(99, 102, 241, 0.25);
-    border-radius: 20px;
-    padding: 35px;
+#auth-overlay.lamp-on {
+    background: radial-gradient(circle at 35% 45%, #2a2254 0%, #14132b 50%, #080914 100%);
+}
+
+.lamp-experience-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 40px;
+    max-width: 960px;
     width: 100%;
+    flex-wrap: wrap;
+}
+
+/* Child & Lamp Illustration Box */
+.child-lamp-scene {
+    flex: 1;
+    min-width: 280px;
+    max-width: 380px;
+    text-align: center;
+    position: relative;
+}
+
+.lamp-figure {
+    width: 100%;
+    max-width: 320px;
+    margin: 0 auto;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+}
+
+.lamp-figure:hover {
+    transform: scale(1.02);
+}
+
+.lamp-bulb-glow {
+    transition: all 0.4s ease;
+    filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.4));
+}
+
+#auth-overlay.lamp-on .lamp-bulb-glow {
+    filter: drop-shadow(0 0 35px #fbbf24) drop-shadow(0 0 70px #f59e0b) drop-shadow(0 0 100px #818cf8);
+}
+
+.lamp-hint-pill {
+    margin-top: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(251, 191, 36, 0.15);
+    border: 1px solid rgba(251, 191, 36, 0.4);
+    color: #fde68a;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.84rem;
+    font-weight: 700;
+    cursor: pointer;
+    animation: pulseGlow 2s infinite ease-in-out;
+}
+
+@keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 0 8px rgba(251, 191, 36, 0.2); }
+    50% { box-shadow: 0 0 20px rgba(251, 191, 36, 0.5); transform: translateY(-2px); }
+}
+
+/* Auth Card & Tabs */
+.auth-modal-card {
+    flex: 1;
+    min-width: 320px;
     max-width: 440px;
+    background: rgba(30, 41, 59, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 40px rgba(99, 102, 241, 0.25);
+    border-radius: 22px;
+    padding: 30px;
     text-align: left;
-    backdrop-filter: blur(16px);
+    backdrop-filter: blur(20px);
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+    pointer-events: none;
+}
+
+#auth-overlay.lamp-on .auth-modal-card {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
 }
 
 .auth-modal-card h2 {
-    font-size: 1.8rem;
+    font-size: 1.7rem;
     font-weight: 800;
     background: linear-gradient(90deg, #818cf8, #c084fc);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
     text-align: center;
 }
 
 .auth-modal-card p.subtext {
     color: #94a3b8;
-    font-size: 0.92rem;
+    font-size: 0.88rem;
     text-align: center;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
+}
+
+/* Auth Tabs */
+.auth-tabs {
+    display: flex;
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 10px;
+    padding: 4px;
+    margin-bottom: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.auth-tab {
+    flex: 1;
+    text-align: center;
+    padding: 8px 12px;
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: #94a3b8;
+    border-radius: 8px;
+    cursor: pointer;
+    border: none;
+    background: none;
+    transition: all 0.2s;
+}
+
+.auth-tab.active {
+    background: #4f46e5;
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(79, 70, 229, 0.4);
 }
 
 .auth-field {
-    margin-bottom: 18px;
+    margin-bottom: 16px;
 }
 
 .auth-field label {
     display: block;
-    font-size: 0.85rem;
+    font-size: 0.84rem;
     font-weight: 600;
     color: #cbd5e1;
-    margin-bottom: 6px;
+    margin-bottom: 5px;
 }
 
 .auth-field input {
     width: 100%;
-    padding: 12px 14px;
-    background: rgba(15, 23, 42, 0.6);
+    padding: 11px 14px;
+    background: rgba(15, 23, 42, 0.65);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 10px;
     color: #f8fafc;
-    font-size: 0.95rem;
+    font-size: 0.94rem;
     outline: none;
     transition: all 0.2s;
 }
@@ -290,16 +498,16 @@ header h1 {
 
 .auth-btn-submit {
     width: 100%;
-    padding: 13px;
+    padding: 12px;
     background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
     border: none;
     border-radius: 10px;
     color: #fff;
     font-weight: 700;
-    font-size: 1rem;
+    font-size: 0.96rem;
     cursor: pointer;
     transition: all 0.2s;
-    margin-top: 8px;
+    margin-top: 6px;
     box-shadow: 0 4px 15px rgba(79, 70, 229, 0.4);
 }
 
@@ -310,15 +518,15 @@ header h1 {
 
 .auth-btn-demo {
     width: 100%;
-    padding: 10px;
+    padding: 9px;
     background: rgba(99, 102, 241, 0.12);
     border: 1px solid rgba(99, 102, 241, 0.3);
     border-radius: 10px;
     color: #a5b4fc;
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     cursor: pointer;
-    margin-top: 14px;
+    margin-top: 12px;
     transition: all 0.2s;
 }
 
@@ -331,9 +539,20 @@ header h1 {
     background: rgba(239, 68, 68, 0.15);
     border: 1px solid rgba(239, 68, 68, 0.4);
     color: #fca5a5;
-    padding: 10px 14px;
+    padding: 9px 12px;
     border-radius: 8px;
-    font-size: 0.88rem;
-    margin-bottom: 16px;
+    font-size: 0.85rem;
+    margin-bottom: 14px;
+    display: none;
+}
+
+.auth-success-banner {
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    color: #6ee7b7;
+    padding: 9px 12px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    margin-bottom: 14px;
     display: none;
 }

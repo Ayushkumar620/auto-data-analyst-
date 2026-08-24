@@ -7,45 +7,200 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <!-- Full-Screen Glassmorphic Login Overlay -->
+    <!-- Full-Screen Interactive "Child Holding Magic Lamp" Login Experience -->
     <div id="auth-overlay">
-        <div class="auth-modal-card">
-            <h2>✦ Auto Data Analyst</h2>
-            <p class="subtext">Sign in to your autonomous AI data studio</p>
-            
-            <div id="auth-error" class="auth-error-banner"></div>
+        <div class="lamp-experience-container">
+            <!-- Left: Whimsical Child Holding Vintage Magic Lamp Illustration -->
+            <div class="child-lamp-scene">
+                <div class="lamp-figure" onclick="toggleMagicLamp()" title="Click the magic lamp to turn the light on / off!">
+                    <svg viewBox="0 0 320 380" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: auto;">
+                        <!-- Glow Aura Background -->
+                        <circle id="lamp-aura" cx="215" cy="140" r="85" fill="url(#lampGlowGrad)" opacity="0.35" class="lamp-bulb-glow" />
+                        
+                        <!-- Gradients -->
+                        <defs>
+                            <radialGradient id="lampGlowGrad" cx="50%" cy="50%" r="50%">
+                                <stop offset="0%" stop-color="#fef08a" stop-opacity="0.9" />
+                                <stop offset="45%" stop-color="#f59e0b" stop-opacity="0.5" />
+                                <stop offset="100%" stop-color="#818cf8" stop-opacity="0" />
+                            </radialGradient>
+                            <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#6366f1" />
+                                <stop offset="100%" stop-color="#312e81" />
+                            </linearGradient>
+                            <linearGradient id="skinGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#fed7aa" />
+                                <stop offset="100%" stop-color="#fba86d" />
+                            </linearGradient>
+                            <linearGradient id="brassLamp" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#fef08a" />
+                                <stop offset="40%" stop-color="#d97706" />
+                                <stop offset="100%" stop-color="#78350f" />
+                            </linearGradient>
+                        </defs>
 
-            <form id="login-form" onsubmit="handleAuthLogin(event)">
-                <div class="auth-field">
-                    <label for="modal-email">Email Address</label>
-                    <input type="email" id="modal-email" value="demo@example.com" placeholder="name@company.com" required>
+                        <!-- Child Body / Coat -->
+                        <path d="M70 280 Q95 190 135 190 Q175 190 200 280 Q180 340 135 340 Q90 340 70 280 Z" fill="url(#bodyGrad)" />
+                        <!-- Child Scarf / Collar -->
+                        <path d="M110 185 Q135 198 160 185 Q170 215 150 230 Q120 230 110 185 Z" fill="#ec4899" opacity="0.9" />
+                        <!-- Child Head -->
+                        <circle cx="135" cy="140" r="38" fill="url(#skinGrad)" />
+                        <!-- Child Hair -->
+                        <path d="M96 135 Q100 95 140 95 Q175 95 174 135 Q155 110 135 115 Q115 110 96 135 Z" fill="#451a03" />
+                        <!-- Cute Eyes looking at lamp -->
+                        <ellipse cx="146" cy="138" rx="4" ry="5.5" fill="#1e1b4b" />
+                        <ellipse cx="160" cy="138" rx="4" ry="5.5" fill="#1e1b4b" />
+                        <circle cx="147.5" cy="136.5" r="1.5" fill="#ffffff" />
+                        <circle cx="161.5" cy="136.5" r="1.5" fill="#ffffff" />
+                        <!-- Rosy Cheeks & Smile -->
+                        <circle cx="140" cy="148" r="4.5" fill="#f43f5e" opacity="0.4" />
+                        <circle cx="166" cy="148" r="4.5" fill="#f43f5e" opacity="0.4" />
+                        <path d="M148 152 Q154 158 160 152" stroke="#451a03" stroke-width="2" stroke-linecap="round" fill="none" />
+
+                        <!-- Child Arm & Hand holding the Lamp Hook -->
+                        <path d="M165 210 Q190 190 212 170" stroke="url(#skinGrad)" stroke-width="12" stroke-linecap="round" fill="none" />
+                        <circle cx="214" cy="168" r="6" fill="url(#skinGrad)" />
+
+                        <!-- Lantern Hook & Chain -->
+                        <path d="M214 168 L215 125" stroke="#94a3b8" stroke-width="3" stroke-linecap="round" />
+                        <circle cx="215" cy="120" r="5" stroke="url(#brassLamp)" stroke-width="2.5" fill="none" />
+
+                        <!-- Vintage Lamp Lantern Top & Cap -->
+                        <path d="M198 126 L232 126 L224 116 L206 116 Z" fill="url(#brassLamp)" />
+                        <path d="M202 126 L195 135 L235 135 L228 126 Z" fill="url(#brassLamp)" />
+
+                        <!-- Lantern Glass Chamber -->
+                        <path d="M196 135 L200 170 L230 170 L234 135 Z" fill="rgba(254, 240, 138, 0.3)" stroke="url(#brassLamp)" stroke-width="2" />
+                        
+                        <!-- Inner Glowing Filament / Flame -->
+                        <circle id="lamp-flame" cx="215" cy="150" r="10" fill="#fef08a" class="lamp-bulb-glow" />
+                        <path d="M215 142 Q218 147 215 152 Q212 147 215 142 Z" fill="#f59e0b" />
+
+                        <!-- Lantern Base -->
+                        <path d="M198 170 L232 170 L228 178 L202 178 Z" fill="url(#brassLamp)" />
+
+                        <!-- Small Ground Shadow -->
+                        <ellipse cx="150" cy="350" rx="90" ry="12" fill="rgba(0,0,0,0.4)" />
+                    </svg>
+                </div>
+                <div class="lamp-hint-pill" onclick="toggleMagicLamp()">
+                    <span>💡</span> <span id="lamp-status-text">Click Lamp to Switch ON Light &amp; Reveal Login</span>
+                </div>
+            </div>
+
+            <!-- Right: Modern Glassmorphic Login & Authentication Studio -->
+            <div class="auth-modal-card">
+                <h2>✦ Auto Data Analyst</h2>
+                <p class="subtext">Sign in to your autonomous AI data studio</p>
+                
+                <!-- Auth Method Tabs: OTP vs Password -->
+                <div class="auth-tabs">
+                    <button type="button" class="auth-tab active" id="tab-btn-otp" onclick="switchAuthTab('otp')">📧 Email OTP</button>
+                    <button type="button" class="auth-tab" id="tab-btn-password" onclick="switchAuthTab('password')">🔑 Password</button>
                 </div>
 
-                <div class="auth-field">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                        <label for="modal-password" style="margin: 0;">Password</label>
-                        <button type="button" onclick="toggleModalPassword()" style="background: none; border: none; color: #818cf8; font-size: 0.78rem; cursor: pointer; font-weight: 600;">Show/Hide</button>
+                <div id="auth-error" class="auth-error-banner"></div>
+                <div id="auth-success" class="auth-success-banner"></div>
+
+                <!-- 1. Email OTP Form -->
+                <form id="otp-form" onsubmit="handleOtpSubmit(event)">
+                    <div class="auth-field">
+                        <label for="otp-email">Email Address</label>
+                        <input type="email" id="otp-email" value="demo@example.com" placeholder="name@company.com" required>
                     </div>
-                    <input type="password" id="modal-password" value="strongpass123" placeholder="Enter your password" required>
-                </div>
 
-                <button type="submit" id="modal-submit-btn" class="auth-btn-submit">Sign In to Workspace</button>
-            </form>
+                    <div id="otp-code-group" class="auth-field hidden">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <label for="otp-input" style="margin: 0;">6-Digit Verification Code</label>
+                            <button type="button" onclick="fillDemoOtp()" style="background: none; border: none; color: #818cf8; font-size: 0.78rem; cursor: pointer; font-weight: 700;">Auto-Fill (123456)</button>
+                        </div>
+                        <input type="text" id="otp-input" placeholder="Enter 6-digit code (e.g. 123456)" maxlength="8">
+                    </div>
 
-            <button type="button" class="auth-btn-demo" onclick="fillModalDemoCredentials()">⚡ Auto-Fill Localhost Demo Credentials</button>
+                    <button type="submit" id="otp-submit-btn" class="auth-btn-submit">Send Verification Code</button>
+                </form>
+
+                <!-- 2. Traditional Password Form -->
+                <form id="password-form" class="hidden" onsubmit="handleAuthLogin(event)">
+                    <div class="auth-field">
+                        <label for="modal-email">Email Address</label>
+                        <input type="email" id="modal-email" value="demo@example.com" placeholder="name@company.com" required>
+                    </div>
+
+                    <div class="auth-field">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <label for="modal-password" style="margin: 0;">Password</label>
+                            <button type="button" onclick="toggleModalPassword()" style="background: none; border: none; color: #818cf8; font-size: 0.78rem; cursor: pointer; font-weight: 600;">Show/Hide</button>
+                        </div>
+                        <input type="password" id="modal-password" value="strongpass123" placeholder="Enter your password" required>
+                    </div>
+
+                    <button type="submit" id="modal-submit-btn" class="auth-btn-submit">Sign In to Workspace</button>
+                </form>
+
+                <button type="button" class="auth-btn-demo" onclick="fillModalDemoCredentials()">⚡ Auto-Fill Localhost Demo Credentials</button>
+            </div>
         </div>
     </div>
 
     <div class="container">
+        <!-- Header & Personalized Welcome Banner -->
         <div id="user-topbar" class="user-topbar hidden">
-            <span class="user-badge" id="user-badge-text">● demo</span>
-            <button class="btn-signout" onclick="handleAuthLogout()">Sign Out</button>
+            <div class="welcome-msg">
+                <span class="sparkle">✨</span>
+                <span>Welcome back, <strong id="welcome-user-name" style="color: #a5b4fc;">Member</strong>!</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="user-badge" id="user-badge-text">● Member</span>
+                <button class="btn-signout" onclick="handleAuthLogout()">Sign Out</button>
+            </div>
         </div>
 
         <header>
             <h1>🤖 Auto Data Analyst Agent</h1>
             <p class="subtitle">Upload any data file and run simple commands to analyze it instantly</p>
         </header>
+
+        <!-- Recent Workflows & Quick Actions Hub -->
+        <section class="workflows-section" id="recent-workflows-section">
+            <div class="workflows-header">
+                <h3>⚡ Recent Workflows &amp; Quick Actions</h3>
+                <span style="font-size: 0.8rem; color: #818cf8; font-weight: 600;">1-Click Launch</span>
+            </div>
+            <div class="workflows-grid">
+                <div class="workflow-card" onclick="triggerRecentWorkflow('summary')">
+                    <div>
+                        <div class="workflow-title">📊 Dataset Profiler &amp; Summary</div>
+                        <div class="workflow-desc">Instant row-column schema, data types, statistical metrics, and null diagnostics.</div>
+                    </div>
+                    <div class="workflow-tag"><span>Command: summary</span><span>▶ Run</span></div>
+                </div>
+
+                <div class="workflow-card" onclick="triggerRecentWorkflow('insights')">
+                    <div>
+                        <div class="workflow-title">💡 Smart Insights &amp; Drivers</div>
+                        <div class="workflow-desc">Autonomous extraction of top correlations, anomalies, and key executive findings.</div>
+                    </div>
+                    <div class="workflow-tag"><span>Command: insights</span><span>▶ Run</span></div>
+                </div>
+
+                <div class="workflow-card" onclick="triggerRecentWorkflow('predict')">
+                    <div>
+                        <div class="workflow-title">🧠 Machine Learning Predictor</div>
+                        <div class="workflow-desc">AutoML model comparison, feature importance, cross-validation, and accuracy scoring.</div>
+                    </div>
+                    <div class="workflow-tag"><span>Command: predict</span><span>▶ Run</span></div>
+                </div>
+
+                <div class="workflow-card" onclick="triggerRecentWorkflow('anomalies')">
+                    <div>
+                        <div class="workflow-title">🔔 Anomaly &amp; Outlier Scan</div>
+                        <div class="workflow-desc">Multivariate Z-score and statistical bounds scan to pinpoint suspicious records.</div>
+                    </div>
+                    <div class="workflow-tag"><span>Command: anomalies</span><span>▶ Run</span></div>
+                </div>
+            </div>
+        </section>
 
         <div class="grid">
             <!-- Upload Panel -->
