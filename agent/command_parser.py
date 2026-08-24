@@ -193,9 +193,14 @@ class CommandParser:
             elif action == "text":
                 result = self.insights.text_analysis()
                 return {"type": "text", "result": result}
-            elif action in ("chart", "histogram", "scatter", "bar", "line", "pie", "box"):
-                charts = self.visualizer.chart(chart_type=action, x=x, y=y)
-                return {"type": "chart", "charts": charts}
+            elif action in ("chart", "histogram", "scatter", "bar", "line", "pie", "box", "heatmap", "area"):
+                chart_type = kwargs.get("type") or kwargs.get("chart_type") or action
+                charts = self.visualizer.chart(chart_type=chart_type, x=x, y=y)
+                return {
+                    "type": "chart",
+                    "charts": charts,
+                    "available_types": list(self.visualizer.SUPPORTED_CHARTS.keys()),
+                }
         except Exception as e:
             return {"type": "error", "message": f"Error executing command: {str(e)}"}
         return None
