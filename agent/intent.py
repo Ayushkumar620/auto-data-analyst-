@@ -187,12 +187,12 @@ class IntentAnalyzer:
         group_by_col = None
 
         columns: List[str] = []
-        if knowledge is not None:
-            columns = knowledge.columns
+        if knowledge is not None and hasattr(knowledge, "columns"):
+            columns = list(knowledge.columns)
         elif dataframe is not None:
             columns = list(dataframe.columns)
 
-        if columns:
+        if len(columns) > 0:
             # Check for explicitly mentioned column names
             for col in columns:
                 col_lower = col.lower()
