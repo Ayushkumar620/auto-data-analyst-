@@ -138,7 +138,6 @@ class AutonomousCommandOrchestrator:
         if isinstance(dataframe, dict):
             # Auto-join relational multi-table dataset
             dataframe = RelationalModalityEngine.auto_join_tables(dataframe)
-            dataframe = RelationalModalityEngine.auto_join_tables(dataframe)
 
         dataframe, mem_profile = MemoryOptimizer.optimize(dataframe)
 

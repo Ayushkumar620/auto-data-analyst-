@@ -214,11 +214,13 @@ class RelationalModalityEngine:
     @classmethod
     def auto_join_tables(
         cls,
-        tables: Dict[str, pd.DataFrame],
+        tables: Union[pd.DataFrame, Dict[str, pd.DataFrame]],
         relationships: Optional[List[ForeignKeyRelationship]] = None,
     ) -> pd.DataFrame:
         """Merge related tables into a unified analytical DataFrame."""
-        if not tables:
+        if isinstance(tables, pd.DataFrame):
+            return tables
+        if not isinstance(tables, dict) or len(tables) == 0:
             return pd.DataFrame()
         if len(tables) == 1:
             return next(iter(tables.values()))
