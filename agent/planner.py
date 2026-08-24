@@ -14,6 +14,7 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 
+from .schemas import AgentResult
 from .result_validator import ResultValidator
 from .dynamic_planner import DynamicTaskPlanner, TaskPlan
 from .agents import (
