@@ -51,6 +51,7 @@ from backend.app.api.v1.reports import router as reports_router
 from backend.app.api.v1.workspaces import router as workspaces_router
 from backend.app.api.v1.projects import router as projects_router
 from backend.app.api.v1.models import router as models_router
+from backend.app.api.v1.evaluation import router as evaluation_router
 from backend.app.auth.router import router as auth_router
 
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
@@ -62,6 +63,7 @@ app.include_router(reports_router, prefix=settings.api_v1_prefix)
 app.include_router(workspaces_router, prefix=settings.api_v1_prefix)
 app.include_router(projects_router, prefix=settings.api_v1_prefix)
 app.include_router(models_router, prefix=settings.api_v1_prefix)
+app.include_router(evaluation_router, prefix=settings.api_v1_prefix)
 
 
 def _compat_routes(self):
