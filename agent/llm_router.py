@@ -1,56 +1,84 @@
-"""
-LLM Router - Uses an LLM (via API key) to understand natural language commands
-and convert them into structured JSON task plans for the agent system.
-Falls back to the rule-based NLP parser if no API key is configured.
-"""
+"""LLM Router - Routes natural language commands to structured task plans using Provider-Agnostic LLMs."""
+from __future__ import annotations
+
 import json
 import re
-import urllib.request
-import urllib.error
+from typing import Any, Dict, List, Optional
+import pandas as pd
 
 from . import config
 from .nlp_parser import NLPCommandParser
+from backend.app.core.llm_provider import BaseLLMProvider, LLMClientFactory, LLMMessage
+from backend.app.core.dynamic_context import DynamicContextAssembler, DynamicPromptContext
 
 
 class LLMRouter:
-    """Routes natural language commands to task plans using an LLM."""
+    """Routes natural language commands to task plans using provider-agnostic LLMs."""
 
-    def __init__(self):
+    def __init__(self, provider: Optional[BaseLLMProvider] = None):
         self.api_key = config.get_api_key()
-        self.provider = config.get_llm_provider()
+        self.provider_name = config.get_llm_provider()
         self.base_url = config.get_llm_base_url()
         self.model = config.get_llm_model()
-        self.llm_enabled = bool(self.api_key)
+
+        if provider is not None:
+            self.llm_provider = provider
+        else:
+            self.llm_provider = LLMClientFactory.get_provider(
+                provider_name=self.provider_name if self.api_key else "mock",
+                api_key=self.api_key,
+                model=self.model,
+                base_url=self.base_url,
+            )
+
+        self.llm_enabled = bool(self.api_key or self.provider_name in ("ollama", "mock"))
         self.nlp = NLPCommandParser()
+        self.context_assembler = DynamicContextAssembler()
 
-    def route(self, command, data_summary=None):
-        """Convert a natural language command into a structured task plan.
-
-        Returns a dict with 'task' (the structured plan) and 'source' indicating
-        whether the LLM or the rule-based parser was used.
-        """
+    def route(
+        self,
+        command: str,
+        data_summary: Optional[Dict[str, Any]] = None,
+        dataframe: Optional[pd.DataFrame] = None,
+    ) -> Dict[str, Any]:
+        """Convert a natural language command into a structured task plan."""
         if self.llm_enabled:
             try:
-                plan = self._call_llm(command, data_summary)
+                plan = self._call_llm(command, data_summary, dataframe)
                 if plan:
-                    return {"task": plan, "source": "llm"}
-            except Exception as e:
-                # Fall through to rule-based on any LLM error
+                    return {"task": plan, "source": "llm", "provider": self.llm_provider.provider_type.value}
+            except Exception:
                 pass
 
         # Rule-based fallback
         task = self._rule_based_plan(command)
         return {"task": task, "source": "rules"}
 
-    def _rule_based_plan(self, command):
+    def _call_llm(
+        self,
+        command: str,
+        data_summary: Optional[Dict[str, Any]] = None,
+        dataframe: Optional[pd.DataFrame] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Assemble dynamic context and invoke the underlying LLM provider."""
+        prompt_ctx: DynamicPromptContext = self.context_assembler.assemble(
+            query=command,
+            dataframe=dataframe,
+        )
+
+        response = self.llm_provider.generate(
+            messages=prompt_ctx.messages,
+            temperature=0.1,
+            max_tokens=500,
+        )
+
+        return self._extract_json(response.content)
+
+    def _rule_based_plan(self, command: str) -> Dict[str, Any]:
         """Build a task plan using the rule-based NLP parser."""
         intent = self.nlp.parse(command)
-
-# Map intent to a task plan
         action = intent.action
 
-        # If a metric keyword is present (total/sum/average/count/max/min),
-        # treat it as an aggregation/insight request
         if intent.metric and action in ("", "summary", "transaction"):
             return {
                 "action": "insight",
@@ -78,10 +106,7 @@ class LLMRouter:
                 "request": "insight",
             }
         if action == "text":
-            return {
-                "action": "text",
-                "request": "text",
-            }
+            return {"action": "text", "request": "text"}
         if action == "correlation":
             return {"action": "correlation", "request": "correlation"}
         if action == "nulls":
@@ -99,86 +124,30 @@ class LLMRouter:
         if action == "summary":
             return {"action": "summary", "request": "summary"}
 
-        # Default: summary
-        return {"action": "summary", "request": "summary"}
+        return {"action": "unknown", "raw_command": command}
 
-    def _intent_to_dict(self, intent):
+    def _intent_to_dict(self, intent) -> Dict[str, Any]:
         return {
-            "action": intent.action,
             "metric": intent.metric,
-            "amount_type": intent.amount_type,
-            "time_filter": intent.time_filter,
-            "group_by": intent.group_by,
-            "target": intent.target,
             "column": intent.column,
+            "group_by": intent.group_by,
+            "amount_type": intent.amount_type,
+            "target": intent.target,
             "chart_type": intent.chart_type,
         }
 
-    def _call_llm(self, command, data_summary):
-        """Call the LLM to parse a command into a structured task plan."""
-        system_prompt = (
-            "You are an AI orchestrator for a data analysis multi-agent system.\n"
-            "You convert human commands into a structured JSON task plan. "
-            "You must respond with ONLY valid JSON, no other text.\n\n"
-            "The task plan must follow exactly this schema:\n"
-            '{"action": "summary or describe or stats or nulls or correlation or head '
-            'or unique or text or chart or predict or insight", '
-            '"request": "summary", "chart_type": "auto or bar or line or pie or scatter '
-            'or histogram or box", "x": "column_name_or_null", '
-            '"y": "column_name_or_null", "target": "column_name_for_prediction_or_null", '
-            '"metric": "total or average or count or maximum or minimum or null", '
-            '"group_by": "column_name_or_null"}\n\n'
-            "Rules:\n"
-            "- For full data overview use action summary\n"
-            "- If user asks to sum/aggregate/count a column, use action insight "
-            "with metric and column\n"
-            "- If user asks 'by X' or 'per X', set group_by\n"
-            "- 'predict [column]' -> action predict with target\n"
-            "- Any chart request -> action chart with a chart_type\n"
-            "- 'how many words' or 'text' -> action text"
-        )
-
-        data_desc = ""
-        if data_summary:
-            data_desc = f"\nAvailable data columns: {json.dumps(data_summary)}"
-
-        user_prompt = f"User command: \"{command}\"{data_desc}\nReturn the JSON task plan."
-
-        data = json.dumps({
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": 0.2,
-            "max_tokens": 500,
-        }).encode("utf-8")
-
-        url = self.base_url.rstrip("/") + "/chat/completions"
-        req = urllib.request.Request(url, data=data, method="POST")
-        req.add_header("Content-Type", "application/json")
-        req.add_header("Authorization", f"Bearer {self.api_key}")
-
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            body = json.loads(resp.read().decode("utf-8"))
-
-        content = body["choices"][0]["message"]["content"]
-        return self._extract_json(content)
-
-    def _extract_json(self, content):
+    def _extract_json(self, content: str) -> Optional[Dict[str, Any]]:
         """Extract JSON from LLM response (handles code fences and extra text)."""
         if not content:
             return None
         content = content.strip()
-        # Remove markdown code fences
         fence = re.search(r"```(?:json)?\s*(.*?)\s*```", content, re.DOTALL)
         if fence:
             content = fence.group(1)
-        # Find first { to last }
         start = content.find("{")
         end = content.rfind("}")
         if start != -1 and end != -1 and end > start:
-            content = content[start:end + 1]
+            content = content[start : end + 1]
         try:
             return json.loads(content)
         except json.JSONDecodeError:
