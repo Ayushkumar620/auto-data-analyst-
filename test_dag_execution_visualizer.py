@@ -109,3 +109,4 @@ def test_frontend_dag_artifacts():
     assert ".dag-flow-grid" in css_content
     assert ".dag-node-card" in css_content
     assert "pulseArrow" in css_content
+
