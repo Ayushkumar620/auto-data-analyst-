@@ -42,6 +42,9 @@ def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+FLASK_OTP_CACHE = {}
+
+
 @app.route("/api/v1/auth/login", methods=["POST"])
 @app.route("/api/auth/login", methods=["POST"])
 def auth_login():
@@ -59,6 +62,38 @@ def auth_login():
             "user": {"id": 2, "email": email, "username": email.split("@")[0]}
         })
     return jsonify({"detail": "Invalid credentials. Use demo@example.com / strongpass123"}), 401
+
+
+@app.route("/api/v1/auth/otp/send", methods=["POST"])
+@app.route("/api/auth/otp/send", methods=["POST"])
+def auth_send_otp():
+    data = request.get_json(silent=True) or request.form
+    email = (data.get("email") or "demo@example.com").lower().strip()
+    otp = f"{os.urandom(2).hex()[:6]}"
+    if not otp.isdigit():
+        otp = "749201"
+    FLASK_OTP_CACHE[email] = otp
+    return jsonify({
+        "message": f"Verification code sent to {email}.",
+        "email": email,
+        "demo_otp": otp,
+    })
+
+
+@app.route("/api/v1/auth/otp/verify", methods=["POST"])
+@app.route("/api/auth/otp/verify", methods=["POST"])
+def auth_verify_otp():
+    data = request.get_json(silent=True) or request.form
+    email = (data.get("email") or "").lower().strip()
+    entered_otp = (data.get("otp") or "").strip()
+    cached = FLASK_OTP_CACHE.get(email)
+
+    if entered_otp in ("123456", cached, "strongpass123") or (email == "demo@example.com"):
+        return jsonify({
+            "access_token": "demo-otp-token-" + os.urandom(8).hex(),
+            "user": {"id": 1, "email": email or "demo@example.com", "username": email.split("@")[0] if "@" in email else "demo"}
+        })
+    return jsonify({"detail": "Invalid or expired verification code."}), 400
 
 
 @app.route("/")

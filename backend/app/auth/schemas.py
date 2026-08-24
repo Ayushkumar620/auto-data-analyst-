@@ -40,3 +40,18 @@ class TokenResponse(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class OtpRequest(BaseModel):
+    email: EmailStr
+
+
+class OtpVerifyRequest(BaseModel):
+    email: EmailStr
+    otp: str = Field(min_length=4, max_length=8)
+
+
+class OtpResponse(BaseModel):
+    message: str
+    email: str
+    demo_otp: Optional[str] = None

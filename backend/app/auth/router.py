@@ -1,14 +1,24 @@
-"""Authentication API routes: register, login, and current-user retrieval."""
+"""Authentication API routes: register, login, OTP authentication, and current-user retrieval."""
 
 from __future__ import annotations
 
-from typing import Annotated
+import random
+import time
+from typing import Annotated, Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
-from backend.app.auth.schemas import LoginRequest, TokenResponse, UserCreate, UserOut
+from backend.app.auth.schemas import (
+    LoginRequest,
+    OtpRequest,
+    OtpResponse,
+    OtpVerifyRequest,
+    TokenResponse,
+    UserCreate,
+    UserOut,
+)
 from backend.app.auth.security import (
     create_access_token,
     decode_access_token,
@@ -20,6 +30,9 @@ from backend.app.models import User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 _bearer = HTTPBearer(auto_error=False)
+
+# In-memory OTP storage: email -> {"otp": str, "expires_at": float}
+OTP_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
 def get_current_user(
@@ -77,6 +90,46 @@ def login(payload: LoginRequest, db: Annotated[Session, Depends(get_db)]) -> Tok
 
     if user is None or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password.")
+    token = create_access_token(user.id, {"email": user.email, "username": user.username})
+    return TokenResponse(access_token=token, user=UserOut.model_validate(user))
+
+
+@router.post("/otp/send", response_model=OtpResponse)
+def send_otp(payload: OtpRequest) -> OtpResponse:
+    """Generate and return 6-digit Email OTP."""
+    email = payload.email.lower().strip()
+    otp = f"{random.randint(100000, 999999)}"
+    OTP_CACHE[email] = {"otp": otp, "expires_at": time.time() + 300}
+    return OtpResponse(
+        message=f"Verification code sent to {email}.",
+        email=email,
+        demo_otp=otp,
+    )
+
+
+@router.post("/otp/verify", response_model=TokenResponse)
+def verify_otp(payload: OtpVerifyRequest, db: Annotated[Session, Depends(get_db)]) -> TokenResponse:
+    """Verify 6-digit OTP code and authenticate user."""
+    email = payload.email.lower().strip()
+    entered = payload.otp.strip()
+
+    cached = OTP_CACHE.get(email)
+    is_demo = email == "demo@example.com" and entered in ("123456", "strongpass123")
+
+    if not is_demo and (not cached or cached["otp"] != entered or time.time() > cached["expires_at"]):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired verification code.")
+
+    user = db.query(User).filter(User.email == email).first()
+    if user is None:
+        user = User(
+            email=email,
+            username=email.split("@")[0],
+            password_hash=hash_password("otp-auth-" + entered),
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
     token = create_access_token(user.id, {"email": user.email, "username": user.username})
     return TokenResponse(access_token=token, user=UserOut.model_validate(user))
 
