@@ -221,6 +221,7 @@ graph TD
 ## 12. Implementation Roadmap Progress 📋
 
 - [x] **Task 1: Multi-Turn Conversational Memory & Context Resolution Engine (`agent/conversational_memory.py`)** — **COMPLETED & VERIFIED (230/230 tests passing)**.
+- [ ] **Task 2: DuckDB / Polars High-Performance Execution Layer for 10M+ Row Aggregations**
 - [x] **Task 2: DuckDB / Polars High-Performance Execution Layer for 10M+ Row Aggregations (`backend/app/core/high_performance_engine.py`)** — **COMPLETED & VERIFIED (234/234 tests passing)**.
 - [ ] **Task 3: Interactive Real-Time DAG Execution Visualizer in the UI**
 - [ ] **Task 4: Root-Cause & Counterfactual Decomposition Engine (What-If Analysis)**
@@ -235,9 +236,12 @@ graph TD
 
 ## Recommended Immediate Next Task 🎯
 
+### **Task 2: DuckDB / Polars High-Performance Analytical Execution Layer**
+- **Objective**: Implement `HighPerformanceExecutionEngine` (`backend/app/core/high_performance_engine.py`) using DuckDB / Polars to provide sub-second vectorized execution on large datasets (10M+ rows), chunked group-bys, and SQL-speed aggregations while seamlessly falling back to optimized pandas.
 ### **Task 3: Interactive Real-Time DAG Execution Visualizer in the UI**
 - **Objective**: Render an interactive real-time visual execution graph directly in the UI (showing intent node $\rightarrow$ dynamic planning steps $\rightarrow$ active specialized agents $\rightarrow$ deterministic execution engines $\rightarrow$ validation audit $\rightarrow$ evidence lineage $\rightarrow$ final answer).
 
 ---
 
+> **Awaiting user approval before proceeding to Task 2 implementation.**
 > **Awaiting user approval before proceeding to Task 3 implementation.**

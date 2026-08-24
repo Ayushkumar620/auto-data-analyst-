@@ -354,3 +354,4 @@ class HighPerformanceExecutionEngine:
 
 # Global singleton high performance engine
 global_high_performance_engine = HighPerformanceExecutionEngine()
+

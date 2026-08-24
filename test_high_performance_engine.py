@@ -130,3 +130,4 @@ def test_orchestrator_integration_with_hp_engine(large_sales_df):
     assert res.user_intent in ("eda", "segmentation", "ranking")
     assert "Revenue" in res.final_explanation or "revenue" in res.final_explanation
     assert len(res.execution_steps) >= 1
+
