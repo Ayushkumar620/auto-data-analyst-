@@ -69,3 +69,4 @@ def test_command_parser_chart_types_routing(sample_df):
     assert res4["type"] == "chart"
     assert res4["charts"][0]["chart_type"] == "scatter"
     assert "Scatter Plot" in res4["charts"][0]["summary"]
+
