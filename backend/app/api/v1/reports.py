@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
+from pydantic import BaseModel
 
 from backend.app.api.v1.context import link_uploaded_dataset, resolve_context
 from backend.app.config import UPLOAD_DIR
@@ -92,3 +93,52 @@ def download_report(report_id: str) -> Response:
     extension = {"pdf": "pdf", "excel": "xlsx", "powerpoint": "pptx"}[stored["format"]]
     headers = {"Content-Disposition": f'attachment; filename="{report_id}.{extension}"'}
     return Response(content=stored["content"], media_type=stored["content_type"], headers=headers)
+
+
+class ExecutivePDFRequest(BaseModel):
+    title: str
+    command: str
+    explanation: str
+    kpis: dict[str, Any] = {}
+    evidence_list: list[dict[str, Any]] = []
+    dataset_summary: dict[str, Any] = {}
+    validation_summary: dict[str, Any] = {}
+    duration_ms: float | None = None
+
+
+@router.post("/executive-pdf")
+def create_executive_pdf(req: ExecutivePDFRequest) -> Response:
+    """Generate and download a high-res multi-page Executive PDF report."""
+    from backend.app.core.presentation_builder import global_presentation_engine
+    try:
+        pdf_bytes = global_presentation_engine.build_pdf_report(
+            title=req.title,
+            command=req.command,
+            explanation=req.explanation,
+            kpis=req.kpis,
+            evidence_list=req.evidence_list,
+            dataset_summary=req.dataset_summary,
+            validation_summary=req.validation_summary,
+            duration_ms=req.duration_ms,
+        )
+        headers = {"Content-Disposition": f'attachment; filename="executive_report.pdf"'}
+        return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate Executive PDF: {str(e)}")
+
+
+@router.post("/executive-deck")
+def create_executive_deck_schema(req: ExecutivePDFRequest) -> dict[str, Any]:
+    """Generate structured Executive Slide Deck model."""
+    from backend.app.core.presentation_builder import global_presentation_engine
+    try:
+        deck = global_presentation_engine.build_deck_structure(
+            title=req.title,
+            command=req.command,
+            explanation=req.explanation,
+            kpis=req.kpis,
+            evidence_list=req.evidence_list,
+        )
+        return deck.to_dict()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate Executive Deck: {str(e)}")

@@ -56,9 +56,14 @@ from backend.app.api.v1.workspaces import router as workspaces_router
 from backend.app.api.v1.projects import router as projects_router
 from backend.app.api.v1.models import router as models_router
 from backend.app.api.v1.evaluation import router as evaluation_router
+from backend.app.api.v1.analysis import router as analysis_router
+from backend.app.api.v1.sql_router import router as sql_router
+from backend.app.api.v1.sandbox_router import router as sandbox_router
+from backend.app.api.v1.vision_router import router as vision_router
 from backend.app.auth.router import router as auth_router
 
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
+app.include_router(analysis_router, prefix=settings.api_v1_prefix)
 app.include_router(datasets_router, prefix=settings.api_v1_prefix)
 app.include_router(insights_router, prefix=settings.api_v1_prefix)
 app.include_router(chat_router, prefix=settings.api_v1_prefix)
@@ -68,6 +73,9 @@ app.include_router(workspaces_router, prefix=settings.api_v1_prefix)
 app.include_router(projects_router, prefix=settings.api_v1_prefix)
 app.include_router(models_router, prefix=settings.api_v1_prefix)
 app.include_router(evaluation_router, prefix=settings.api_v1_prefix)
+app.include_router(sql_router, prefix=settings.api_v1_prefix)
+app.include_router(sandbox_router, prefix=settings.api_v1_prefix)
+app.include_router(vision_router, prefix=settings.api_v1_prefix)
 
 
 # ------------------------------------------------------------------------------
