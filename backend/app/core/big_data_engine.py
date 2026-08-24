@@ -173,13 +173,10 @@ class StratifiedRepresentativeSampler:
         if target_column and target_column in df.columns:
             target_series = df[target_column]
             if target_series.nunique() <= 20 and target_series.nunique() > 1:
-                # Group-stratified sample
                 try:
-                    sampled_df = df.groupby(target_column, group_keys=False).apply(
-                        lambda x: x.sample(
-                            frac=target_sample_size / n_total,
-                            random_state=random_state,
-                        )
+                    frac = min(1.0, max(0.001, target_sample_size / n_total))
+                    sampled_df = df.groupby(target_column, group_keys=False).sample(
+                        frac=frac, random_state=random_state
                     )
                 except Exception:
                     sampled_df = df.sample(n=target_sample_size, random_state=random_state)

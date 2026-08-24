@@ -75,7 +75,7 @@ class TextModalityEngine:
         # Average character length > 25 and word count > 3
         avg_len = clean.str.len().mean()
         avg_words = clean.str.split().str.len().mean()
-        return avg_len >= 25 and avg_words >= 3
+        return bool(avg_len >= 25 and avg_words >= 3)
 
     @classmethod
     def analyze_text_column(cls, series: pd.Series, column_name: str = "text") -> TextAnalysisReport:
