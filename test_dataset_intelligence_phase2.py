@@ -263,3 +263,4 @@ def test_build_knowledge_on_ecommerce_dataset():
 
     # Check overall confidence
     assert 0.8 <= knowledge.overall_confidence <= 1.0
+

@@ -166,3 +166,4 @@ class DatasetKnowledge:
             created_at=created_at,
             metadata=dict(data.get("metadata", {})),
         )
+

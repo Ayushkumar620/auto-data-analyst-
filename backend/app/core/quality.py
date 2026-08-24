@@ -233,6 +233,9 @@ class DataQualityEngine:
             series = dataframe[column].dropna()
             if series.empty or rows == 0:
                 continue
+            # Skip numeric and datetime columns (they naturally have continuous unique values)
+            if pd.api.types.is_numeric_dtype(series) or pd.api.types.is_datetime64_any_dtype(series):
+                continue
             unique_ratio = series.nunique(dropna=True) / rows
             if unique_ratio >= HIGH_CARDINALITY_RATIO:
                 issues.append({
