@@ -14,16 +14,28 @@ export default function Layout() {
   return (
     <div className="app-layout">
       <header className="site-header">
-        <div className="logo">Auto Data Analyst</div>
+        <div className="logo">
+          <span>Auto Data Analyst</span>
+        </div>
         <nav className="main-nav">
-          <NavLink to="/dashboard" className="nav-link">Dashboard</NavLink>
-          <NavLink to="/projects" className="nav-link">Projects</NavLink>
-          <NavLink to="/upload" className="nav-link">Upload</NavLink>
-          <NavLink to="/chat" className="nav-link">Chat</NavLink>
-          <NavLink to="/profile" className="nav-link">Profile</NavLink>
+          <NavLink to="/chat" className="nav-link">
+            ⚡ Command Studio
+          </NavLink>
+          <NavLink to="/dashboard" className="nav-link">
+            📊 Dashboard
+          </NavLink>
+          <NavLink to="/projects" className="nav-link">
+            📁 Projects
+          </NavLink>
+          <NavLink to="/upload" className="nav-link">
+            📤 Upload
+          </NavLink>
+          <NavLink to="/profile" className="nav-link">
+            👤 Profile
+          </NavLink>
         </nav>
         <div className="user-area">
-          <span className="user-badge">{user?.username ?? '—'}</span>
+          <span className="user-badge">● {user?.username ?? 'demo'}</span>
           <button className="ghost-btn" onClick={handleLogout}>Logout</button>
         </div>
       </header>
