@@ -14,6 +14,7 @@ from .insights import InsightsEngine
 from .cleaner import DataCleaner
 from .model_selection_agent import ModelSelectionAgent
 from .ann_agent import ANNAgent
+from .cnn_agent import CNNAgent
 from .schemas import ClaimType, Evidence, ErrorCategory
 
 

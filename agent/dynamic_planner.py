@@ -32,6 +32,7 @@ from agent.agents import (
     ReportAgent,
     ModelSelectionAgent,
     ANNAgent,
+    CNNAgent,
 )
 from backend.app.core.dataset_knowledge import DatasetKnowledge
 from backend.app.core.semantic import SemanticSchemaAgent
@@ -150,7 +151,23 @@ class DynamicTaskPlanner:
         primary_deps = [cleaning_step_id] if cleaning_step_id else []
         main_step_id = step_counter
 
-        if intent_res.primary_intent == AnalyticalIntent.DEEP_LEARNING:
+        if intent_res.primary_intent == AnalyticalIntent.CNN:
+            target = intent_res.target_column or knowledge.get_primary_metric()
+            steps.append(
+                PlanStep(
+                    step_id=main_step_id,
+                    name=f"Convolutional Neural Network (CNN) for Spatial/Image data '{target}'",
+                    agent_class_name="CNNAgent",
+                    action="cnn",
+                    parameters={"target": target, "epochs": 80},
+                    dependencies=primary_deps,
+                    validation_criteria="CNN trained with spatial convolution and benchmarked against baseline.",
+                    fallback_strategy="Fallback to Flat MLP or Random Forest.",
+                )
+            )
+            step_counter += 1
+
+        elif intent_res.primary_intent == AnalyticalIntent.DEEP_LEARNING:
             target = intent_res.target_column or knowledge.get_primary_metric()
             steps.append(
                 PlanStep(
@@ -316,6 +333,7 @@ class DynamicTaskPlanner:
             "ReportAgent": ReportAgent,
             "ModelSelectionAgent": ModelSelectionAgent,
             "ANNAgent": ANNAgent,
+            "CNNAgent": CNNAgent,
         }
 
         for step in plan.steps:

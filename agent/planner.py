@@ -28,6 +28,7 @@ from .agents import (
     ReportAgent,
     ModelSelectionAgent,
     ANNAgent,
+    CNNAgent,
 )
 
 
@@ -135,6 +136,37 @@ class PlannerAgent:
                 "activation": req.get("activation", "relu"),
                 "epochs": req.get("epochs", 200),
                 "tune": req.get("tune", False),
+            },
+        },
+        "cnn": {
+            "action": "cnn",
+            "agent": CNNAgent,
+            "task": lambda data, req: {
+                "data": data,
+                "target": req.get("target"),
+                "spatial_shape": req.get("spatial_shape"),
+                "is_signal": req.get("is_signal", False),
+                "epochs": req.get("epochs", 80),
+            },
+        },
+        "image_classification": {
+            "action": "cnn",
+            "agent": CNNAgent,
+            "task": lambda data, req: {
+                "data": data,
+                "target": req.get("target"),
+                "spatial_shape": req.get("spatial_shape"),
+                "epochs": req.get("epochs", 80),
+            },
+        },
+        "spatial": {
+            "action": "cnn",
+            "agent": CNNAgent,
+            "task": lambda data, req: {
+                "data": data,
+                "target": req.get("target"),
+                "spatial_shape": req.get("spatial_shape"),
+                "epochs": req.get("epochs", 80),
             },
         },
         "forecast": {
