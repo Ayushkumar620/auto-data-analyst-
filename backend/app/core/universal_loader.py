@@ -289,3 +289,23 @@ class UniversalDatasetLoader:
             raise UniversalLoadError("No readable tabular files found inside ZIP archive.")
         return result, None
 
+    @classmethod
+    def load_database_uri(
+        cls,
+        connection_uri: str,
+        optimize_memory: bool = True,
+        max_rows_per_table: int = 50000,
+    ) -> Tuple[Dict[str, pd.DataFrame], Optional[MemoryProfile], Any]:
+        """Ingest all tables from a live SQL database URI and introspect schema graph."""
+        from backend.app.core.sql_connector import LiveSQLDatabaseConnector
+        connector = LiveSQLDatabaseConnector(connection_uri=connection_uri)
+        schema_graph = connector.introspect_schema()
+        tables_dict = connector.load_all_tables_as_dict(max_rows_per_table=max_rows_per_table)
+
+        mem_profile = None
+        if optimize_memory:
+            for t_name, df in list(tables_dict.items()):
+                tables_dict[t_name], mem_profile = MemoryOptimizer.optimize(df)
+
+        return tables_dict, mem_profile, schema_graph
+
