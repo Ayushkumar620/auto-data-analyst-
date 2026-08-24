@@ -71,8 +71,6 @@ class Evidence:
             "source": self.source,
             "method": self.method,
             "data_ref": self.data_ref,
-            "confidence": self.confidence,
-            "claim_type": self.claim_type.value,
             "confidence": round(float(self.confidence), 4) if isinstance(self.confidence, (int, float)) else self.confidence,
             "claim_type": self.claim_type.value if isinstance(self.claim_type, ClaimType) else str(self.claim_type),
             "raw_value": self.raw_value,
@@ -106,7 +104,6 @@ class SemanticMapping:
     semantic_concept: str
     concept_category: str
     confidence: float
-    evidence: List[Evidence]
     evidence: List[Evidence] = field(default_factory=list)
     aliases: List[str] = field(default_factory=list)
     description: str = ""
@@ -116,8 +113,6 @@ class SemanticMapping:
             "column_name": self.column_name,
             "semantic_concept": self.semantic_concept,
             "concept_category": self.concept_category,
-            "confidence": self.confidence,
-            "evidence": [e.to_dict() for e in self.evidence],
             "confidence": round(float(self.confidence), 4) if isinstance(self.confidence, (int, float)) else self.confidence,
             "evidence": [e.to_dict() if isinstance(e, Evidence) else e for e in self.evidence],
             "aliases": self.aliases,
@@ -155,7 +150,6 @@ class AgentError:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "category": self.category.value,
             "category": self.category.value if isinstance(self.category, ErrorCategory) else str(self.category),
             "message": self.message,
             "details": self.details,
@@ -197,7 +191,6 @@ class ValidationIssue:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "severity": self.severity.value,
             "severity": self.severity.value if isinstance(self.severity, ValidationSeverity) else str(self.severity),
             "code": self.code,
             "message": self.message,
@@ -237,15 +230,11 @@ class ValidationResult:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "passed": self.passed,
-            "issues": [i.to_dict() for i in self.issues],
             "issues": [i.to_dict() if isinstance(i, ValidationIssue) else i for i in self.issues],
             "repaired": self.repaired,
             "repair_actions": self.repair_actions,
         }
 
-    def add_issue(self, severity: ValidationSeverity, code: str, message: str,
-                  field: Optional[str] = None, expected: Any = None, actual: Any = None,
-                  repair_hint: Optional[str] = None) -> None:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ValidationResult":
         raw_issues = data.get("issues", [])
@@ -280,7 +269,6 @@ class AgentResult:
     """
     Standardized output from every agent.
 
-    All agents must return this structure (or a subclass) from their run() method.
     All agents must return this structure from their run() method.
     The BaseAgent._finish() and _error() methods construct this automatically.
     """
@@ -344,19 +332,14 @@ class AgentResult:
             "agent": self.agent,
             "role": self.role,
             "agent_id": self.agent_id,
-            "status": self.status.value,
             "status": self.status.value if isinstance(self.status, AgentStatus) else str(self.status),
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "finished_at": self.finished_at.isoformat() if self.finished_at else None,
-            "duration_ms": self.duration_ms,
             "duration_ms": round(float(self.duration_ms), 2) if isinstance(self.duration_ms, (int, float)) else self.duration_ms,
             "output": self.output,
-            "evidence": [e.to_dict() for e in self.evidence],
-            "confidence": self.confidence,
             "evidence": [e.to_dict() if isinstance(e, Evidence) else e for e in self.evidence],
             "confidence": round(float(self.confidence), 4) if isinstance(self.confidence, (int, float)) else self.confidence,
             "validation": self.validation.to_dict() if self.validation else None,
-            "errors": [e.to_dict() for e in self.errors],
             "errors": [e.to_dict() if isinstance(e, AgentError) else e for e in self.errors],
             "warnings": self.warnings,
             "metadata": self.metadata,
@@ -429,7 +412,6 @@ class AgentResult:
         if hasattr(self, key):
             value = getattr(self, key)
             if key == "status":
-                return value.value if isinstance(value, AgentStatus) else value
                 return value.value if isinstance(value, AgentStatus) else str(value)
             if key == "output":
                 return value if value is not None else {}
@@ -446,10 +428,6 @@ class AgentResult:
         return hasattr(self, key)
 
     @classmethod
-    def success(cls, agent: str, role: str, agent_id: str, started_at: datetime,
-                output: Dict[str, Any], evidence: List[Evidence] = None,
-                confidence: float = 1.0, duration_ms: float = 0.0,
-                warnings: List[str] = None, metadata: Dict[str, Any] = None) -> "AgentResult":
     def success(
         cls,
         agent: str,
@@ -480,10 +458,6 @@ class AgentResult:
         )
 
     @classmethod
-    def failure(cls, agent: str, role: str, agent_id: str, started_at: datetime,
-                errors: List[AgentError], duration_ms: float = 0.0,
-                output: Dict[str, Any] = None, warnings: List[str] = None,
-                metadata: Dict[str, Any] = None) -> "AgentResult":
     def failure(
         cls,
         agent: str,
@@ -514,9 +488,6 @@ class AgentResult:
         )
 
     @classmethod
-    def retrying(cls, agent: str, role: str, agent_id: str, started_at: datetime,
-                 retry_count: int, output: Dict[str, Any] = None,
-                 errors: List[AgentError] = None) -> "AgentResult":
     def retrying(
         cls,
         agent: str,
@@ -551,15 +522,6 @@ class DatasetKnowledge:
     """
     dataset_id: str
     dataset_type: str
-    entities: List[Dict[str, Any]]
-    metrics: List[SemanticMapping]
-    dimensions: List[SemanticMapping]
-    temporal_columns: List[SemanticMapping]
-    identifiers: List[SemanticMapping]
-    semantic_mappings: List[SemanticMapping]
-    relationships: List[Dict[str, Any]]
-    data_quality: Dict[str, Any]
-    overall_confidence: float
     entities: List[Dict[str, Any]] = field(default_factory=list)
     metrics: List[SemanticMapping] = field(default_factory=list)
     dimensions: List[SemanticMapping] = field(default_factory=list)
