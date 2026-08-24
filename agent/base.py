@@ -103,6 +103,46 @@ class BaseAgent:
         """Execute the task. Subclasses must override and return AgentResult."""
         raise NotImplementedError("Subclasses must implement run() and return AgentResult")
 
+    def execute_with_retry(
+        self,
+        task: Dict[str, Any],
+        max_retries: int = 2,
+        retry_delay_ms: int = 50,
+    ) -> AgentResult:
+        """Execute the agent task with automated retry for recoverable errors."""
+        attempts = 0
+        last_result: Optional[AgentResult] = None
+
+        while attempts <= max_retries:
+            try:
+                result = self.run(task)
+                result.retry_count = attempts
+                if result.is_success:
+                    return result
+                # If error is not recoverable, do not retry
+                if result.is_error:
+                    has_recoverable = any(e.recoverable for e in result.errors)
+                    if not has_recoverable or attempts >= max_retries:
+                        return result
+            except Exception as exc:
+                err_result = self._error(
+                    str(exc),
+                    category=ErrorCategory.COMPUTATION,
+                    recoverable=True,
+                )
+                err_result.retry_count = attempts
+                if attempts >= max_retries:
+                    return err_result
+
+            attempts += 1
+            if attempts <= max_retries:
+                self.status = AgentStatus.RETRYING
+                self.messages.append(f"{self.name} retrying attempt {attempts}/{max_retries}.")
+                if retry_delay_ms > 0:
+                    time.sleep(retry_delay_ms / 1000.0)
+
+        return last_result or self._error("Max retries exceeded", category=ErrorCategory.COMPUTATION)
+
     # ------------------------------------------------------------------
     # Evidence helper
     # ------------------------------------------------------------------
