@@ -18,7 +18,7 @@ from backend.app.core.vision_engine import (
     global_vision_engine,
 )
 from backend.app.ml.model_selection import MLModelComparisonEngine, ModelComparisonReport
-from backend.app.ml.ann_engine import ANNEngine
+from backend.app.ml.ann_engine import ANNEngine, ANNHyperparameters
 
 
 @pytest.fixture
@@ -94,7 +94,7 @@ def test_end_to_end_ml_training_on_image_features(synthetic_image_batch):
     # Run AutoML Model Comparison on extracted visual features
     ml_engine = MLModelComparisonEngine()
     comp_report: ModelComparisonReport = ml_engine.benchmark_models(
-        df=feature_df,
+        dataframe=feature_df,
         target_column="label",
     )
 
@@ -113,10 +113,9 @@ def test_end_to_end_ann_training_on_image_features(synthetic_image_batch):
 
     ann_engine = ANNEngine()
     ann_result = ann_engine.train_and_evaluate(
-        df=feature_df,
+        dataframe=feature_df,
         target_column="label",
-        hidden_layer_sizes=[16, 8],
-        max_iter=30,
+        hyperparams=ANNHyperparameters(hidden_layer_sizes=(16, 8), max_iter=30),
     )
 
     assert ann_result.problem_type.value in ("binary_classification", "multiclass_classification")
