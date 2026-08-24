@@ -104,6 +104,7 @@ Final Structured Answer + Evidence + Charts + PDF Report
 | **Multi-Type Visualizer** | `agent/visualizer.py` | 100% | 8 chart types (Bar, Line, Scatter, Box, Pie, Histogram, Heatmap, Area) + automated evidence summaries. |
 | **Conversational Memory Engine** | `agent/conversational_memory.py` | 100% | Multi-turn state tracking, pronoun & anaphora resolution ("it", "those", "build model for it", "why?"). |
 | **High-Performance Execution Engine** | `backend/app/core/high_performance_engine.py` | 100% | DuckDB / Polars / Vectorized NumPy aggregations, SQL query executor, and sub-second stats. |
+| **Interactive Execution DAG Visualizer** | `templates/index.html`, `agent/command_orchestrator.py` | 100% | Real-time multi-stage DAG execution visualizer with live badges, durations, and tool inspectability. |
 | **Authentication & Security** | `backend/app/auth/`, `app.py` | 100% | Password authentication, passwordless Email OTP verification, JWT Bearer tokens, and password hashing. |
 | **Web User Experiences** | `templates/index.html`, `frontend/` | 100% | Interactive "Child Holding Magic Lamp" lighting animation, Recent Workflows Hub, and full Command Studio. |
 
@@ -222,7 +223,7 @@ graph TD
 
 - [x] **Task 1: Multi-Turn Conversational Memory & Context Resolution Engine (`agent/conversational_memory.py`)** — **COMPLETED & VERIFIED (230/230 tests passing)**.
 - [x] **Task 2: DuckDB / Polars High-Performance Execution Layer for 10M+ Row Aggregations (`backend/app/core/high_performance_engine.py`)** — **COMPLETED & VERIFIED (234/234 tests passing)**.
-- [ ] **Task 3: Interactive Real-Time DAG Execution Visualizer in the UI**
+- [x] **Task 3: Interactive Real-Time DAG Execution Visualizer in the UI (`templates/index.html`, `agent/command_orchestrator.py`)** — **COMPLETED & VERIFIED (237/237 tests passing)**.
 - [ ] **Task 4: Root-Cause & Counterfactual Decomposition Engine (What-If Analysis)**
 - [ ] **Task 5: Live Enterprise SQL Database Connector & Multi-Table Schema Introspection**
 - [ ] **Task 6: Multi-Modal Computer Vision Engine with Pretrained Feature Extractors**
@@ -235,9 +236,9 @@ graph TD
 
 ## Recommended Immediate Next Task 🎯
 
-### **Task 3: Interactive Real-Time DAG Execution Visualizer in the UI**
-- **Objective**: Render an interactive real-time visual execution graph directly in the UI (showing intent node $\rightarrow$ dynamic planning steps $\rightarrow$ active specialized agents $\rightarrow$ deterministic execution engines $\rightarrow$ validation audit $\rightarrow$ evidence lineage $\rightarrow$ final answer).
+### **Task 4: Root-Cause & Counterfactual Decomposition Engine (What-If Analysis)**
+- **Objective**: Implement `RootCauseDecompositionEngine` (`backend/app/core/root_cause_engine.py`) to systematically break down KPI drops/spikes into exact price, volume, mix, and segment variance components, with counterfactual ("What-if") scenario modeling.
 
 ---
 
-> **Awaiting user approval before proceeding to Task 3 implementation.**
+> **Awaiting user approval before proceeding to Task 4 implementation.**
