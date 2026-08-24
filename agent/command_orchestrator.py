@@ -223,7 +223,14 @@ class AutonomousCommandOrchestrator:
         if intent_res.needs_cleaning or "clean" in q or knowledge.data_quality.get("quality_score", 100) < 85:
             ops.append("sanitize_and_impute_missing_values")
 
-        if "why" in q or "decrease" in q or "increase" in q or "driver" in q or "cause" in q:
+        if intent_res.primary_intent in (AnalyticalIntent.PREDICTION, AnalyticalIntent.DEEP_LEARNING, AnalyticalIntent.CNN) or "predict" in q or "model" in q or "train" in q:
+            ops.extend([
+                "audit_data_leakage_and_imbalance",
+                "encode_and_scale_features",
+                "benchmark_candidate_algorithms_with_cv",
+                "select_optimal_model_and_explain_rationale",
+            ])
+        elif "why" in q or "decrease" in q or "increase" in q or "driver" in q or "cause" in q:
             ops.extend([
                 "compute_period_over_period_variance",
                 "correlate_drivers_with_target",
@@ -236,18 +243,11 @@ class AutonomousCommandOrchestrator:
                 "compute_cross_cohort_percentage_delta",
                 "generate_comparative_visualization",
             ])
-        elif "top" in q or "bottom" in q or "rank" in q or "best" in q:
+        elif "top" in q or "bottom" in q or "rank" in q or "best" in q or "customer" in q:
             ops.extend([
                 "group_by_dimension",
                 "sum_and_rank_entities",
                 "slice_top_n_records",
-            ])
-        elif intent_res.primary_intent in (AnalyticalIntent.PREDICTION, AnalyticalIntent.DEEP_LEARNING, AnalyticalIntent.CNN):
-            ops.extend([
-                "audit_data_leakage_and_imbalance",
-                "encode_and_scale_features",
-                "benchmark_candidate_algorithms_with_cv",
-                "select_optimal_model_and_explain_rationale",
             ])
         elif intent_res.primary_intent == AnalyticalIntent.FORECASTING or "forecast" in q or "next" in q:
             ops.extend([
@@ -293,7 +293,17 @@ class AutonomousCommandOrchestrator:
         metric_cols = [m.column_name if hasattr(m, "column_name") else str(m) for m in knowledge.metrics] or knowledge.numeric_columns
         date_cols = [d.column_name if hasattr(d, "column_name") else str(d) for d in knowledge.date_columns]
 
-        # 1. Comparison Queries (e.g. "Compare revenue between India and the US")
+        # 1. Top-N Ranking Queries (e.g. "Clean this dataset and find the top 10 customers")
+        if "top" in q or "rank" in q or "customer" in q:
+            if dim_cols and metric_cols:
+                # Find matching dimension (e.g. customer_name for customer)
+                matched_dim = next((c for c in dim_cols if c.lower() in q or c.lower().replace("_", " ") in q or ("customer" in q and "customer" in c.lower())), dim_cols[0])
+                d_col, m_col = matched_dim, metric_cols[0]
+                top_n = df.groupby(d_col)[m_col].sum().dropna().sort_values(ascending=False).head(10)
+                items_str = "\n".join([f"{i+1}. **{k}**: {v:,.2f}" for i, (k, v) in enumerate(top_n.items())])
+                return f"Top ranked entities by **{m_col}** (grouped by **{d_col}**):\n\n{items_str}"
+
+        # 2. Comparison Queries (e.g. "Compare revenue between India and the US")
         if "compare" in q or "between" in q:
             if dim_cols and metric_cols:
                 d_col, m_col = dim_cols[0], metric_cols[0]
