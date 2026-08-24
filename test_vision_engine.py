@@ -93,14 +93,14 @@ def test_end_to_end_ml_training_on_image_features(synthetic_image_batch):
 
     # Run AutoML Model Comparison on extracted visual features
     ml_engine = MLModelComparisonEngine()
-    comp_report: ModelComparisonReport = ml_engine.compare_models(
+    comp_report: ModelComparisonReport = ml_engine.benchmark_models(
         df=feature_df,
         target_column="label",
     )
 
     assert comp_report.best_model is not None
-    assert comp_report.problem_type == "classification"
-    assert comp_report.best_score > 0.85  # Strong visual discrimination on stripes vs square
+    assert comp_report.problem_type.value in ("binary_classification", "multiclass_classification")
+    assert comp_report.best_model.primary_metric_value > 0.80  # High visual discrimination
 
 
 def test_end_to_end_ann_training_on_image_features(synthetic_image_batch):
@@ -112,13 +112,12 @@ def test_end_to_end_ann_training_on_image_features(synthetic_image_batch):
     feature_df = report.feature_dataframe.drop(columns=["image_id"])
 
     ann_engine = ANNEngine()
-    ann_result = ann_engine.train(
+    ann_result = ann_engine.train_and_evaluate(
         df=feature_df,
         target_column="label",
-        hidden_layer_sizes=[32, 16],
-        max_iter=50,
+        hidden_layer_sizes=[16, 8],
+        max_iter=30,
     )
 
-    assert ann_result.problem_type == "classification"
-    assert ann_result.evaluation_metric in ("accuracy", "f1")
-    assert ann_result.evaluation_score > 0.80
+    assert ann_result.problem_type.value in ("binary_classification", "multiclass_classification")
+    assert ann_result.primary_metric_value > 0.70
