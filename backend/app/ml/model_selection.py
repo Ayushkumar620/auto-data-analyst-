@@ -130,14 +130,19 @@ class MLModelComparisonEngine:
         if clean_y.empty:
             return ProblemType.REGRESSION
 
-        # String / boolean / category targets are classification
-        if clean_y.dtype == object or clean_y.dtype == bool or isinstance(clean_y.dtype, pd.CategoricalDtype):
+        # String / boolean / category / object targets are classification
+        if (
+            pd.api.types.is_object_dtype(clean_y)
+            or pd.api.types.is_string_dtype(clean_y)
+            or pd.api.types.is_bool_dtype(clean_y)
+            or isinstance(clean_y.dtype, pd.CategoricalDtype)
+        ):
             unique_count = clean_y.nunique()
             return ProblemType.BINARY_CLASSIFICATION if unique_count == 2 else ProblemType.MULTICLASS_CLASSIFICATION
 
-        # Integer targets with very few unique values are classification
+        # Integer targets with few unique values are classification
         unique_count = clean_y.nunique()
-        if pd.api.types.is_integer_dtype(clean_y) and unique_count <= 10:
+        if (pd.api.types.is_integer_dtype(clean_y) or pd.api.types.is_bool_dtype(clean_y)) and unique_count <= 10:
             return ProblemType.BINARY_CLASSIFICATION if unique_count == 2 else ProblemType.MULTICLASS_CLASSIFICATION
 
         # Binary float values (e.g. 0.0 and 1.0)
@@ -169,7 +174,7 @@ class MLModelComparisonEngine:
             class_counts = y.value_counts(normalize=True).to_dict()
             min_class_pct = min(class_counts.values()) if class_counts else 1.0
             characteristics["class_balance"] = {str(k): round(float(v), 3) for k, v in class_counts.items()}
-            characteristics["is_imbalanced"] = min_class_pct < 0.20
+            characteristics["is_imbalanced"] = min_class_pct <= 0.25
 
         return characteristics
 
@@ -236,7 +241,7 @@ class MLModelComparisonEngine:
                 candidates.append((
                     "Support Vector Machine (SVC)",
                     "Kernel",
-                    SVC(probability=True, random_state=42),
+                    SVC(random_state=42),
                     {"kernel": "rbf", "C": 1.0},
                 ))
 

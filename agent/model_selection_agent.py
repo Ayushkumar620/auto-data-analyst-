@@ -128,3 +128,4 @@ class ModelSelectionAgent(BaseAgent):
             confidence=0.95,
             metadata={"problem_type": report.problem_type.value, "target": target},
         )
+

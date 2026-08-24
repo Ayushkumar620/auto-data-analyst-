@@ -195,3 +195,4 @@ def test_planner_agent_model_selection_action(classification_df):
     assert result.validation.passed is True
     assert "best_model" in result.output
     assert "leaderboard" in result.output
+
