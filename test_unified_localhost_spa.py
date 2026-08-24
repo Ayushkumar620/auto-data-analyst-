@@ -49,3 +49,4 @@ def test_localhost_login_flow_on_single_origin():
     data = res.json()
     assert "access_token" in data
     assert data["user"]["email"] == "demo@example.com"
+
