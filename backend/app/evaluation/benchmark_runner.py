@@ -164,12 +164,12 @@ class BenchmarkRunner:
 
         try:
             analysis = self.intent_analyzer.analyze(query, df)
-            plan = self.planner.create_plan(query, df, analysis)
+            plan = self.planner.create_plan(query, df)
             exec_res = self.planner.execute_plan(plan, df)
 
             # Assert model selection trained models and achieved high R^2
             ml_engine = MLModelComparisonEngine()
-            comp_report = ml_engine.compare_models(df, target_column="sale_price")
+            comp_report = ml_engine.benchmark_models(df, target_column="sale_price")
 
             passed = (
                 analysis.primary_intent in (AnalyticalIntent.PREDICTION, AnalyticalIntent.MODEL_SELECTION)
@@ -205,7 +205,7 @@ class BenchmarkRunner:
         try:
             analysis = self.intent_analyzer.analyze(query, df)
             ml_engine = MLModelComparisonEngine()
-            comp_report = ml_engine.compare_models(df, target_column="churned")
+            comp_report = ml_engine.benchmark_models(df, target_column="churned")
 
             passed = (
                 comp_report.problem_type.value == "binary_classification"
@@ -240,11 +240,11 @@ class BenchmarkRunner:
 
         try:
             analysis = self.intent_analyzer.analyze(query, df)
-            plan = self.planner.create_plan(query, df, analysis)
+            plan = self.planner.create_plan(query, df)
             exec_res = self.planner.execute_plan(plan, df)
 
             passed = (
-                analysis.primary_intent == AnalyticalIntent.FORECAST
+                analysis.primary_intent == AnalyticalIntent.FORECASTING
                 and exec_res.get("status") == "completed"
             )
 

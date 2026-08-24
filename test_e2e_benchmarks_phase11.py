@@ -85,7 +85,7 @@ def test_spatial_cnn_benchmark():
     assert isinstance(res, BenchmarkResult)
     assert res.benchmark_type == BenchmarkType.SPATIAL_IMAGE_CLASSIFICATION
     assert res.passed is True
-    assert res.primary_metric.get("val_accuracy", 0.0) >= 0.70
+    assert res.primary_metric.get("accuracy", 0.0) >= 0.70
 
 
 def test_data_integrity_leakage_benchmark():

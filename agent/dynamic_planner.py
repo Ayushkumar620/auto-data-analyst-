@@ -114,9 +114,12 @@ class DynamicTaskPlanner:
         self,
         query: str,
         dataframe: pd.DataFrame,
-        knowledge: Optional[DatasetKnowledge] = None,
+        knowledge: Optional[Any] = None,
     ) -> TaskPlan:
         """Analyze intent and synthesize a multi-step execution plan with validation and fallbacks."""
+        if not isinstance(knowledge, DatasetKnowledge):
+            knowledge = None
+
         # Step 1: Intent Analysis
         intent_res = self.intent_analyzer.analyze(query, knowledge=knowledge, dataframe=dataframe)
 
