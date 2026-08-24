@@ -81,7 +81,7 @@
                     <button class="chip" data-cmd="describe">describe</button>
                     <button class="chip" data-cmd="nulls">nulls</button>
                     <button class="chip" data-cmd="correlation">correlation</button>
-                    <button class="chip" data-cmd="chart">chart</button>
+                    <button class="chip" id="quick-chart-chip" data-cmd="chart">chart</button>
                     <button class="chip" data-cmd="predict">predict</button>
                     <button class="chip" data-cmd="clean">clean</button>
                     <button class="chip" data-cmd="insights">insights</button>
@@ -89,6 +89,24 @@
                     <button class="chip" data-cmd="forecast">forecast</button>
                     <button class="chip" data-cmd="report">report</button>
                     <button class="chip" data-cmd="help">help</button>
+                </div>
+
+                <!-- Interactive Chart Type Selector Dialog -->
+                <div id="chart-type-picker" class="hidden" style="margin-top: 14px; background: rgba(137, 180, 250, 0.08); border: 1px solid rgba(137, 180, 250, 0.25); border-radius: 12px; padding: 12px 14px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 0.88rem; font-weight: 700; color: #89b4fa;">📊 Select Chart Type:</span>
+                        <button type="button" onclick="document.getElementById('chart-type-picker').classList.add('hidden')" style="background: none; border: none; color: #a0a0b0; font-size: 0.8rem; cursor: pointer;">✕ Close</button>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                        <button class="chip chart-chip" onclick="selectChartType('bar')">📊 Bar</button>
+                        <button class="chip chart-chip" onclick="selectChartType('line')">📈 Line</button>
+                        <button class="chip chart-chip" onclick="selectChartType('scatter')">🔵 Scatter</button>
+                        <button class="chip chart-chip" onclick="selectChartType('box')">📦 Box Plot</button>
+                        <button class="chip chart-chip" onclick="selectChartType('pie')">🥧 Pie</button>
+                        <button class="chip chart-chip" onclick="selectChartType('histogram')">📉 Histogram</button>
+                        <button class="chip chart-chip" onclick="selectChartType('heatmap')">🌡️ Heatmap</button>
+                        <button class="chip chart-chip" onclick="selectChartType('area')">🌊 Area</button>
+                    </div>
                 </div>
             </section>
 
@@ -152,6 +170,10 @@
         // Quick command chips
         document.querySelectorAll('.chip').forEach(function (chip) {
             chip.addEventListener('click', function () {
+                if (chip.id === 'quick-chart-chip') {
+                    const picker = document.getElementById('chart-type-picker');
+                    picker.classList.toggle('hidden');
+                }
                 commandInput.value = chip.dataset.cmd;
                 runAnalysis();
             });
@@ -355,12 +377,42 @@ if (data.type === 'insight') {
         function renderCharts(charts) {
             let html = '';
             charts.forEach(function (chart) {
+                const currentType = (chart.chart_type || 'chart').toLowerCase();
                 html += '<div class="card">' +
-                    '<div class="card-header"><span>📈 ' + escapeHtml(chart.chart_type) + ' Chart</span><span class="badge">' + escapeHtml(chart.name) + '</span></div>' +
-                    '<img src="data:image/png;base64,' + chart.image + '" alt="chart">' +
+                    '<div class="card-header">' +
+                    '<span>📈 ' + escapeHtml(chart.chart_type.toUpperCase()) + ' Visualization</span>' +
+                    '<span class="badge">' + escapeHtml(chart.name) + '</span>' +
+                    '</div>' +
+                    '<div style="margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 5px;">' +
+                    '<button class="chip' + (currentType === 'bar' ? ' active-chip' : '') + '" onclick="selectChartType(\'bar\')">📊 Bar</button>' +
+                    '<button class="chip' + (currentType === 'line' ? ' active-chip' : '') + '" onclick="selectChartType(\'line\')">📈 Line</button>' +
+                    '<button class="chip' + (currentType === 'scatter' ? ' active-chip' : '') + '" onclick="selectChartType(\'scatter\')">🔵 Scatter</button>' +
+                    '<button class="chip' + (currentType === 'box' ? ' active-chip' : '') + '" onclick="selectChartType(\'box\')">📦 Box</button>' +
+                    '<button class="chip' + (currentType === 'pie' ? ' active-chip' : '') + '" onclick="selectChartType(\'pie\')">🥧 Pie</button>' +
+                    '<button class="chip' + (currentType === 'histogram' || currentType === 'hist' ? ' active-chip' : '') + '" onclick="selectChartType(\'histogram\')">📉 Histogram</button>' +
+                    '<button class="chip' + (currentType === 'heatmap' ? ' active-chip' : '') + '" onclick="selectChartType(\'heatmap\')">🌡️ Heatmap</button>' +
+                    '<button class="chip' + (currentType === 'area' ? ' active-chip' : '') + '" onclick="selectChartType(\'area\')">🌊 Area</button>' +
+                    '</div>' +
+                    '<div style="text-align: center; background: #1e1e2e; border-radius: 10px; padding: 8px;">' +
+                    '<img src="data:image/png;base64,' + chart.image + '" alt="chart" style="max-width: 100%; border-radius: 8px;">' +
                     '</div>';
+
+                if (chart.summary) {
+                    html += '<div style="margin-top: 14px; background: rgba(99, 102, 241, 0.12); border-left: 4px solid #818cf8; border-radius: 0 10px 10px 0; padding: 12px 16px;">' +
+                        '<div style="font-weight: 700; color: #a5b4fc; font-size: 0.95rem; margin-bottom: 5px;">💡 Chart Summary &amp; Key Patterns</div>' +
+                        '<p style="margin: 0; font-size: 0.92rem; line-height: 1.55; color: #e2e8f0;">' + escapeHtml(chart.summary) + '</p>' +
+                        '</div>';
+                }
+
+                html += '</div>';
             });
             results.innerHTML = html;
+        }
+
+        function selectChartType(type) {
+            document.getElementById('chart-type-picker').classList.add('hidden');
+            commandInput.value = 'chart type=' + type;
+            runAnalysis();
         }
 
         function renderSummary(reports) {
