@@ -136,6 +136,11 @@ class DataPredictor:
         X = df[features].copy()
         y = df[target].copy()
 
+        # Handle datetime columns in X
+        for col in X.columns:
+            if pd.api.types.is_datetime64_any_dtype(X[col]):
+                X[col] = pd.to_datetime(X[col]).astype("int64") // 10**9
+
         # Encode categorical features
         for col in X.select_dtypes(include=["object", "string", "category"]).columns:
             le = LabelEncoder()
@@ -145,12 +150,14 @@ class DataPredictor:
         is_classification = df[target].dtype == object or df[target].nunique() <= 10
         if is_classification:
             le = LabelEncoder()
-            y = le.fit_transform(y.astype(str))
+            y_series = pd.Series(le.fit_transform(y.astype(str)), index=X.index)
+        else:
+            y_series = pd.to_numeric(y, errors="coerce")
 
         # Drop rows with NaN
-        mask = X.notna().all(axis=1) & y.notna()
+        mask = X.notna().all(axis=1) & y_series.notna()
         X = X[mask]
-        y = y[mask]
+        y = y_series[mask]
 
         if len(X) < 10:
             return {"error": "Need at least 10 valid rows for prediction."}

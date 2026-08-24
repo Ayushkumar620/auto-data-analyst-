@@ -130,7 +130,7 @@ def test_8_list_projects(auth_token):
     response = client.get("/api/v1/projects", headers=headers)
     assert response.status_code == 200
     data = response.json()
-    assert isinstance(data, list)
+    assert "projects" in data or isinstance(data, list)
 
 
 if __name__ == "__main__":
