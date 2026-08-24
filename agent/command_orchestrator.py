@@ -12,6 +12,11 @@ Explicitly distinguishes:
 5. execution
 6. validation
 7. final_explanation
+
+Enterprise Big Data & Universal Modality Extensions:
+- Automated Memory Optimization
+- Stratified Cochran Sampling for massive datasets
+- Text NLP Sentiment & Keyword Extraction
 """
 from __future__ import annotations
 
@@ -28,6 +33,8 @@ from agent.dynamic_planner import DynamicTaskPlanner, PlanStep, TaskPlan
 from backend.app.core.dataset_knowledge import DatasetKnowledge
 from backend.app.core.semantic import SemanticSchemaAgent
 from backend.app.core.evidence_insights import EvidenceBasedInsightsEngine, StructuredInsight
+from backend.app.core.big_data_engine import MemoryOptimizer, StratifiedRepresentativeSampler, MemoryProfile
+from backend.app.core.modality_engines import TextModalityEngine, TextAnalysisReport, RelationalModalityEngine
 from backend.app.ml.model_selection import MLModelComparisonEngine, ModelComparisonReport
 from backend.app.ml.ann_engine import ANNEngine
 from backend.app.ml.cnn_engine import CNNEngine
@@ -79,11 +86,12 @@ class AutonomousCommandOrchestrator:
         self.ml_engine = MLModelComparisonEngine()
         self.ann_engine = ANNEngine()
         self.cnn_engine = CNNEngine()
+        self.text_engine = TextModalityEngine()
 
     def execute_command(
         self,
         command: str,
-        dataframe: pd.DataFrame,
+        dataframe: Union[pd.DataFrame, Dict[str, pd.DataFrame]],
         context: Optional[Dict[str, Any]] = None,
     ) -> CommandExecutionResult:
         """
@@ -96,6 +104,15 @@ class AutonomousCommandOrchestrator:
         context = context or {}
 
         # ------------------------------------------------------------------
+        # Stage 0: Multi-Table Ingestion & Memory Optimization
+        # ------------------------------------------------------------------
+        if isinstance(dataframe, dict):
+            # Auto-join relational multi-table dataset
+            dataframe = RelationalModalityEngine.auto_join_tables(dataframe)
+
+        dataframe, mem_profile = MemoryOptimizer.optimize(dataframe)
+
+        # ------------------------------------------------------------------
         # Stage 1: Dataset Intelligence & Schema Inspection
         # ------------------------------------------------------------------
         knowledge: DatasetKnowledge = self.semantic_agent.build_knowledge(dataframe)
@@ -105,13 +122,19 @@ class AutonomousCommandOrchestrator:
         dim_names = [d.column_name if hasattr(d, "column_name") else str(d) for d in knowledge.dimensions] or knowledge.categorical_columns
         date_names = [d.column_name if hasattr(d, "column_name") else str(d) for d in knowledge.date_columns]
 
+        # Detect text columns for NLP modality
+        text_cols = [c for c in dataframe.columns if self.text_engine.is_text_column(dataframe[c])]
+
         dataset_summary = {
             "rows": n_rows,
             "columns": list(dataframe.columns),
             "metrics": metric_names,
             "dimensions": dim_names,
             "date_columns": date_names,
+            "text_columns": text_cols,
             "quality_score": knowledge.data_quality.get("quality_score", 100),
+            "memory_saved_pct": mem_profile.reduction_percentage,
+            "optimized_mb": round(mem_profile.optimized_bytes / (1024 * 1024), 2),
         }
 
         # ------------------------------------------------------------------
@@ -124,18 +147,25 @@ class AutonomousCommandOrchestrator:
         # ------------------------------------------------------------------
         # Stage 3: Required Operations Decomposition
         # ------------------------------------------------------------------
-        required_ops: List[str] = self._determine_required_operations(command, intent_res, knowledge, dataframe)
+        required_ops: List[str] = self._determine_required_operations(
+            command, intent_res, knowledge, dataframe, text_cols, n_rows
+        )
 
         # ------------------------------------------------------------------
-        # Stage 4: Multi-Step DAG Task Plan Synthesis & Tool Selection
+        # Stage 4 & 5: Big Data Adaptive Sampling & DAG Plan Execution
         # ------------------------------------------------------------------
-        plan: TaskPlan = self.planner.create_plan(query=command, dataframe=dataframe, knowledge=knowledge)
+        # If big dataset (N > 50,000) and ML/prediction requested, extract representative stratified sample
+        train_df = dataframe
+        sampling_info = None
+        if n_rows > 50000 and intent_res.primary_intent in (AnalyticalIntent.PREDICTION, AnalyticalIntent.DEEP_LEARNING, AnalyticalIntent.CNN):
+            train_df, sampling_info = StratifiedRepresentativeSampler.sample_dataframe(
+                dataframe, target_column=intent_res.target_column, max_rows=50000
+            )
+
+        plan: TaskPlan = self.planner.create_plan(query=command, dataframe=train_df, knowledge=knowledge)
         selected_agents = [s.agent_class_name for s in plan.steps]
 
-        # ------------------------------------------------------------------
-        # Stage 5: Execution Across Specialized Engines
-        # ------------------------------------------------------------------
-        exec_output = self.planner.execute_plan(plan, dataframe)
+        exec_output = self.planner.execute_plan(plan, train_df)
 
         # ------------------------------------------------------------------
         # Stage 6: Validation Safety Audit
@@ -143,8 +173,8 @@ class AutonomousCommandOrchestrator:
         primary_metric = knowledge.get_primary_metric()
         target_col = intent_res.target_column or primary_metric or (dataframe.columns[0] if len(dataframe.columns) > 0 else "")
         val_report: ValidationAuditReport = self.validator.audit_pipeline(
-            df=dataframe,
-            target_column=target_col if target_col in dataframe.columns else dataframe.columns[-1],
+            df=train_df,
+            target_column=target_col if target_col in train_df.columns else train_df.columns[-1],
         )
         val_summary = {
             "status": val_report.overall_status,
@@ -159,6 +189,18 @@ class AutonomousCommandOrchestrator:
         model_selection_summary: Optional[Dict[str, Any]] = None
         visualization: Optional[Dict[str, Any]] = None
         evidence_list: List[Dict[str, Any]] = []
+
+        # NLP Text analysis if text queried or present
+        text_report: Optional[TextAnalysisReport] = None
+        if text_cols and ("sentiment" in q_norm or "text" in q_norm or "review" in q_norm or "feedback" in q_norm or "keyword" in q_norm):
+            text_report = self.text_engine.analyze_text_column(dataframe[text_cols[0]], column_name=text_cols[0])
+            evidence_list.append({
+                "source": "TextModalityEngine",
+                "method": "nlp_sentiment_and_ngrams",
+                "claim_type": "FACT",
+                "confidence": 0.95,
+                "raw_value": text_report.to_dict(),
+            })
 
         # Extract artifacts and evidence from executed plan steps
         for step_res in exec_output.get("results", []):
@@ -186,6 +228,8 @@ class AutonomousCommandOrchestrator:
             exec_output=exec_output,
             model_summary=model_selection_summary,
             required_ops=required_ops,
+            text_report=text_report,
+            sampling_info=sampling_info,
         )
 
         # Fallback visualization if none created yet
@@ -215,10 +259,18 @@ class AutonomousCommandOrchestrator:
         intent_res: IntentClassificationResult,
         knowledge: DatasetKnowledge,
         df: pd.DataFrame,
+        text_cols: List[str],
+        n_rows: int,
     ) -> List[str]:
         """Decompose command into distinct logical operations."""
-        ops: List[str] = ["inspect_dataset_schema"]
+        ops: List[str] = ["inspect_dataset_schema", "optimize_memory_footprint"]
         q = command.lower()
+
+        if n_rows > 50000:
+            ops.append("apply_stratified_cochran_sampling")
+
+        if text_cols and ("sentiment" in q or "text" in q or "review" in q or "feedback" in q or "keyword" in q):
+            ops.extend(["extract_nlp_sentiment_distribution", "compute_top_keywords_and_bigrams"])
 
         if intent_res.needs_cleaning or "clean" in q or knowledge.data_quality.get("quality_score", 100) < 85:
             ops.append("sanitize_and_impute_missing_values")
@@ -285,6 +337,8 @@ class AutonomousCommandOrchestrator:
         exec_output: Dict[str, Any],
         model_summary: Optional[Dict[str, Any]],
         required_ops: List[str],
+        text_report: Optional[TextAnalysisReport] = None,
+        sampling_info: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Compose human-friendly, evidence-backed narrative explanation of what was computed."""
         q = command.lower()
@@ -293,10 +347,23 @@ class AutonomousCommandOrchestrator:
         metric_cols = [m.column_name if hasattr(m, "column_name") else str(m) for m in knowledge.metrics] or knowledge.numeric_columns
         date_cols = [d.column_name if hasattr(d, "column_name") else str(d) for d in knowledge.date_columns]
 
+        # 0. Text NLP Explanation
+        if text_report:
+            pos_pct = text_report.sentiment_distribution.get("positive", 0) * 100
+            neg_pct = text_report.sentiment_distribution.get("negative", 0) * 100
+            neu_pct = text_report.sentiment_distribution.get("neutral", 0) * 100
+            top_kws = ", ".join([f"**{k}** ({c})" for k, c in text_report.top_keywords[:5]])
+            return (
+                f"NLP Text Analysis for **{text_report.column_name}** ({text_report.total_documents:,} documents analyzed):\n"
+                f"- **Sentiment Breakdown**: {pos_pct:.1f}% Positive, {neu_pct:.1f}% Neutral, {neg_pct:.1f}% Negative\n"
+                f"- **Average Word Count**: {text_report.avg_word_count:.1f} words per document\n"
+                f"- **Top Key Themes**: {top_kws}\n"
+                f"- **Lexical Diversity**: {text_report.lexical_diversity:.4f} TTR (Vocabulary: {text_report.vocabulary_size:,} distinct tokens)"
+            )
+
         # 1. Top-N Ranking Queries (e.g. "Clean this dataset and find the top 10 customers")
         if "top" in q or "rank" in q or "customer" in q:
             if dim_cols and metric_cols:
-                # Find matching dimension (e.g. customer_name for customer)
                 matched_dim = next((c for c in dim_cols if c.lower() in q or c.lower().replace("_", " ") in q or ("customer" in q and "customer" in c.lower())), dim_cols[0])
                 d_col, m_col = matched_dim, metric_cols[0]
                 top_n = df.groupby(d_col)[m_col].sum().dropna().sort_values(ascending=False).head(10)
@@ -311,10 +378,9 @@ class AutonomousCommandOrchestrator:
                 top_items = [f"**{k}**: {v:,.2f}" for k, v in list(grouped.items())[:3]]
                 return f"Comparison of **{m_col}** across **{d_col}**:\n- " + "\n- ".join(top_items) + f"\n\nTotal volume analyzed across {len(grouped)} distinct categories."
 
-        # 2. Driver & "Why" Queries (e.g. "Why did profit decrease last year?")
+        # 3. Driver & "Why" Queries (e.g. "Why did profit decrease last year?")
         if "why" in q or "decrease" in q or "drop" in q or "increase" in q:
             m_target = intent_res.target_column or (metric_cols[0] if metric_cols else "metric")
-
             lines = [
                 f"Historical analysis of **{m_target}** shows period-over-period variations across the timeline."
             ]
@@ -327,21 +393,14 @@ class AutonomousCommandOrchestrator:
                 )
             return "\n\n".join(lines)
 
-        # 3. Top-N Ranking Queries (e.g. "Clean this dataset and find the top 10 customers")
-        if "top" in q or "best" in q or "rank" in q or "customer" in q:
-            if dim_cols and metric_cols:
-                d_col, m_col = dim_cols[0], metric_cols[0]
-                top_n = df.groupby(d_col)[m_col].sum().dropna().sort_values(ascending=False).head(10)
-                items_str = "\n".join([f"{i+1}. **{k}**: {v:,.2f}" for i, (k, v) in enumerate(top_n.items())])
-                return f"Top ranked entities by **{m_col}** (grouped by **{d_col}**):\n\n{items_str}"
-
         # 4. Model Training / Predictive Queries
         if model_summary:
             m_name = model_summary.get("model_name", "Best Model")
             metric_name = model_summary.get("primary_metric_name", "Score")
             metric_val = model_summary.get("primary_metric_value", 0.0)
+            sample_note = f" (Trained with 99% CI Cochran sample of {sampling_info['sample_rows']:,} rows)" if sampling_info and sampling_info.get("is_sampled") else ""
             return (
-                f"Evaluated candidate algorithms for target **{intent_res.target_column}**. "
+                f"Evaluated candidate algorithms for target **{intent_res.target_column}**{sample_note}. "
                 f"The best performing architecture is **{m_name}** achieving a {metric_name} of **{metric_val:.4f}** "
                 f"under cross-validation."
             )
