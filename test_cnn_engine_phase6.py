@@ -205,3 +205,4 @@ def test_planner_agent_cnn_action(synthetic_image_df):
     assert result.validation is not None
     assert result.validation.passed is True
     assert "architecture_summary" in result.output
+

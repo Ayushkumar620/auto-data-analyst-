@@ -133,3 +133,4 @@ class CNNAgent(BaseAgent):
             confidence=0.95,
             metadata={"architecture": result_obj.architecture_summary, "modality": result_obj.data_modality},
         )
+
