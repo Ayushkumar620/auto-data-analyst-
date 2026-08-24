@@ -283,6 +283,12 @@ class AutonomousCommandOrchestrator:
             evidence_count=len(evidence_list),
         )
 
+        steps_list = (
+            exec_output.output.get("steps_executed", [])
+            if hasattr(exec_output, "output") and isinstance(exec_output.output, dict)
+            else [s.to_dict() for s in plan.steps]
+        )
+
         return CommandExecutionResult(
             command=command,
             resolved_command=resolved_command,
@@ -291,7 +297,7 @@ class AutonomousCommandOrchestrator:
             required_operations=required_ops,
             selected_agents=selected_agents,
             model_selection_summary=model_selection_summary,
-            execution_steps=exec_output.get("results", []),
+            execution_steps=steps_list,
             validation_summary=val_summary,
             final_explanation=explanation,
             evidence=evidence_list,
