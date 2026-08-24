@@ -39,6 +39,7 @@ from backend.app.ml.model_selection import MLModelComparisonEngine, ModelCompari
 from backend.app.ml.ann_engine import ANNEngine
 from backend.app.ml.cnn_engine import CNNEngine
 from backend.app.ml.validation_engine import DataModelValidator, ValidationAuditReport
+from agent.conversational_memory import ConversationalMemoryEngine, global_conversational_memory
 
 
 @dataclass
@@ -56,10 +57,15 @@ class CommandExecutionResult:
     visualization: Optional[Dict[str, Any]]
     dataset_summary: Dict[str, Any]
     duration_ms: float
+    session_id: Optional[str] = None
+    resolved_command: Optional[str] = None
+    context_metadata: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "command": self.command,
+            "resolved_command": self.resolved_command or self.command,
+            "session_id": self.session_id,
             "user_intent": self.user_intent,
             "required_operations": self.required_operations,
             "selected_agents": self.selected_agents,
@@ -71,13 +77,14 @@ class CommandExecutionResult:
             "visualization": self.visualization,
             "dataset_summary": self.dataset_summary,
             "duration_ms": round(float(self.duration_ms), 2),
+            "context_metadata": self.context_metadata,
         }
 
 
 class AutonomousCommandOrchestrator:
     """Completely command-driven autonomous orchestrator for the Auto Data Analyst."""
 
-    def __init__(self):
+    def __init__(self, memory_engine: Optional[ConversationalMemoryEngine] = None):
         self.semantic_agent = SemanticSchemaAgent()
         self.intent_analyzer = IntentAnalyzer()
         self.planner = DynamicTaskPlanner()
@@ -87,27 +94,43 @@ class AutonomousCommandOrchestrator:
         self.ann_engine = ANNEngine()
         self.cnn_engine = CNNEngine()
         self.text_engine = TextModalityEngine()
+        self.memory = memory_engine or global_conversational_memory
 
     def execute_command(
         self,
         command: str,
         dataframe: Union[pd.DataFrame, Dict[str, pd.DataFrame]],
         context: Optional[Dict[str, Any]] = None,
+        session_id: Optional[str] = None,
     ) -> CommandExecutionResult:
         """
         Execute an arbitrary natural-language command end-to-end.
-        Interprets intent, decomposes into required operations, selects tools,
-        executes DAG, validates, and explains results.
+        Interprets intent, resolves conversational pronouns/context, decomposes into required operations,
+        selects tools, executes DAG, validates, and explains results.
         """
         start_t = time.time()
-        q_norm = command.strip().lower()
         context = context or {}
+        session_id = session_id or context.get("session_id") or "default_session"
 
         # ------------------------------------------------------------------
-        # Stage 0: Multi-Table Ingestion & Memory Optimization
+        # Stage 0: Multi-Turn Context & Anaphora Resolution
+        # ------------------------------------------------------------------
+        first_df = list(dataframe.values())[0] if isinstance(dataframe, dict) and dataframe else dataframe
+        effective_df = first_df if isinstance(first_df, pd.DataFrame) else pd.DataFrame()
+
+        resolved_command, context_meta = self.memory.resolve_context(
+            command=command,
+            session_id=session_id,
+            df=effective_df
+        )
+        q_norm = resolved_command.strip().lower()
+
+        # ------------------------------------------------------------------
+        # Stage 0.5: Multi-Table Ingestion & Memory Optimization
         # ------------------------------------------------------------------
         if isinstance(dataframe, dict):
             # Auto-join relational multi-table dataset
+            dataframe = RelationalModalityEngine.auto_join_tables(dataframe)
             dataframe = RelationalModalityEngine.auto_join_tables(dataframe)
 
         dataframe, mem_profile = MemoryOptimizer.optimize(dataframe)
@@ -238,8 +261,32 @@ class AutonomousCommandOrchestrator:
 
         duration = (time.time() - start_t) * 1000
 
+        # Record turn into conversational memory for continuous multi-turn dialogue
+        active_met = (
+            intent_res.target_column
+            or knowledge.get_primary_metric()
+            or (metric_names[0] if metric_names else None)
+        )
+        active_dim = dim_names[0] if dim_names else None
+        active_model = model_selection_summary.get("model_name") if model_selection_summary else None
+
+        self.memory.record_turn(
+            session_id=session_id,
+            user_command=command,
+            resolved_command=resolved_command,
+            intent=intent_res.primary_intent.value,
+            active_metric=active_met,
+            active_dimension=active_dim,
+            active_target=intent_res.target_column,
+            active_model_type=active_model,
+            summary_findings=[explanation[:250]] if explanation else [],
+            evidence_count=len(evidence_list),
+        )
+
         return CommandExecutionResult(
             command=command,
+            resolved_command=resolved_command,
+            session_id=session_id,
             user_intent=intent_res.primary_intent.value,
             required_operations=required_ops,
             selected_agents=selected_agents,
@@ -251,6 +298,7 @@ class AutonomousCommandOrchestrator:
             visualization=visualization,
             dataset_summary=dataset_summary,
             duration_ms=duration,
+            context_metadata=context_meta,
         )
 
     def _determine_required_operations(
