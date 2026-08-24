@@ -30,6 +30,7 @@ from .agents import (
     ANNAgent,
     CNNAgent,
     ModelRegistryAgent,
+    DataValidationAgent,
 )
 
 
@@ -179,6 +180,28 @@ class PlannerAgent:
                 "data": data,
                 "family": req.get("family"),
                 "problem_type": req.get("problem_type"),
+            },
+        },
+        "validate": {
+            "action": "validate",
+            "agent": DataValidationAgent,
+            "task": lambda data, req: {
+                "data": data,
+                "target": req.get("target"),
+                "train_score": req.get("train_score"),
+                "test_score": req.get("test_score"),
+                "auto_repair": req.get("auto_repair", False),
+            },
+        },
+        "audit": {
+            "action": "validate",
+            "agent": DataValidationAgent,
+            "task": lambda data, req: {
+                "data": data,
+                "target": req.get("target"),
+                "train_score": req.get("train_score"),
+                "test_score": req.get("test_score"),
+                "auto_repair": req.get("auto_repair", False),
             },
         },
         "forecast": {

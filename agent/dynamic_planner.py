@@ -34,6 +34,7 @@ from agent.agents import (
     ANNAgent,
     CNNAgent,
     ModelRegistryAgent,
+    DataValidationAgent,
 )
 from backend.app.core.dataset_knowledge import DatasetKnowledge
 from backend.app.core.semantic import SemanticSchemaAgent
@@ -336,6 +337,7 @@ class DynamicTaskPlanner:
             "ANNAgent": ANNAgent,
             "CNNAgent": CNNAgent,
             "ModelRegistryAgent": ModelRegistryAgent,
+            "DataValidationAgent": DataValidationAgent,
         }
 
         for step in plan.steps:

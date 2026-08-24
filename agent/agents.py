@@ -16,6 +16,7 @@ from .model_selection_agent import ModelSelectionAgent
 from .ann_agent import ANNAgent
 from .cnn_agent import CNNAgent
 from .registry_agent import ModelRegistryAgent
+from .validation_agent import DataValidationAgent
 from .schemas import ClaimType, Evidence, ErrorCategory
 
 
