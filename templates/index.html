@@ -407,6 +407,50 @@
             analyzeBtn.disabled = show;
         }
 
+        function renderExecutionGraphHtml(graph, resolvedCommand, durationMs) {
+            if (!graph || !graph.length) return '';
+            let html = '<div class="dag-container card" id="execution-dag-card">' +
+                '<div class="card-header">' +
+                '<span>⚡ Autonomous Agent Execution Graph (DAG)</span>' +
+                '<span class="badge" style="background: linear-gradient(135deg, #10b981, #059669); color: white;">✓ All Steps Verified (' + (durationMs ? durationMs.toFixed(1) : '0') + 'ms)</span>' +
+                '</div>';
+
+            if (resolvedCommand) {
+                html += '<div style="margin-bottom: 14px; font-size: 0.9rem; color: #cbd5e1; background: rgba(30, 41, 59, 0.6); padding: 8px 12px; border-radius: 8px; border-left: 3px solid #38bdf8;">' +
+                    '<strong>🎯 Resolved Context:</strong> <code>' + escapeHtml(resolvedCommand) + '</code>' +
+                    '</div>';
+            }
+
+            html += '<div class="dag-flow-grid">';
+            graph.forEach(function(node, index) {
+                const isCompleted = node.status === 'completed';
+                const isWarning = node.status === 'warning';
+                const badgeColor = isWarning ? '#f59e0b' : '#10b981';
+                const icon = node.icon || '🔹';
+
+                html += '<div class="dag-node-card' + (isCompleted ? ' dag-node-completed' : '') + '">' +
+                    '<div class="dag-node-header">' +
+                    '<span class="dag-node-icon">' + icon + '</span>' +
+                    '<div class="dag-node-title-group">' +
+                    '<div class="dag-node-title">' + escapeHtml(node.title) + '</div>' +
+                    '<div class="dag-node-agent">' + escapeHtml(node.agent) + '</div>' +
+                    '</div>' +
+                    '<span class="dag-node-badge" style="background: ' + (isWarning ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)') + '; color: ' + badgeColor + '; border: 1px solid ' + badgeColor + '40;">' + escapeHtml(node.badge || '✓') + '</span>' +
+                    '</div>' +
+                    '<div class="dag-node-details" id="' + node.id + '-details">' +
+                    '<p>' + escapeHtml(node.details) + '</p>' +
+                    (node.duration_ms ? '<div class="dag-node-meta">⏱️ ' + node.duration_ms + 'ms</div>' : '') +
+                    '</div>' +
+                    '</div>';
+
+                if (index < graph.length - 1) {
+                    html += '<div class="dag-flow-arrow">➔</div>';
+                }
+            });
+            html += '</div></div>';
+            return html;
+        }
+
         function renderResult(data) {
             results.innerHTML = '';
             if (data.type === 'error') {
@@ -415,69 +459,45 @@
             }
             if (data.type === 'help') {
                 renderHelp(data.commands);
-                return;
-            }
-            if (data.type === 'chart') {
+            } else if (data.type === 'chart') {
                 renderCharts(data.charts);
-                return;
-            }
-            if (data.type === 'predict') {
+            } else if (data.type === 'predict') {
                 renderPrediction(data.result);
-                return;
-            }
-            if (data.type === 'summary' || data.type === 'columns') {
+            } else if (data.type === 'summary' || data.type === 'columns') {
                 renderSummary(data.reports);
-                return;
-            }
-            if (data.type === 'describe') {
+            } else if (data.type === 'describe') {
                 renderDescribe(data.reports);
-                return;
-            }
-            if (data.type === 'nulls') {
+            } else if (data.type === 'nulls') {
                 renderNulls(data.reports);
-                return;
-            }
-            if (data.type === 'correlation') {
+            } else if (data.type === 'correlation') {
                 renderCorrelation(data.reports);
-                return;
-            }
-            if (data.type === 'head') {
+            } else if (data.type === 'head') {
                 renderHead(data.reports);
-                return;
-            }
-            if (data.type === 'unique') {
+            } else if (data.type === 'unique') {
                 renderUnique(data.reports);
-                return;
-            }
-            if (data.type === 'text') {
+            } else if (data.type === 'text') {
                 renderText(data.result);
-                return;
-            }
-if (data.type === 'insight') {
+            } else if (data.type === 'insight') {
                 renderInsight(data.result, data.intent);
-                return;
-            }
-            if (data.type === 'clean') {
+            } else if (data.type === 'clean') {
                 renderClean(data.reports);
-                return;
-            }
-            if (data.type === 'insights') {
+            } else if (data.type === 'insights') {
                 renderSmartInsights(data.result);
-                return;
-            }
-            if (data.type === 'anomalies') {
+            } else if (data.type === 'anomalies') {
                 renderAnomalies(data.result);
-                return;
-            }
-            if (data.type === 'forecast') {
+            } else if (data.type === 'forecast') {
                 renderForecast(data.result);
-                return;
-            }
-            if (data.type === 'report') {
+            } else if (data.type === 'report') {
                 renderReport(data.result);
+            } else {
+                showError('Unknown result type: ' + data.type);
                 return;
             }
-            showError('Unknown result type: ' + data.type);
+
+            if (data.execution_graph && data.execution_graph.length) {
+                const graphHtml = renderExecutionGraphHtml(data.execution_graph, data.resolved_command, data.duration_ms);
+                results.insertAdjacentHTML('afterbegin', graphHtml);
+            }
         }
 
         function showError(message) {

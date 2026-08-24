@@ -14,6 +14,7 @@ from agent.command_parser import CommandParser
 from agent.insights import InsightsEngine
 from agent.report_generator import ReportGenerator
 from agent.planner import PlannerAgent
+from agent.command_orchestrator import AutonomousCommandOrchestrator
 from backend.app.api.upload import upload_bp
 from backend.app.api.workspace import workspace_bp
 from backend.app.api.insights import insights_bp
@@ -127,6 +128,20 @@ def analyze():
     result = parser.parse(command)
     result["filename"] = filename
     result["file_type"] = os.path.splitext(filename)[1].lstrip(".")
+
+    # Enrich with Autonomous Command Execution Graph
+    try:
+        session_id = request.form.get("session_id") or "web_session"
+        orch = AutonomousCommandOrchestrator()
+        orch_res = orch.execute_command(command, data, session_id=session_id)
+        result["execution_graph"] = orch_res.execution_graph
+        result["resolved_command"] = orch_res.resolved_command
+        result["final_explanation"] = orch_res.final_explanation
+        result["validation_summary"] = orch_res.validation_summary
+        result["duration_ms"] = orch_res.duration_ms
+    except Exception:
+        pass
+
     return jsonify(result)
 
 
