@@ -230,7 +230,7 @@ graph TD
 - [x] **Task 5: Live Enterprise SQL Database Connector & Multi-Table Schema Introspection (`backend/app/core/sql_connector.py`)** — **COMPLETED & VERIFIED (245/245 tests passing)**.
 - [x] **Task 6: Multi-Modal Computer Vision Engine with Pretrained Feature Extractors (`backend/app/core/vision_engine.py`)** — **COMPLETED & VERIFIED (249/249 tests passing)**.
 - [x] **Task 7: Executive Multi-Page PDF & PPTX Presentation Builder with Lineage Traceability (`backend/app/core/presentation_builder.py`)** — **COMPLETED & VERIFIED (252/252 tests passing)**.
-- [ ] **Task 8: Dynamic Code Sandbox & Safe Isolated Python Runtime**
+- [x] **Task 8: Dynamic Code Sandbox & Safe Isolated Python Runtime (`backend/app/core/sandbox_runtime.py`)** — **COMPLETED & VERIFIED (256/256 tests passing)**.
 - [ ] **Task 9: Complete Backend Gateway Consolidation (FastAPI Routers)**
 - [ ] **Task 10: Role-Based Access Control (RBAC) & Enterprise Audit Logging**
 
@@ -238,9 +238,9 @@ graph TD
 
 ## Recommended Immediate Next Task 🎯
 
-### **Task 8: Dynamic Code Sandbox & Safe Isolated Python Runtime**
-- **Objective**: Implement `SafeIsolatedExecutionSandbox` (`backend/app/core/sandbox_runtime.py`) providing AST-validated execution, memory and CPU timeouts, restricted namespace scoping, and safe dynamic pandas code execution.
+### **Task 9: Complete Backend Gateway Consolidation (FastAPI Routers)**
+- **Objective**: Consolidate legacy endpoints into modern async FastAPI API routers (`backend/app/api/`), including unified `/api/v1/analyze`, `/api/v1/sql`, `/api/v1/sandbox`, `/api/v1/vision`, and `/api/v1/reports` with OpenAPI documentation.
 
 ---
 
-> **Awaiting user approval before proceeding to Task 8 implementation.**
+> **Awaiting user approval before proceeding to Task 9 implementation.**
