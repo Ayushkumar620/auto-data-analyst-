@@ -238,9 +238,9 @@ graph TD
 
 ## Recommended Immediate Next Task 🎯
 
-### **Task 7: Executive Multi-Page PDF & PPTX Presentation Builder with Lineage Traceability**
-- **Objective**: Implement `ExecutivePresentationEngine` (`backend/app/core/presentation_builder.py`) allowing one-click compilation of analytical outputs, KPI scorecards, charts, DAG execution graphs, and evidence tables into executive-grade PDF reports and PowerPoint slide decks.
+### **Task 8: Dynamic Code Sandbox & Safe Isolated Python Runtime**
+- **Objective**: Implement `SafeIsolatedExecutionSandbox` (`backend/app/core/sandbox_runtime.py`) providing AST-validated execution, memory and CPU timeouts, restricted namespace scoping, and safe dynamic pandas code execution.
 
 ---
 
-> **Awaiting user approval before proceeding to Task 7 implementation.**
+> **Awaiting user approval before proceeding to Task 8 implementation.**
