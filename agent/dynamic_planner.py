@@ -30,6 +30,7 @@ from agent.agents import (
     VisualizationAgent,
     InsightAgent,
     ReportAgent,
+    ModelSelectionAgent,
 )
 from backend.app.core.dataset_knowledge import DatasetKnowledge
 from backend.app.core.semantic import SemanticSchemaAgent
@@ -296,6 +297,7 @@ class DynamicTaskPlanner:
             "VisualizationAgent": VisualizationAgent,
             "InsightAgent": InsightAgent,
             "ReportAgent": ReportAgent,
+            "ModelSelectionAgent": ModelSelectionAgent,
         }
 
         for step in plan.steps:
