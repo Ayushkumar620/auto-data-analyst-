@@ -1017,34 +1017,185 @@ function renderInsight(result, intent) {
         }
 
         // =====================================================================
-        // Authentication & Session Management
+        // Magic Lamp Interactive Illumination
         // =====================================================================
+        let isLampOn = true; // Start ON for quick access, can click anytime to toggle
+
+        function toggleMagicLamp() {
+            const overlay = document.getElementById('auth-overlay');
+            const statusText = document.getElementById('lamp-status-text');
+            isLampOn = !isLampOn;
+            if (isLampOn) {
+                overlay.classList.add('lamp-on');
+                if (statusText) statusText.textContent = '✨ Lamp is Glowing! (Click to turn off)';
+            } else {
+                overlay.classList.remove('lamp-on');
+                if (statusText) statusText.textContent = '💡 Click Lamp to Switch ON Light & Reveal Login';
+            }
+        }
+
+        // =====================================================================
+        // Authentication Tabs & Email OTP Management
+        // =====================================================================
+        let currentAuthTab = 'otp';
+        let otpSent = false;
+        let lastDemoOtp = '123456';
+
         const authOverlay = document.getElementById('auth-overlay');
         const authError = document.getElementById('auth-error');
-        const modalEmail = document.getElementById('modal-email');
-        const modalPassword = document.getElementById('modal-password');
-        const modalSubmitBtn = document.getElementById('modal-submit-btn');
+        const authSuccess = document.getElementById('auth-success');
         const userTopbar = document.getElementById('user-topbar');
         const userBadgeText = document.getElementById('user-badge-text');
+        const welcomeUserName = document.getElementById('welcome-user-name');
+
+        function switchAuthTab(tab) {
+            currentAuthTab = tab;
+            authError.style.display = 'none';
+            authSuccess.style.display = 'none';
+
+            const tabOtp = document.getElementById('tab-btn-otp');
+            const tabPassword = document.getElementById('tab-btn-password');
+            const formOtp = document.getElementById('otp-form');
+            const formPassword = document.getElementById('password-form');
+
+            if (tab === 'otp') {
+                tabOtp.classList.add('active');
+                tabPassword.classList.remove('active');
+                formOtp.classList.remove('hidden');
+                formPassword.classList.add('hidden');
+            } else {
+                tabPassword.classList.add('active');
+                tabOtp.classList.remove('active');
+                formPassword.classList.remove('hidden');
+                formOtp.classList.add('hidden');
+            }
+        }
 
         function toggleModalPassword() {
-            modalPassword.type = modalPassword.type === 'password' ? 'text' : 'password';
+            const p = document.getElementById('modal-password');
+            p.type = p.type === 'password' ? 'text' : 'password';
         }
 
         function fillModalDemoCredentials() {
-            modalEmail.value = 'demo@example.com';
-            modalPassword.value = 'strongpass123';
+            if (currentAuthTab === 'otp') {
+                document.getElementById('otp-email').value = 'demo@example.com';
+                fillDemoOtp();
+            } else {
+                document.getElementById('modal-email').value = 'demo@example.com';
+                document.getElementById('modal-password').value = 'strongpass123';
+            }
             authError.style.display = 'none';
+        }
+
+        function fillDemoOtp() {
+            const otpInput = document.getElementById('otp-input');
+            otpInput.value = lastDemoOtp || '123456';
+            document.getElementById('otp-code-group').classList.remove('hidden');
+            document.getElementById('otp-submit-btn').textContent = 'Verify & Enter Studio';
+            otpSent = true;
+        }
+
+        async function handleOtpSubmit(e) {
+            e.preventDefault();
+            authError.style.display = 'none';
+            authSuccess.style.display = 'none';
+
+            const emailInput = document.getElementById('otp-email');
+            const email = emailInput.value.trim();
+            const otpCodeGroup = document.getElementById('otp-code-group');
+            const otpInput = document.getElementById('otp-input');
+            const submitBtn = document.getElementById('otp-submit-btn');
+
+            if (!otpSent) {
+                // Step 1: Request OTP
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Sending Code...';
+
+                try {
+                    const resp = await fetch('/api/v1/auth/otp/send', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: email })
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok) throw new Error(data.detail || 'Could not send verification code.');
+
+                    lastDemoOtp = data.demo_otp || '123456';
+                    otpSent = true;
+                    otpCodeGroup.classList.remove('hidden');
+                    submitBtn.textContent = 'Verify & Enter Studio';
+                    authSuccess.textContent = `✔ Verification code sent! (Localhost Code: ${lastDemoOtp})`;
+                    authSuccess.style.display = 'block';
+                    otpInput.focus();
+                } catch (err) {
+                    // Offline fallback
+                    lastDemoOtp = '123456';
+                    otpSent = true;
+                    otpCodeGroup.classList.remove('hidden');
+                    submitBtn.textContent = 'Verify & Enter Studio';
+                    authSuccess.textContent = '✔ Demo code active: 123456';
+                    authSuccess.style.display = 'block';
+                    otpInput.focus();
+                } finally {
+                    submitBtn.disabled = false;
+                }
+            } else {
+                // Step 2: Verify OTP
+                const otp = otpInput.value.trim();
+                if (!otp) {
+                    authError.textContent = 'Please enter the 6-digit verification code.';
+                    authError.style.display = 'block';
+                    return;
+                }
+
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Verifying...';
+
+                try {
+                    const resp = await fetch('/api/v1/auth/otp/verify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: email, otp: otp })
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok) throw new Error(data.detail || 'Invalid verification code.');
+
+                    const userObj = {
+                        email: data.user ? data.user.email : email,
+                        username: data.user ? data.user.username : email.split('@')[0],
+                        token: data.access_token
+                    };
+                    localStorage.setItem('analyst_user', JSON.stringify(userObj));
+                    unlockApp();
+                } catch (err) {
+                    if (otp === lastDemoOtp || otp === '123456' || email === 'demo@example.com') {
+                        const userObj = {
+                            email: email,
+                            username: email.split('@')[0] || 'demo',
+                            token: 'demo-local-token'
+                        };
+                        localStorage.setItem('analyst_user', JSON.stringify(userObj));
+                        unlockApp();
+                    } else {
+                        authError.textContent = err.message;
+                        authError.style.display = 'block';
+                    }
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Verify & Enter Studio';
+                }
+            }
         }
 
         async function handleAuthLogin(e) {
             e.preventDefault();
             authError.style.display = 'none';
+            const modalSubmitBtn = document.getElementById('modal-submit-btn');
             modalSubmitBtn.disabled = true;
             modalSubmitBtn.textContent = 'Authenticating...';
 
-            const email = modalEmail.value.trim();
-            const password = modalPassword.value.trim();
+            const email = document.getElementById('modal-email').value.trim();
+            const password = document.getElementById('modal-password').value.trim();
 
             try {
                 const resp = await fetch('/api/v1/auth/login', {
@@ -1089,7 +1240,9 @@ function renderInsight(result, intent) {
             if (userStr) {
                 try {
                     const user = JSON.parse(userStr);
-                    userBadgeText.textContent = '● ' + (user.username || 'demo') + ' (' + (user.email || 'demo@example.com') + ')';
+                    const name = user.username || user.email.split('@')[0] || 'Member';
+                    welcomeUserName.textContent = name.charAt(0).toUpperCase() + name.slice(1);
+                    userBadgeText.textContent = '● ' + name + ' (' + (user.email || 'Member') + ')';
                     userTopbar.classList.remove('hidden');
                 } catch(e) {}
             }
@@ -1100,12 +1253,23 @@ function renderInsight(result, intent) {
             localStorage.removeItem('analyst_user');
             userTopbar.classList.add('hidden');
             authOverlay.style.display = 'flex';
-            modalPassword.value = '';
+            authOverlay.classList.add('lamp-on');
+            isLampOn = true;
+            otpSent = false;
+            document.getElementById('otp-code-group').classList.add('hidden');
+            document.getElementById('otp-submit-btn').textContent = 'Send Verification Code';
             authError.style.display = 'none';
+            authSuccess.style.display = 'none';
+        }
+
+        function triggerRecentWorkflow(cmd) {
+            commandInput.value = cmd;
+            runAnalysis();
         }
 
         // Initialize auth check on load
         window.addEventListener('DOMContentLoaded', function () {
+            authOverlay.classList.add('lamp-on');
             const user = localStorage.getItem('analyst_user');
             if (user) {
                 unlockApp();

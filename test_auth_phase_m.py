@@ -1,4 +1,4 @@
-"""Tests for PHASE M: secure authentication (register, login, JWT, protected route)."""
+"""Tests for PHASE M: secure authentication (register, login, OTP, JWT, protected route)."""
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -67,14 +67,32 @@ def test_login_returns_token(client):
     assert resp.json()["access_token"]
 
 
-def test_login_rejects_wrong_password(client):
+def test_login_rejects_bad_password(client):
     client.post("/api/v1/auth/register", json={
         "email": "dave@example.com", "username": "dave", "password": "strongpass123",
     })
-    resp = client.post("/api/v1/auth/login", json={
-        "email": "dave@example.com", "password": "wrongpassword",
+    assert client.post("/api/v1/auth/login", json={
+        "email": "dave@example.com", "password": "wrongpassword123",
+    }).status_code == 401
+
+
+def test_fastapi_email_otp_flow(client):
+    # Step 1: Send OTP
+    send_resp = client.post("/api/v1/auth/otp/send", json={"email": "fastapi_user@example.com"})
+    assert send_resp.status_code == 200
+    send_data = send_resp.json()
+    otp_code = send_data.get("demo_otp")
+    assert otp_code is not None
+
+    # Step 2: Verify OTP
+    verify_resp = client.post("/api/v1/auth/otp/verify", json={
+        "email": "fastapi_user@example.com",
+        "otp": otp_code,
     })
-    assert resp.status_code == 401
+    assert verify_resp.status_code == 200
+    verify_data = verify_resp.json()
+    assert "access_token" in verify_data
+    assert verify_data["user"]["email"] == "fastapi_user@example.com"
 
 
 def test_protected_me_requires_token(client):
