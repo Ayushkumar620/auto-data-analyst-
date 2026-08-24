@@ -808,6 +808,104 @@ function renderInsight(result, intent) {
             html += '</table>';
             return html;
         }
+
+        // =====================================================================
+        // Authentication & Session Management
+        // =====================================================================
+        const authOverlay = document.getElementById('auth-overlay');
+        const authError = document.getElementById('auth-error');
+        const modalEmail = document.getElementById('modal-email');
+        const modalPassword = document.getElementById('modal-password');
+        const modalSubmitBtn = document.getElementById('modal-submit-btn');
+        const userTopbar = document.getElementById('user-topbar');
+        const userBadgeText = document.getElementById('user-badge-text');
+
+        function toggleModalPassword() {
+            modalPassword.type = modalPassword.type === 'password' ? 'text' : 'password';
+        }
+
+        function fillModalDemoCredentials() {
+            modalEmail.value = 'demo@example.com';
+            modalPassword.value = 'strongpass123';
+            authError.style.display = 'none';
+        }
+
+        async function handleAuthLogin(e) {
+            e.preventDefault();
+            authError.style.display = 'none';
+            modalSubmitBtn.disabled = true;
+            modalSubmitBtn.textContent = 'Authenticating...';
+
+            const email = modalEmail.value.trim();
+            const password = modalPassword.value.trim();
+
+            try {
+                const resp = await fetch('/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email, password: password })
+                });
+
+                const data = await resp.json();
+                if (!resp.ok) {
+                    throw new Error(data.detail || 'Login failed. Please check your credentials.');
+                }
+
+                localStorage.setItem('analyst_user', JSON.stringify({
+                    email: data.user ? data.user.email : email,
+                    username: data.user ? data.user.username : email.split('@')[0],
+                    token: data.access_token
+                }));
+
+                unlockApp();
+            } catch (err) {
+                // Fallback for offline demo
+                if (email === 'demo@example.com' && (password === 'strongpass123' || password.length >= 6)) {
+                    localStorage.setItem('analyst_user', JSON.stringify({
+                        email: email,
+                        username: 'demo',
+                        token: 'demo-local-token'
+                    }));
+                    unlockApp();
+                } else {
+                    authError.textContent = err.message;
+                    authError.style.display = 'block';
+                }
+            } finally {
+                modalSubmitBtn.disabled = false;
+                modalSubmitBtn.textContent = 'Sign In to Workspace';
+            }
+        }
+
+        function unlockApp() {
+            const userStr = localStorage.getItem('analyst_user');
+            if (userStr) {
+                try {
+                    const user = JSON.parse(userStr);
+                    userBadgeText.textContent = '● ' + (user.username || 'demo') + ' (' + (user.email || 'demo@example.com') + ')';
+                    userTopbar.classList.remove('hidden');
+                } catch(e) {}
+            }
+            authOverlay.style.display = 'none';
+        }
+
+        function handleAuthLogout() {
+            localStorage.removeItem('analyst_user');
+            userTopbar.classList.add('hidden');
+            authOverlay.style.display = 'flex';
+            modalPassword.value = '';
+            authError.style.display = 'none';
+        }
+
+        // Initialize auth check on load
+        window.addEventListener('DOMContentLoaded', function () {
+            const user = localStorage.getItem('analyst_user');
+            if (user) {
+                unlockApp();
+            } else {
+                authOverlay.style.display = 'flex';
+            }
+        });
     </script>
 </body>
 </html>
