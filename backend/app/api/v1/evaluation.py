@@ -29,3 +29,4 @@ async def run_evaluation_suite() -> Dict[str, Any]:
     """Run all end-to-end golden benchmarks and return evaluation report."""
     report: EvaluationSummaryReport = benchmark_runner.run_all_benchmarks()
     return report.to_dict()
+
