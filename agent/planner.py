@@ -27,6 +27,7 @@ from .agents import (
     InsightAgent,
     ReportAgent,
     ModelSelectionAgent,
+    ANNAgent,
 )
 
 
@@ -108,6 +109,32 @@ class PlannerAgent:
                 "target": req.get("target"),
                 "features": req.get("features"),
                 "cv_folds": req.get("cv_folds", 5),
+            },
+        },
+        "ann": {
+            "action": "ann",
+            "agent": ANNAgent,
+            "task": lambda data, req: {
+                "data": data,
+                "target": req.get("target"),
+                "features": req.get("features"),
+                "layers": req.get("layers", (128, 64)),
+                "activation": req.get("activation", "relu"),
+                "epochs": req.get("epochs", 200),
+                "tune": req.get("tune", False),
+            },
+        },
+        "deep_learning": {
+            "action": "ann",
+            "agent": ANNAgent,
+            "task": lambda data, req: {
+                "data": data,
+                "target": req.get("target"),
+                "features": req.get("features"),
+                "layers": req.get("layers", (128, 64)),
+                "activation": req.get("activation", "relu"),
+                "epochs": req.get("epochs", 200),
+                "tune": req.get("tune", False),
             },
         },
         "forecast": {

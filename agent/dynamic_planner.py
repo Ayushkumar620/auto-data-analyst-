@@ -31,6 +31,7 @@ from agent.agents import (
     InsightAgent,
     ReportAgent,
     ModelSelectionAgent,
+    ANNAgent,
 )
 from backend.app.core.dataset_knowledge import DatasetKnowledge
 from backend.app.core.semantic import SemanticSchemaAgent
@@ -149,14 +150,30 @@ class DynamicTaskPlanner:
         primary_deps = [cleaning_step_id] if cleaning_step_id else []
         main_step_id = step_counter
 
-        if intent_res.primary_intent in (AnalyticalIntent.PREDICTION, AnalyticalIntent.DEEP_LEARNING):
+        if intent_res.primary_intent == AnalyticalIntent.DEEP_LEARNING:
             target = intent_res.target_column or knowledge.get_primary_metric()
             steps.append(
                 PlanStep(
                     step_id=main_step_id,
-                    name=f"Supervised ML Modeling for '{target}'",
-                    agent_class_name="PredictionAgent",
-                    action="predict",
+                    name=f"Deep Neural Network (ANN/MLP) for '{target}'",
+                    agent_class_name="ANNAgent",
+                    action="ann",
+                    parameters={"target": target, "features": intent_res.feature_columns, "epochs": 200},
+                    dependencies=primary_deps,
+                    validation_criteria="Neural network trained with loss convergence and validation metrics.",
+                    fallback_strategy="Fallback to Random Forest or Gradient Boosting.",
+                )
+            )
+            step_counter += 1
+
+        elif intent_res.primary_intent == AnalyticalIntent.PREDICTION:
+            target = intent_res.target_column or knowledge.get_primary_metric()
+            steps.append(
+                PlanStep(
+                    step_id=main_step_id,
+                    name=f"Intelligent ML Model Selection & Benchmarking for '{target}'",
+                    agent_class_name="ModelSelectionAgent",
+                    action="model_selection",
                     parameters={"target": target, "features": intent_res.feature_columns},
                     dependencies=primary_deps,
                     validation_criteria="Model trained with measurable performance metrics (R2 / Accuracy).",
@@ -298,6 +315,7 @@ class DynamicTaskPlanner:
             "InsightAgent": InsightAgent,
             "ReportAgent": ReportAgent,
             "ModelSelectionAgent": ModelSelectionAgent,
+            "ANNAgent": ANNAgent,
         }
 
         for step in plan.steps:
