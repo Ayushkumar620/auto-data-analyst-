@@ -29,6 +29,7 @@ from .agents import (
     ModelSelectionAgent,
     ANNAgent,
     CNNAgent,
+    ModelRegistryAgent,
 )
 
 
@@ -167,6 +168,17 @@ class PlannerAgent:
                 "target": req.get("target"),
                 "spatial_shape": req.get("spatial_shape"),
                 "epochs": req.get("epochs", 80),
+            },
+        },
+        "registry": {
+            "action": "registry",
+            "agent": ModelRegistryAgent,
+            "task": lambda data, req: {
+                "action": req.get("sub_action", "list"),
+                "model_id": req.get("model_id"),
+                "data": data,
+                "family": req.get("family"),
+                "problem_type": req.get("problem_type"),
             },
         },
         "forecast": {

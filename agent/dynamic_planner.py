@@ -33,6 +33,7 @@ from agent.agents import (
     ModelSelectionAgent,
     ANNAgent,
     CNNAgent,
+    ModelRegistryAgent,
 )
 from backend.app.core.dataset_knowledge import DatasetKnowledge
 from backend.app.core.semantic import SemanticSchemaAgent
@@ -334,6 +335,7 @@ class DynamicTaskPlanner:
             "ModelSelectionAgent": ModelSelectionAgent,
             "ANNAgent": ANNAgent,
             "CNNAgent": CNNAgent,
+            "ModelRegistryAgent": ModelRegistryAgent,
         }
 
         for step in plan.steps:
