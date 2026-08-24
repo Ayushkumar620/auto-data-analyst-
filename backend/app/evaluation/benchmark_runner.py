@@ -117,7 +117,7 @@ class BenchmarkDatasetFactory:
     @staticmethod
     def create_timeseries_dataset(n: int = 60, seed: int = 42) -> pd.DataFrame:
         np.random.seed(seed)
-        dates = pd.date_range("2020-01-01", periods=n, freq="M")
+        dates = pd.date_range("2020-01-01", periods=n, freq="D")
         trend = np.linspace(100, 300, n)
         seasonality = 30 * np.sin(2 * np.pi * np.arange(n) / 12)
         sales = trend + seasonality + np.random.normal(0, 5, n)
@@ -274,20 +274,16 @@ class BenchmarkRunner:
 
         try:
             cnn = CNNEngine()
-            feature_cols = [c for c in df.columns if c != "pattern_class"]
-            res = cnn.train_tabular_grid(
-                df=df,
-                feature_columns=feature_cols,
-                target_column="pattern_class",
-                grid_height=4,
-                grid_width=4,
-                epochs=40,
+            res = cnn.train_and_evaluate(
+                data=df,
+                target="pattern_class",
+                spatial_shape=(4, 4),
             )
 
             passed = (
-                res.metrics.get("val_accuracy", 0.0) >= 0.70
+                res.metrics.get("accuracy", 0.0) >= 0.70
                 and len(res.loss_curve) > 0
-                and res.baseline_comparison is not None
+                and res.comparison_with_flat_baseline is not None
             )
 
             return BenchmarkResult(
@@ -296,7 +292,7 @@ class BenchmarkRunner:
                 passed=passed,
                 duration_ms=(time.time() - start_t) * 1000,
                 intent_detected="cnn_spatial",
-                primary_metric={"val_accuracy": res.metrics.get("val_accuracy"), "epochs": len(res.loss_curve)},
+                primary_metric={"accuracy": res.metrics.get("accuracy"), "epochs": len(res.loss_curve)},
             )
         except Exception as e:
             return BenchmarkResult(
