@@ -228,7 +228,6 @@ graph TD
 - [x] **Task 3: Interactive Real-Time DAG Execution Visualizer in the UI (`templates/index.html`, `agent/command_orchestrator.py`)** — **COMPLETED & VERIFIED (237/237 tests passing)**.
 - [x] **Task 4: Root-Cause & Counterfactual Decomposition Engine (`backend/app/core/root_cause_engine.py`)** — **COMPLETED & VERIFIED (241/241 tests passing)**.
 - [x] **Task 5: Live Enterprise SQL Database Connector & Multi-Table Schema Introspection (`backend/app/core/sql_connector.py`)** — **COMPLETED & VERIFIED (245/245 tests passing)**.
-- [ ] **Task 6: Multi-Modal Computer Vision Engine with Pretrained Feature Extractors**
 - [x] **Task 6: Multi-Modal Computer Vision Engine with Pretrained Feature Extractors (`backend/app/core/vision_engine.py`)** — **COMPLETED & VERIFIED (249/249 tests passing)**.
 - [ ] **Task 7: Executive Multi-Page PDF & PPTX Presentation Builder with Lineage Traceability**
 - [ ] **Task 8: Dynamic Code Sandbox & Safe Isolated Python Runtime**
@@ -239,12 +238,9 @@ graph TD
 
 ## Recommended Immediate Next Task 🎯
 
-### **Task 6: Multi-Modal Computer Vision Engine with Pretrained Feature Extractors**
-- **Objective**: Implement `ComputerVisionFeatureEngine` (`backend/app/core/vision_engine.py`) supporting automatic image tensor transformations, convolutional spatial filtering, histogram of gradients (HOG), and transfer learning feature embeddings for multi-modal image datasets.
 ### **Task 7: Executive Multi-Page PDF & PPTX Presentation Builder with Lineage Traceability**
 - **Objective**: Implement `ExecutivePresentationEngine` (`backend/app/core/presentation_builder.py`) allowing one-click compilation of analytical outputs, KPI scorecards, charts, DAG execution graphs, and evidence tables into executive-grade PDF reports and PowerPoint slide decks.
 
 ---
 
-> **Awaiting user approval before proceeding to Task 6 implementation.**
 > **Awaiting user approval before proceeding to Task 7 implementation.**
