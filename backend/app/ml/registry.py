@@ -318,3 +318,4 @@ class ModelRegistry:
             "predictions": preds_list,
             "probabilities": probabilities,
         }
+

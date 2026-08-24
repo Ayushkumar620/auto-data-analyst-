@@ -131,3 +131,4 @@ class ModelRegistryAgent(BaseAgent):
 
         except Exception as exc:
             return self._error(f"Model Registry operation failed: {str(exc)}", category=ErrorCategory.COMPUTATION)
+

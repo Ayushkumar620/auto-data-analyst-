@@ -317,3 +317,4 @@ def test_fastapi_model_endpoints(sample_trained_rf):
     # Verify 404 after delete
     r_after = client.get(f"/api/v1/models/{meta.model_id}")
     assert r_after.status_code == 404
+

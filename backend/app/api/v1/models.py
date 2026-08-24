@@ -67,3 +67,4 @@ def delete_model(model_id: str):
     if not success:
         raise HTTPException(status_code=404, detail=f"Model ID '{model_id}' not found.")
     return {"status": "success", "message": f"Model '{model_id}' deleted successfully."}
+
