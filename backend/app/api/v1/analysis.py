@@ -26,7 +26,7 @@ class AnalyzeCommandResponse(BaseModel):
     user_intent: str
     required_operations: List[str]
     final_explanation: str
-    execution_graph: Dict[str, Any]
+    execution_graph: Any
     evidence: List[Dict[str, Any]]
     dataset_summary: Dict[str, Any]
     validation_summary: Dict[str, Any]

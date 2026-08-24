@@ -605,3 +605,8 @@ class AutonomousCommandOrchestrator:
             return {"chart_type": "scatter", "x": metric_cols[0], "y": metric_cols[1], "title": f"{metric_cols[1]} vs {metric_cols[0]}"}
 
         return None
+
+
+# Global singleton orchestrator
+global_orchestrator = AutonomousCommandOrchestrator()
+command_orchestrator = global_orchestrator

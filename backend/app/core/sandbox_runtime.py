@@ -45,6 +45,8 @@ class SandboxExecutionResult:
             res_repr = self.result.head(20).to_dict(orient="records")
         elif isinstance(self.result, (pd.Series, np.ndarray)):
             res_repr = self.result.tolist()
+        elif isinstance(self.result, np.number):
+            res_repr = self.result.item()
         elif isinstance(self.result, (int, float, str, bool, list, dict)):
             res_repr = self.result
         else:
