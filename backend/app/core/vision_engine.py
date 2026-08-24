@@ -263,3 +263,4 @@ class ComputerVisionFeatureEngine:
 
 # Global singleton vision engine
 global_vision_engine = ComputerVisionFeatureEngine()
+
