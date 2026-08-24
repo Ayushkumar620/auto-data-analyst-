@@ -47,6 +47,7 @@ from backend.app.api.v1.chat import router as chat_router
 from backend.app.api.v1.datasets import router as datasets_router
 from backend.app.api.v1.forecasting import router as forecasting_router
 from backend.app.api.v1.insights import router as insights_router
+from backend.app.api.v1.reports import router as reports_router
 from backend.app.api.v1.workspaces import router as workspaces_router
 from backend.app.api.v1.projects import router as projects_router
 from backend.app.api.v1.models import router as models_router
