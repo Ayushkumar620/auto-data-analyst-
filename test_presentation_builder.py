@@ -118,3 +118,4 @@ def test_orchestrator_to_pdf_integration(sample_kpis, sample_evidence):
     assert isinstance(pdf_bytes, bytes)
     assert len(pdf_bytes) > 1000
     assert pdf_bytes.startswith(b"%PDF")
+

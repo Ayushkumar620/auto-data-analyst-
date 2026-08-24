@@ -345,3 +345,4 @@ class ExecutivePresentationEngine:
 
 # Global singleton instance
 global_presentation_engine = ExecutivePresentationEngine()
+
