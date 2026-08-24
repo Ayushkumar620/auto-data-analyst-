@@ -172,7 +172,7 @@ class BenchmarkRunner:
             comp_report = ml_engine.benchmark_models(df, target_column="sale_price")
 
             passed = (
-                analysis.primary_intent in (AnalyticalIntent.PREDICTION, AnalyticalIntent.MODEL_SELECTION)
+                analysis.primary_intent == AnalyticalIntent.PREDICTION
                 and comp_report.best_model.primary_metric_value >= 0.85
                 and exec_res.get("status") == "completed"
             )
@@ -210,7 +210,7 @@ class BenchmarkRunner:
             passed = (
                 comp_report.problem_type.value == "binary_classification"
                 and comp_report.best_model.primary_metric_value >= 0.70
-                and len(comp_report.models) >= 3
+                and len(comp_report.candidate_evaluations) >= 3
             )
 
             return BenchmarkResult(
