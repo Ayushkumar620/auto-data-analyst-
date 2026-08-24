@@ -1,12 +1,15 @@
 """
 Data Loader - Handles loading of various data formats.
-Supports: CSV, Excel, JSON, TXT, PDF, SQL (SQLite), and video.
+Supports: CSV, TSV, Parquet, Arrow, Feather, Excel, JSON, NDJSON, TXT, PDF, SQL (SQLite), NumPy, ZIP, and video.
 """
 import os
 import json
 import sqlite3
 import re
 import pandas as pd
+
+from backend.app.core.universal_loader import UniversalDatasetLoader, UniversalLoadError
+from backend.app.core.big_data_engine import MemoryOptimizer
 
 
 class DataLoadError(Exception):
@@ -19,14 +22,26 @@ class DataLoader:
 
     SUPPORTED_EXTS = {
         ".csv": "CSV",
+        ".tsv": "TSV",
+        ".tab": "TSV",
+        ".parquet": "Parquet",
+        ".pq": "Parquet",
+        ".feather": "Feather",
+        ".arrow": "Arrow",
         ".xlsx": "Excel",
         ".xls": "Excel",
+        ".ods": "Excel",
         ".json": "JSON",
+        ".jsonl": "JSON Lines",
+        ".ndjson": "Newline Delimited JSON",
         ".txt": "Text",
         ".pdf": "PDF",
         ".db": "SQLite",
         ".sqlite": "SQLite",
         ".sqlite3": "SQLite",
+        ".npy": "NumPy",
+        ".npz": "NumPy",
+        ".zip": "ZIP",
         ".mp4": "Video",
         ".avi": "Video",
         ".mov": "Video",
@@ -45,20 +60,27 @@ class DataLoader:
                 f"{', '.join(sorted(self.SUPPORTED_EXTS))}"
             )
 
-        if self.ext == ".csv":
-            return self._load_csv()
-        elif self.ext in (".xlsx", ".xls"):
-            return self._load_excel()
-        elif self.ext == ".json":
-            return self._load_json()
+        if self.ext in (".mp4", ".avi", ".mov", ".mkv"):
+            return self._load_video()
         elif self.ext == ".txt":
             return self._load_text()
         elif self.ext == ".pdf":
             return self._load_pdf()
         elif self.ext in (".db", ".sqlite", ".sqlite3"):
             return self._load_sqlite()
-        elif self.ext in (".mp4", ".avi", ".mov", ".mkv"):
-            return self._load_video()
+        elif self.ext in (".csv", ".tsv", ".tab"):
+            return self._load_csv()
+        elif self.ext in (".xlsx", ".xls", ".ods"):
+            return self._load_excel()
+        elif self.ext in (".json", ".jsonl", ".ndjson"):
+            return self._load_json()
+        elif self.ext in (".parquet", ".pq", ".feather", ".arrow", ".npy", ".npz", ".zip"):
+            try:
+                res, _ = UniversalDatasetLoader.load(self.file_path)
+                return res
+            except Exception as e:
+                raise DataLoadError(f"Failed to load {self.ext}: {e}")
+
         return None
 
     def _load_csv(self):
@@ -75,7 +97,7 @@ class DataLoader:
 
     def _load_json(self):
         try:
-            return pd.read_json(self.file_path)
+            return UniversalDatasetLoader._load_json(self.file_path, self.ext)
         except Exception as e:
             raise DataLoadError(f"Failed to read JSON: {e}")
 
@@ -130,12 +152,10 @@ class DataLoader:
             df = pd.DataFrame(lines)
 
             # Try to detect tabular data: if lines contain delimiters, parse as table
-            # Look for consistent delimiter usage
             delimiters = [",", "\t", ";", "|"]
             for delim in delimiters:
                 split_counts = [len(re.split(re.escape(delim), line)) for line in df["text"].head(20)]
                 if split_counts and max(split_counts) >= 2 and len(set(split_counts)) == 1:
-                    # All rows have same number of columns -> tabular
                     parsed = df["text"].str.split(delim, expand=True)
                     parsed.columns = [f"col_{i}" for i in range(parsed.shape[1])]
                     return parsed
@@ -174,8 +194,8 @@ class DataLoader:
 
             frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             fps = cap.get(cv2.CAP_PROP_FPS)
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            width = int(cap.get(cv2.CAP_PROP_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_HEIGHT))
             duration = frame_count / fps if fps > 0 else 0
 
             # Extract a few sample frame brightness values

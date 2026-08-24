@@ -34,8 +34,8 @@ class DatasetService:
             raise ValueError("Empty file upload. Please choose a file.")
 
         extension = os.path.splitext(filename)[1].lower()
-        if extension not in {".csv", ".xlsx", ".xls"}:
-            raise ValueError("Unsupported file type. Only CSV and Excel files are allowed.")
+        if extension not in {".csv", ".tsv", ".parquet", ".feather", ".arrow", ".xlsx", ".xls", ".ods", ".json", ".jsonl", ".ndjson", ".txt", ".pdf", ".db", ".sqlite", ".sqlite3"}:
+            raise ValueError("Unsupported file type. Supported formats: CSV, TSV, Parquet, Arrow, Excel, JSON, NDJSON, SQLite, Text, PDF.")
 
         stream = _get_upload_stream(uploaded_file)
         file_size = 0
@@ -124,12 +124,20 @@ class DatasetService:
         }
 
     def _read_dataframe(self, file_path: str) -> pd.DataFrame:
-        extension = os.path.splitext(file_path)[1].lower()
-        if extension == ".csv":
+        from backend.app.core.universal_loader import UniversalDatasetLoader
+        from backend.app.core.modality_engines import RelationalModalityEngine
+
+        try:
+            loaded, _ = UniversalDatasetLoader.load(file_path, optimize_memory=True)
+            if isinstance(loaded, dict):
+                return RelationalModalityEngine.auto_join_tables(loaded)
+            return loaded
+        except Exception as e:
+            # Fallback
+            ext = os.path.splitext(file_path)[1].lower()
+            if ext in {".xlsx", ".xls"}:
+                return pd.read_excel(file_path)
             return pd.read_csv(file_path)
-        if extension in {".xlsx", ".xls"}:
-            return pd.read_excel(file_path)
-        raise ValueError("Unsupported file type. Only CSV and Excel files are allowed.")
 
     def _generate_metadata(self, dataframe: pd.DataFrame, filename: str, file_size: int) -> Dict[str, Any]:
         return {
