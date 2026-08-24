@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import os
+from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from backend.app.config import settings
 
@@ -64,6 +68,33 @@ app.include_router(workspaces_router, prefix=settings.api_v1_prefix)
 app.include_router(projects_router, prefix=settings.api_v1_prefix)
 app.include_router(models_router, prefix=settings.api_v1_prefix)
 app.include_router(evaluation_router, prefix=settings.api_v1_prefix)
+
+
+# ------------------------------------------------------------------------------
+# Unified Single-Localhost Frontend SPA Static Hosting
+# ------------------------------------------------------------------------------
+FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+
+if FRONTEND_DIST.exists():
+    assets_dir = FRONTEND_DIST / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_frontend_spa(full_path: str):
+        # Let API endpoints pass through to return standard 404 if route not found
+        if full_path.startswith("api/") or full_path in ("docs", "redoc", "openapi.json", "health"):
+            raise HTTPException(status_code=404, detail="API endpoint not found")
+
+        target_file = FRONTEND_DIST / full_path
+        if full_path and target_file.exists() and target_file.is_file():
+            return FileResponse(target_file)
+
+        index_file = FRONTEND_DIST / "index.html"
+        if index_file.exists():
+            return FileResponse(index_file)
+
+        return {"message": "Frontend index.html not found."}
 
 
 def _compat_routes(self):
