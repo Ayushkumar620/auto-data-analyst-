@@ -207,19 +207,34 @@ class ANNEngine:
             X, y, test_size=test_size, random_state=params.random_state, stratify=strat
         )
 
+        # Scale target for regression to ensure stable and fast gradient convergence
+        y_scaler = None
+        if not is_classification:
+            y_scaler = StandardScaler()
+            y_train_fit = y_scaler.fit_transform(y_train.reshape(-1, 1)).ravel()
+        else:
+            y_train_fit = y_train
+
+        # For small datasets, disable early_stopping to prevent premature noise-based stopping
+        use_early_stopping = params.early_stopping and len(X_train) >= 150
+        solver = params.solver
+        if len(X_train) < 200 and solver == "adam":
+            # For small tabular data, L-BFGS converges fast and accurately
+            solver = "lbfgs"
+
         # Instantiate MLP Model
         start_time = time.time()
         if is_classification:
             model = MLPClassifier(
                 hidden_layer_sizes=params.hidden_layer_sizes,
                 activation=params.activation,
-                solver=params.solver,
+                solver=solver,
                 alpha=params.alpha,
                 learning_rate_init=params.learning_rate_init,
                 learning_rate=params.learning_rate,
                 max_iter=params.max_iter,
                 batch_size=params.batch_size,
-                early_stopping=params.early_stopping,
+                early_stopping=use_early_stopping,
                 n_iter_no_change=params.n_iter_no_change,
                 validation_fraction=params.validation_fraction,
                 random_state=params.random_state,
@@ -228,24 +243,32 @@ class ANNEngine:
             model = MLPRegressor(
                 hidden_layer_sizes=params.hidden_layer_sizes,
                 activation=params.activation,
-                solver=params.solver,
+                solver=solver,
                 alpha=params.alpha,
                 learning_rate_init=params.learning_rate_init,
                 learning_rate=params.learning_rate,
                 max_iter=params.max_iter,
                 batch_size=params.batch_size,
-                early_stopping=params.early_stopping,
+                early_stopping=use_early_stopping,
                 n_iter_no_change=params.n_iter_no_change,
                 validation_fraction=params.validation_fraction,
                 random_state=params.random_state,
             )
 
-        model.fit(X_train, y_train)
+        model.fit(X_train, y_train_fit)
         duration_ms = (time.time() - start_time) * 1000
-        test_preds = model.predict(X_test)
+        raw_test_preds = model.predict(X_test)
+
+        # Inverse transform regression predictions back to original domain scale
+        if y_scaler is not None:
+            test_preds = y_scaler.inverse_transform(raw_test_preds.reshape(-1, 1)).ravel()
+        else:
+            test_preds = raw_test_preds
 
         # Extract loss curve and validation curve
         loss_curve = list(getattr(model, "loss_curve_", []))
+        if not loss_curve and hasattr(model, "loss_"):
+            loss_curve = [float(model.loss_)]
         val_scores = list(getattr(model, "validation_scores_", []))
         epochs_trained = int(getattr(model, "n_iter_", len(loss_curve)))
         stopped_early = bool(epochs_trained < params.max_iter)
