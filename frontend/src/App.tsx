@@ -27,23 +27,9 @@ function RootRedirect() {
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<RootRedirect />} />
-      <Route
-        path="/login"
-        element={
-          <RequireGuest>
-            <LoginPage />
-          </RequireGuest>
-        }
-      />
-      <Route
-        path="/register"
-        element={
-          <RequireGuest>
-            <RegisterPage />
-          </RequireGuest>
-        }
-      />
+      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route element={<RequireAuth><Layout /></RequireAuth>}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/projects" element={<ProjectsPage />} />

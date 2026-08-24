@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../auth/authContext';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { user, login, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string })?.from ?? '/dashboard';
@@ -45,6 +45,32 @@ export default function LoginPage() {
             Sign in to access your autonomous AI data studio.
           </p>
         </div>
+
+        {isAuthenticated && user ? (
+          <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '10px', padding: '0.9rem', marginBottom: '1.2rem', textAlign: 'center' }}>
+            <div style={{ color: '#065f46', fontSize: '0.88rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+              ✓ Currently signed in as <strong>{user.username}</strong> ({user.email})
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+              <button
+                type="button"
+                onClick={() => navigate('/dashboard')}
+                className="primary-btn"
+                style={{ padding: '0.4rem 0.8rem', fontSize: '0.82rem', width: 'auto' }}
+              >
+                Go to Dashboard →
+              </button>
+              <button
+                type="button"
+                onClick={logout}
+                className="action-btn"
+                style={{ padding: '0.4rem 0.8rem', fontSize: '0.82rem', width: 'auto', background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5' }}
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         {error ? <div className="status-error" style={{ marginBottom: '1.2rem' }}>{error}</div> : null}
 
