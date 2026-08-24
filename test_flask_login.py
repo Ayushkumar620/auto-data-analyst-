@@ -27,3 +27,4 @@ def test_flask_auth_login_endpoint():
     data = json.loads(res.get_data(as_text=True))
     assert "access_token" in data
     assert data["user"]["email"] == "demo@example.com"
+
