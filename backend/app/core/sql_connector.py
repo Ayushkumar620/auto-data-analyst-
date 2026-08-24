@@ -278,3 +278,4 @@ class LiveSQLDatabaseConnector:
 
         # Default cross / simple select
         return f'SELECT * FROM "{table_a}"'
+

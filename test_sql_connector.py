@@ -160,3 +160,4 @@ def test_universal_loader_and_orchestrator_integration(sample_sqlite_db):
     assert res.user_intent in ("eda", "segmentation", "ranking")
     assert len(res.execution_steps) >= 1
     assert res.execution_graph is not None
+
