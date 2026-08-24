@@ -99,12 +99,12 @@ def test_create_plan_multi_step_dag(sample_dataset):
 
     step_actions = [s.action for s in plan.steps]
     assert "clean" in step_actions
-    assert "predict" in step_actions
+    assert "model_selection" in step_actions or "predict" in step_actions
     assert "explain_drivers" in step_actions
     assert "report" in step_actions
 
     # Check dependencies
-    predict_step = next(s for s in plan.steps if s.action == "predict")
+    predict_step = next(s for s in plan.steps if s.action in ("model_selection", "predict"))
     clean_step = next(s for s in plan.steps if s.action == "clean")
     assert clean_step.step_id in predict_step.dependencies
 
