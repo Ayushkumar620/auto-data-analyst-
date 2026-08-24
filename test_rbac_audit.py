@@ -116,3 +116,4 @@ def test_tamper_evident_audit_ledger_and_integrity_check():
     is_valid_after_tamper, tamper_err = rbac.verify_ledger_integrity()
     assert is_valid_after_tamper is False
     assert "tamper" in str(tamper_err).lower() or "broken" in str(tamper_err).lower()
+
