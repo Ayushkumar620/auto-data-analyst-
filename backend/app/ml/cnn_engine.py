@@ -194,6 +194,7 @@ class CNNEngine:
 
             if spatial_shape:
                 H, W = spatial_shape
+                modality = "image_2d" if (H > 1 and W > 1) else "spatial_grid"
             else:
                 side = int(math.isqrt(P))
                 if side * side == P and side >= 4:
