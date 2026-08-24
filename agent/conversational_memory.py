@@ -299,3 +299,4 @@ class ConversationalMemoryEngine:
 
 # Global singleton instance for app-wide conversational memory
 global_conversational_memory = ConversationalMemoryEngine()
+
