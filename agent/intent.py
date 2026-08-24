@@ -251,3 +251,4 @@ class IntentAnalyzer:
             raw_query=query,
             reasoning=reasoning,
         )
+

@@ -419,3 +419,4 @@ class DynamicTaskPlanner:
                 validation["issues"].append(f"Target column '{intent.target_column}' does not exist in dataset.")
 
         return validation
+
