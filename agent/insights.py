@@ -3,6 +3,7 @@ Insights Engine - Generates smart insights and analysis based on parsed command 
 Handles transaction analysis, text analysis, and tabular data aggregation.
 """
 import re
+from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 import numpy as np
 from datetime import datetime

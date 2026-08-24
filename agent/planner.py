@@ -218,6 +218,16 @@ class PlannerAgent:
             "agent": InsightAgent,
             "task": lambda data, req: {"data": data, "type": "smart"},
         },
+        "structured_insights": {
+            "action": "insights",
+            "agent": InsightAgent,
+            "task": lambda data, req: {"data": data, "type": "structured", "model_result": req.get("model_result")},
+        },
+        "evidence_insights": {
+            "action": "insights",
+            "agent": InsightAgent,
+            "task": lambda data, req: {"data": data, "type": "structured", "model_result": req.get("model_result")},
+        },
         "anomalies": {
             "action": "anomalies",
             "agent": InsightAgent,

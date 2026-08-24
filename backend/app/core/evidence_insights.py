@@ -177,7 +177,7 @@ class EvidenceBasedInsightsEngine:
                         )
 
         # Categorical distribution concentration observation
-        cat_cols = df.select_dtypes(include=["object", "category"]).columns
+        cat_cols = df.select_dtypes(include=["object", "category", "string"]).columns
         for col in cat_cols[:2]:
             s_cat = df[col].dropna()
             if len(s_cat) > 0:
