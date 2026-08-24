@@ -141,3 +141,4 @@ def test_llm_router_json_extraction():
     raw_text_wrap = 'Here is the requested plan:\n{"action": "summary"}\nHope this helps!'
     extracted_text = router._extract_json(raw_text_wrap)
     assert extracted_text == {"action": "summary"}
+
