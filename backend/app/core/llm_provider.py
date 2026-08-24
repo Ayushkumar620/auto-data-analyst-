@@ -253,23 +253,23 @@ class MockDeterministicProvider(BaseLLMProvider):
                 break
 
         # Generate intelligent deterministic plan response based on user query
-        if "predict" in user_query or "model" in user_query or "train" in user_query:
+        if "cnn" in user_query or "image" in user_query or "spatial" in user_query:
             resp_content = json.dumps({
-                "action": "model_selection",
-                "reasoning": "User requested predictive modeling. Dispatching to ModelSelectionAgent for candidate benchmarking.",
-                "parameters": {"cv_folds": 5},
+                "action": "cnn",
+                "reasoning": "User requested convolutional spatial modeling.",
+                "parameters": {"epochs": 80},
             })
-        elif "ann" in user_query or "neural network" in user_query or "deep learning" in user_query:
+        elif "ann" in user_query or "neural network" in user_query or "deep learning" in user_query or "mlp" in user_query:
             resp_content = json.dumps({
                 "action": "ann",
                 "reasoning": "User requested artificial neural network training.",
                 "parameters": {"layers": [128, 64], "epochs": 200},
             })
-        elif "cnn" in user_query or "image" in user_query or "spatial" in user_query:
+        elif "predict" in user_query or "model" in user_query or "train" in user_query or "regression" in user_query or "classification" in user_query:
             resp_content = json.dumps({
-                "action": "cnn",
-                "reasoning": "User requested convolutional spatial modeling.",
-                "parameters": {"epochs": 80},
+                "action": "model_selection",
+                "reasoning": "User requested predictive modeling. Dispatching to ModelSelectionAgent for candidate benchmarking.",
+                "parameters": {"cv_folds": 5},
             })
         elif "forecast" in user_query or "future" in user_query:
             resp_content = json.dumps({

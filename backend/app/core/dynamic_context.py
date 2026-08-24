@@ -79,14 +79,18 @@ class DynamicContextAssembler:
             dk = knowledge or self.semantic_agent.build_knowledge(dataframe)
             n_rows, n_cols = dataframe.shape
 
+            metric_names = [m.column if hasattr(m, "column") else str(m) for m in dk.metrics]
+            dim_names = [d.column if hasattr(d, "column") else str(d) for d in dk.dimensions]
+            date_names = [d.column if hasattr(d, "column") else str(d) for d in dk.date_columns]
+
             dataset_sec = [
                 "",
                 "### CURRENT DATASET PROFILE:",
                 f"- Dimensions: {n_rows:,} rows x {n_cols} columns",
                 f"- Columns: {', '.join(dk.columns)}",
-                f"- Primary Metrics: {', '.join(dk.metrics) if dk.metrics else 'None'}",
-                f"- Primary Dimensions: {', '.join(dk.dimensions) if dk.dimensions else 'None'}",
-                f"- Date Columns: {', '.join(dk.date_columns) if dk.date_columns else 'None'}",
+                f"- Primary Metrics: {', '.join(metric_names) if metric_names else 'None'}",
+                f"- Primary Dimensions: {', '.join(dim_names) if dim_names else 'None'}",
+                f"- Date Columns: {', '.join(date_names) if date_names else 'None'}",
                 f"- Data Quality Score: {dk.data_quality.get('quality_score', 100)}/100",
             ]
             system_sections.extend(dataset_sec)

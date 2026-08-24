@@ -31,7 +31,7 @@ class LLMRouter:
                 base_url=self.base_url,
             )
 
-        self.llm_enabled = bool(self.api_key or self.provider_name in ("ollama", "mock"))
+        self.llm_enabled = bool(provider is not None or self.api_key or self.provider_name in ("ollama", "mock"))
         self.nlp = NLPCommandParser()
         self.context_assembler = DynamicContextAssembler()
 
