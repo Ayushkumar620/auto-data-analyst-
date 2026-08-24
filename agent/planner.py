@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 from .result_validator import ResultValidator
+from .dynamic_planner import DynamicTaskPlanner, TaskPlan
 from .agents import (
     DataLoadingAgent,
     AnalysisAgent,
@@ -118,9 +119,33 @@ class PlannerAgent:
         },
     }
 
-    def __init__(self, data=None, validator: ResultValidator = None):
+    def __init__(
+        self,
+        data=None,
+        validator: ResultValidator = None,
+        dynamic_planner: DynamicTaskPlanner = None,
+    ):
         self.data = data
         self._validator = validator or ResultValidator()
+        self._dynamic_planner = dynamic_planner or DynamicTaskPlanner(validator=self._validator)
+
+    def plan(self, query: str, data=None) -> TaskPlan:
+        """Create a multi-step dynamic execution plan from a natural language query."""
+        df = self.data if data is None else data
+        if not isinstance(df, pd.DataFrame):
+            df = pd.DataFrame()
+        return self._dynamic_planner.create_plan(query, dataframe=df)
+
+    def plan_and_execute(self, query: str, data=None) -> AgentResult:
+        """Create and execute a multi-step dynamic plan from a natural language query."""
+        df = self.data if data is None else data
+        if not isinstance(df, pd.DataFrame):
+            df = pd.DataFrame()
+        plan = self.plan(query, data=df)
+        result = self._dynamic_planner.execute_plan(plan, dataframe=df)
+        context = self._validation_context(df)
+        self._validator.repair(result, context)
+        return result
 
     def run_agent(self, request, data=None):
         """Execute a single atomic request using the appropriate agent."""
