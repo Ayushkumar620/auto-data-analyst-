@@ -7,7 +7,41 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+    <!-- Full-Screen Glassmorphic Login Overlay -->
+    <div id="auth-overlay">
+        <div class="auth-modal-card">
+            <h2>✦ Auto Data Analyst</h2>
+            <p class="subtext">Sign in to your autonomous AI data studio</p>
+            
+            <div id="auth-error" class="auth-error-banner"></div>
+
+            <form id="login-form" onsubmit="handleAuthLogin(event)">
+                <div class="auth-field">
+                    <label for="modal-email">Email Address</label>
+                    <input type="email" id="modal-email" value="demo@example.com" placeholder="name@company.com" required>
+                </div>
+
+                <div class="auth-field">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <label for="modal-password" style="margin: 0;">Password</label>
+                        <button type="button" onclick="toggleModalPassword()" style="background: none; border: none; color: #818cf8; font-size: 0.78rem; cursor: pointer; font-weight: 600;">Show/Hide</button>
+                    </div>
+                    <input type="password" id="modal-password" value="strongpass123" placeholder="Enter your password" required>
+                </div>
+
+                <button type="submit" id="modal-submit-btn" class="auth-btn-submit">Sign In to Workspace</button>
+            </form>
+
+            <button type="button" class="auth-btn-demo" onclick="fillModalDemoCredentials()">⚡ Auto-Fill Localhost Demo Credentials</button>
+        </div>
+    </div>
+
     <div class="container">
+        <div id="user-topbar" class="user-topbar hidden">
+            <span class="user-badge" id="user-badge-text">● demo</span>
+            <button class="btn-signout" onclick="handleAuthLogout()">Sign Out</button>
+        </div>
+
         <header>
             <h1>🤖 Auto Data Analyst Agent</h1>
             <p class="subtitle">Upload any data file and run simple commands to analyze it instantly</p>
