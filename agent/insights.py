@@ -7,12 +7,24 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 
+from backend.app.core.evidence_insights import (
+    EvidenceBasedInsightsEngine,
+    InsightsCatalog,
+    StructuredInsight,
+)
+
 
 class InsightsEngine:
     """Generates insights from data based on a parsed command intent."""
 
     def __init__(self, data):
         self.data = data
+        self.evidence_engine = EvidenceBasedInsightsEngine(data)
+
+    def generate_structured_insights(self, model_result=None) -> Dict[str, Any]:
+        """Generate structured, evidence-attributed insights with epistemic classifications."""
+        catalog = self.evidence_engine.build_catalog(data_input=self.data, model_result=model_result)
+        return catalog.to_dict()
 
     def _get_frames(self):
         if isinstance(self.data, dict):

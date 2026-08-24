@@ -367,6 +367,34 @@ class InsightAgent(BaseAgent):
             engine = InsightsEngine(data)
             request_type = task.get("type", "")
 
+            if request_type in ("structured", "evidence_based"):
+                catalog = engine.generate_structured_insights(model_result=task.get("model_result"))
+                evidence_list = []
+                for ins in catalog.get("insights", [])[:5]:
+                    ct_val = ins.get("claim_type", "observation")
+                    try:
+                        ct_enum = ClaimType(ct_val)
+                    except ValueError:
+                        ct_enum = ClaimType.OBSERVATION
+                    evidence_list.append(
+                        self.make_evidence(
+                            method="evidence_based_insight",
+                            data_ref={
+                                "text": ins.get("text"),
+                                "claim_type": ct_val,
+                                "metrics": ins.get("supporting_metrics"),
+                            },
+                            confidence=ins.get("confidence", 0.9),
+                            claim_type=ct_enum,
+                        )
+                    )
+                return self._finish(
+                    {"type": "structured_insights", "result": catalog},
+                    evidence=evidence_list,
+                    confidence=0.95,
+                    warnings=["All correlations are strictly non-causal associations."],
+                )
+
             if request_type == "text":
                 result = engine.text_analysis()
                 evidence, confidence = self._generic_evidence(request_type, result)
