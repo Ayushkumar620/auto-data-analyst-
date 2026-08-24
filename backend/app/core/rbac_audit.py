@@ -107,14 +107,22 @@ class EnterpriseAccessControlEngine:
         self._audit_trail: List[AuditRecord] = []
         self._last_hash: str = "0" * 64
 
+    @staticmethod
+    def _to_role_str(role: Union[str, UserRole]) -> str:
+        return role.value if hasattr(role, "value") else str(role).lower()
+
+    @staticmethod
+    def _to_perm_str(permission: Union[str, Permission]) -> str:
+        return permission.value if hasattr(permission, "value") else str(permission).lower()
+
     # ------------------------------------------------------------------
     # 1. RBAC Permissions
     # ------------------------------------------------------------------
     def has_permission(self, role: Union[str, UserRole], permission: Union[str, Permission]) -> bool:
         """Check whether a user role possesses a specific permission."""
         try:
-            r_enum = UserRole(str(role).lower())
-            p_enum = Permission(str(permission).lower())
+            r_enum = UserRole(self._to_role_str(role))
+            p_enum = Permission(self._to_perm_str(permission))
         except ValueError:
             return False
 
@@ -138,7 +146,7 @@ class EnterpriseAccessControlEngine:
         """
         Mask sensitive PII fields (e.g. emails, phone numbers, salaries) for non-admin roles.
         """
-        r_str = str(role).lower()
+        r_str = self._to_role_str(role)
         if r_str == UserRole.ADMIN.value:
             # Admins view unmasked raw data
             return df.copy()
@@ -190,7 +198,8 @@ class EnterpriseAccessControlEngine:
         """
         Filter dataset rows according to user tenancy / team / region attributes.
         """
-        if str(role).lower() == UserRole.ADMIN.value:
+        r_str = self._to_role_str(role)
+        if r_str == UserRole.ADMIN.value:
             return df.copy()
 
         filtered_df = df.copy()
@@ -218,7 +227,8 @@ class EnterpriseAccessControlEngine:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> AuditRecord:
         """Log an immutable audit event chained with SHA-256 hash."""
-        now_ts = datetime.utcnow().isoformat()
+        now_ts = datetime.now().isoformat()
+        r_str = self._to_role_str(role)
         event_id = f"evt_{len(self._audit_trail) + 1:06d}_{int(time.time()*1000)}"
         meta = metadata or {}
 
@@ -227,7 +237,7 @@ class EnterpriseAccessControlEngine:
             "event_id": event_id,
             "timestamp": now_ts,
             "user_id": user_id,
-            "role": str(role),
+            "role": r_str,
             "action": action,
             "resource_id": resource_id,
             "status": status,
@@ -241,7 +251,7 @@ class EnterpriseAccessControlEngine:
             event_id=event_id,
             timestamp=now_ts,
             user_id=user_id,
-            role=str(role),
+            role=r_str,
             action=action,
             resource_id=resource_id,
             status=status,
@@ -249,6 +259,10 @@ class EnterpriseAccessControlEngine:
             record_hash=current_hash,
             metadata=meta,
         )
+
+        self._audit_trail.append(record)
+        self._last_hash = current_hash
+        return record
 
         self._audit_trail.append(record)
         self._last_hash = current_hash
