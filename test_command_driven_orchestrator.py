@@ -158,3 +158,4 @@ def test_fastapi_chat_command_endpoint(enterprise_df):
     assert "final_explanation" in res_json
     assert "validation_summary" in res_json
     assert len(res_json["required_operations"]) >= 2
+
