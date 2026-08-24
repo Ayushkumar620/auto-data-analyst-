@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from enum import Enum
+import re
 import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
@@ -505,20 +506,71 @@ class AutonomousCommandOrchestrator:
                 top_items = [f"**{k}**: {v:,.2f}" for k, v in list(grouped.items())[:3]]
                 return f"Comparison of **{m_col}** across **{d_col}**:\n- " + "\n- ".join(top_items) + f"\n\nTotal volume analyzed across {len(grouped)} distinct categories."
 
-        # 3. Driver & "Why" Queries (e.g. "Why did profit decrease last year?")
-        if "why" in q or "decrease" in q or "drop" in q or "increase" in q:
-            m_target = intent_res.target_column or (metric_cols[0] if metric_cols else "metric")
+        # 3. What-If & Counterfactual Simulation Queries (e.g. "What if price increased by 10%?")
+        if "what if" in q or "simulate" in q or "scenario" in q or "hypothetical" in q:
+            m_target = intent_res.target_column or (metric_cols[0] if metric_cols else "Revenue")
+            # Extract lever feature
+            lever_cand = next((c for c in metric_cols if c.lower() in q and c != m_target), (metric_cols[1] if len(metric_cols) > 1 else m_target))
+            # Extract percentage shift
+            pct_match = re.search(r"([+-]?\d+(?:\.\d+)?)\s*%", q)
+            pct_val = float(pct_match.group(1)) if pct_match else 10.0
+
+            sim_res = self.root_cause_engine.simulate_what_if(
+                df=df,
+                target_metric=m_target,
+                lever_feature=lever_cand,
+                percentage_change=pct_val,
+                dimension=dim_cols[0] if dim_cols else None,
+            )
+
             lines = [
-                f"Historical analysis of **{m_target}** shows period-over-period variations across the timeline."
+                f"🎲 **Counterfactual Scenario Simulation**: {sim_res.scenario_description}",
+                f"- **Baseline {m_target}**: {sim_res.baseline_value:,.2f}",
+                f"- **Simulated {m_target}**: {sim_res.simulated_value:,.2f}",
+                f"- **Projected Net Impact**: **{sim_res.absolute_impact:+,.2f}** ({sim_res.percentage_impact:+.2f}%)",
+                f"- **Transformation Rule**: {sim_res.transformation_applied}",
             ]
+            if sim_res.segment_sensitivities:
+                top_sens = sorted(sim_res.segment_sensitivities.items(), key=lambda x: abs(x[1]), reverse=True)[:3]
+                sens_str = ", ".join([f"**{k}**: {v:+,.2f}" for k, v in top_sens])
+                lines.append(f"- **Top Segment Elasticities**: {sens_str}")
+
+            return "\n".join(lines)
+
+        # 4. Root-Cause Variance Decomposition & "Why" Queries (e.g. "Why did profit decrease?")
+        if "why" in q or "decrease" in q or "drop" in q or "fall" in q or "increase" in q or "cause" in q or "driver" in q:
+            m_target = intent_res.target_column or (metric_cols[0] if metric_cols else "metric")
+            decomp = self.root_cause_engine.decompose_variance(
+                df=df,
+                metric=m_target,
+                dimension=dim_cols[0] if dim_cols else None,
+                date_col=date_cols[0] if date_cols else None,
+            )
+
+            lines = [
+                f"📊 **Root-Cause Variance Decomposition for {decomp.metric_name}**:",
+                f"- **Total Period Delta**: **{decomp.total_delta:+,.2f}** ({decomp.total_delta_pct:+.2f}%) from baseline {decomp.baseline_total:,.2f} to {decomp.comparison_total:,.2f}",
+                f"- **Volume / Activity Effect**: {decomp.volume_effect:+,.2f}",
+                f"- **Rate / Pricing Effect**: {decomp.price_rate_effect:+,.2f}",
+                f"- **Mix / Segment Shift Effect**: {decomp.mix_effect:+,.2f}",
+            ]
+
+            if decomp.top_negative_drivers:
+                neg_str = ", ".join([f"**{d.segment_name}** ({d.absolute_delta:+,.2f})" for d in decomp.top_negative_drivers[:3]])
+                lines.append(f"- 📉 **Primary Downward Drag Drivers**: {neg_str}")
+
+            if decomp.top_positive_drivers:
+                pos_str = ", ".join([f"**{d.segment_name}** ({d.absolute_delta:+,.2f})" for d in decomp.top_positive_drivers[:3]])
+                lines.append(f"- 📈 **Primary Upward Growth Drivers**: {pos_str}")
+
             if len(metric_cols) >= 2:
                 secondary = [m for m in metric_cols if m != m_target][0]
                 corr = df[[m_target, secondary]].dropna().corr().iloc[0, 1]
                 lines.append(
-                    f"Strong statistical co-movement observed with **{secondary}** (correlation $r = {corr:.2f}$). "
-                    f"*Note: Correlation reflects observed historical patterns, not proven causal drivers.*"
+                    f"\n*Statistical Lineage*: Correlation with **{secondary}** is $r = {corr:.2f}$."
                 )
-            return "\n\n".join(lines)
+
+            return "\n".join(lines)
 
         # 4. Model Training / Predictive Queries
         if model_summary:
