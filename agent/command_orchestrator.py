@@ -39,6 +39,7 @@ from backend.app.ml.model_selection import MLModelComparisonEngine, ModelCompari
 from backend.app.ml.ann_engine import ANNEngine
 from backend.app.ml.cnn_engine import CNNEngine
 from backend.app.ml.validation_engine import DataModelValidator, ValidationAuditReport
+from backend.app.core.high_performance_engine import HighPerformanceExecutionEngine, global_high_performance_engine
 from agent.conversational_memory import ConversationalMemoryEngine, global_conversational_memory
 
 
@@ -94,6 +95,7 @@ class AutonomousCommandOrchestrator:
         self.ann_engine = ANNEngine()
         self.cnn_engine = CNNEngine()
         self.text_engine = TextModalityEngine()
+        self.hp_engine = global_high_performance_engine
         self.memory = memory_engine or global_conversational_memory
 
     def execute_command(
