@@ -279,3 +279,4 @@ def test_command_orchestrator_on_text_dataset():
     assert "sentiment" in res.final_explanation.lower()
     assert "positive" in res.final_explanation.lower()
     assert len(res.evidence) > 0
+

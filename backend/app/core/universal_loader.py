@@ -288,3 +288,4 @@ class UniversalDatasetLoader:
         if not result:
             raise UniversalLoadError("No readable tabular files found inside ZIP archive.")
         return result, None
+
