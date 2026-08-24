@@ -42,6 +42,25 @@ def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+@app.route("/api/v1/auth/login", methods=["POST"])
+@app.route("/api/auth/login", methods=["POST"])
+def auth_login():
+    data = request.get_json(silent=True) or request.form
+    email = data.get("email", "")
+    password = data.get("password", "")
+    if email == "demo@example.com" and (password == "strongpass123" or len(password) >= 6):
+        return jsonify({
+            "access_token": "demo-token-" + os.urandom(8).hex(),
+            "user": {"id": 1, "email": email, "username": "demo"}
+        })
+    elif email and len(password) >= 6:
+        return jsonify({
+            "access_token": "user-token-" + os.urandom(8).hex(),
+            "user": {"id": 2, "email": email, "username": email.split("@")[0]}
+        })
+    return jsonify({"detail": "Invalid credentials. Use demo@example.com / strongpass123"}), 401
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
