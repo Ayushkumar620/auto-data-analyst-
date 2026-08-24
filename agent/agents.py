@@ -17,7 +17,6 @@ from .ann_agent import ANNAgent
 from .cnn_agent import CNNAgent
 from .registry_agent import ModelRegistryAgent
 from .validation_agent import DataValidationAgent
-from .command_orchestrator import AutonomousCommandOrchestrator
 from .schemas import ClaimType, Evidence, ErrorCategory
 
 
