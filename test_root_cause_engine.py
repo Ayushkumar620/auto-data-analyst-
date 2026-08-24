@@ -117,3 +117,4 @@ def test_orchestrator_what_if_integration(financial_dataset):
     assert isinstance(res, CommandExecutionResult)
     assert "Counterfactual Scenario Simulation" in res.final_explanation
     assert "Projected Net Impact" in res.final_explanation
+
