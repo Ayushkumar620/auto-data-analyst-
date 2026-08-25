@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/authContext';
 import { listProjects } from '../services/authService';
+import { listModels } from '../services/modelService';
+import { listReports } from '../services/reportService';
 import { PageContainer, PageHeader, Card } from '../components/layout/PageContainer';
 import EmptyState from '../components/ui/EmptyState';
 import { LoadingSpinner } from '../components/ui/LoadingState';
@@ -10,6 +12,9 @@ import {
   IconDatabase,
   IconFolder,
   IconTrendUp,
+  IconBrain,
+  IconActivity,
+  IconFileText,
 } from '../components/ui/Icons';
 
 type Project = {
@@ -22,13 +27,23 @@ type Project = {
 export default function OverviewPage() {
   const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [modelsCount, setModelsCount] = useState<number>(0);
+  const [reportsCount, setReportsCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    listProjects()
-      .then(setProjects)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
+    Promise.all([
+      listProjects().catch(() => []),
+      listModels().catch(() => []),
+      listReports().catch(() => []),
+    ])
+      .then(([projs, mdls, reps]) => {
+        setProjects(projs);
+        setModelsCount(mdls.length);
+        setReportsCount(reps.length);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load workspace overview'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -42,14 +57,14 @@ export default function OverviewPage() {
       <PageHeader
         eyebrow="Welcome back"
         title={`Good to see you, ${user?.username ?? 'Analyst'}`}
-        subtitle="Turn your data into evidence-backed decisions."
+        subtitle="Turn your data into verified evidence-backed decisions across predictive & MLOps workspaces."
         actions={
           <div className="page-header-action-row">
-            <Link to="/chat" className="primary-btn">
-              ⚡ Start Analysis
+            <Link to="/analyst" className="primary-btn">
+              ⚡ Open AI Analyst
             </Link>
             <Link to="/upload" className="action-btn">
-              Upload Dataset
+              📤 Upload Dataset
             </Link>
           </div>
         }
@@ -66,6 +81,7 @@ export default function OverviewPage() {
             <p className="kpi-label">Projects</p>
           </div>
         </div>
+
         <div className="kpi-tile">
           <span className="kpi-icon">
             <IconDatabase size={20} aria-hidden />
@@ -75,22 +91,24 @@ export default function OverviewPage() {
             <p className="kpi-label">Datasets</p>
           </div>
         </div>
+
         <div className="kpi-tile">
           <span className="kpi-icon">
-            <IconGrid size={20} aria-hidden />
+            <IconBrain size={20} aria-hidden />
           </span>
           <div>
-            <p className="kpi-value">—</p>
-            <p className="kpi-label">Analyses</p>
+            <p className="kpi-value">{loading ? '—' : modelsCount}</p>
+            <p className="kpi-label">Models Registered</p>
           </div>
         </div>
+
         <div className="kpi-tile">
           <span className="kpi-icon">
-            <IconTrendUp size={20} aria-hidden />
+            <IconFileText size={20} aria-hidden />
           </span>
           <div>
-            <p className="kpi-value">—</p>
-            <p className="kpi-label">Models</p>
+            <p className="kpi-value">{loading ? '—' : reportsCount}</p>
+            <p className="kpi-label">Executive Reports</p>
           </div>
         </div>
       </div>
@@ -134,27 +152,32 @@ export default function OverviewPage() {
         <div style={{ display: 'grid', gap: '1rem' }}>
           {/* System Status */}
           <Card>
-            <h2 className="card-title">System Status</h2>
+            <h2 className="card-title">Platform Intelligence Status</h2>
             <div className="status-grid">
               <div className="status-row">
                 <span className="status-dot status-dot--ok" aria-label="Online" />
-                <span className="status-label">Analysis Engine</span>
+                <span className="status-label">Conversational AI Analyst</span>
                 <span className="status-value">Online</span>
               </div>
               <div className="status-row">
                 <span className="status-dot status-dot--ok" aria-label="Online" />
-                <span className="status-label">Model Registry</span>
+                <span className="status-label">Model Registry & Training</span>
                 <span className="status-value">Online</span>
               </div>
               <div className="status-row">
                 <span className="status-dot status-dot--ok" aria-label="Online" />
-                <span className="status-label">Forecasting Engine</span>
+                <span className="status-label">Forecasting & What-If</span>
                 <span className="status-value">Online</span>
               </div>
               <div className="status-row">
-                <span className="status-dot status-dot--warn" aria-label="Coming soon" />
-                <span className="status-label">Monitoring</span>
-                <span className="status-value">Phase 6</span>
+                <span className="status-dot status-dot--ok" aria-label="Online" />
+                <span className="status-label">Model Monitoring & Drift</span>
+                <span className="status-value">Online</span>
+              </div>
+              <div className="status-row">
+                <span className="status-dot status-dot--ok" aria-label="Online" />
+                <span className="status-label">Executive PDF Reports</span>
+                <span className="status-value">Online</span>
               </div>
             </div>
           </Card>
@@ -163,21 +186,29 @@ export default function OverviewPage() {
           <Card>
             <h2 className="card-title">Quick Actions</h2>
             <div className="quick-actions-grid">
-              <Link to="/chat" className="quick-action-tile">
-                <span className="quick-action-icon">⚡</span>
-                <span className="quick-action-label">Command Studio</span>
-              </Link>
-              <Link to="/upload" className="quick-action-tile">
-                <span className="quick-action-icon">📤</span>
-                <span className="quick-action-label">Upload Data</span>
-              </Link>
-              <Link to="/projects" className="quick-action-tile">
-                <span className="quick-action-icon">📁</span>
-                <span className="quick-action-label">Projects</span>
-              </Link>
               <Link to="/analyst" className="quick-action-tile">
                 <span className="quick-action-icon">🤖</span>
                 <span className="quick-action-label">AI Analyst</span>
+              </Link>
+              <Link to="/models" className="quick-action-tile">
+                <span className="quick-action-icon">🧠</span>
+                <span className="quick-action-label">Model Registry</span>
+              </Link>
+              <Link to="/forecasts" className="quick-action-tile">
+                <span className="quick-action-icon">📈</span>
+                <span className="quick-action-label">Forecasting</span>
+              </Link>
+              <Link to="/monitoring" className="quick-action-tile">
+                <span className="quick-action-icon">🛡️</span>
+                <span className="quick-action-label">Monitoring</span>
+              </Link>
+              <Link to="/reports" className="quick-action-tile">
+                <span className="quick-action-icon">📄</span>
+                <span className="quick-action-label">Reports</span>
+              </Link>
+              <Link to="/datasets" className="quick-action-tile">
+                <span className="quick-action-icon">💾</span>
+                <span className="quick-action-label">Datasets</span>
               </Link>
             </div>
           </Card>

@@ -88,7 +88,7 @@ export default function SettingsPage() {
             <div>
               <span className="muted" style={{ fontSize: '0.76rem', fontWeight: 600, textTransform: 'uppercase' }}>Application Mode:</span>
               <p style={{ margin: '0.2rem 0 0', fontFamily: 'var(--font-mono)', fontSize: '0.84rem', background: '#f8fafc', padding: '0.4rem 0.65rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                {import.meta.env.MODE || 'production'}
+                {(import.meta as any).env?.MODE || 'production'}
               </p>
             </div>
           </div>
