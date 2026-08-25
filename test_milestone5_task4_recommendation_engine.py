@@ -212,6 +212,83 @@ def test_opportunity_detection(sales_insights):
 def test_recommendation_scoring(sales_insights):
     """10. Transparent, documented scoring factors."""
     res = _engine().generate(RecommendationRequest(insights=sales_insights))
+def test_ranking(sales_insights):
+    """11. Recommendations are ranked by descending score."""
+    res = _engine().generate(RecommendationRequest(insights=sales_insights, max_recommendations=10))
+    scores = [r.score for r in res.recommendations]
+    assert scores == sorted(scores, reverse=True)
+
+
+# ==============================================================================
+# 12-16. Expected impact, forecast, scenario, monitoring
+# ==============================================================================
+
+def test_expected_impact_available(sales_insights, impact_scenario):
+    """12. Numerical expected impact comes from a real scenario calculation."""
+    res = _engine().generate(RecommendationRequest(
+        insights=sales_insights, scenarios=[impact_scenario],
+        optimization_objective=RecommendationObjective.MAXIMIZE_REVENUE))
+    impacts = [r.expected_impact for r in res.recommendations
+               if r.expected_impact and r.expected_impact.availability.value == "available"]
+    assert impacts, "expected a scenario-backed impact"
+    for imp in impacts:
+        assert imp.estimated_impact is not None
+        assert imp.estimated_impact_pct is not None
+
+
+def test_expected_impact_unavailable(sales_insights):
+    """13. Without a scenario, impact is 'unavailable' and never invented."""
+    res = _engine().generate(RecommendationRequest(insights=sales_insights))
+    for rec in res.recommendations:
+        if rec.expected_impact is None:
+            continue
+        assert rec.expected_impact.availability.value == "unavailable"
+        assert rec.expected_impact.estimated_impact is None
+
+
+def test_forecast_integration(declining_forecast):
+    """14. A declining forecast drives a demand/inventory recommendation."""
+    res = _engine().generate(RecommendationRequest(
+        optimization_objective=RecommendationObjective.REDUCE_RISK,
+        forecasts=[declining_forecast]))
+    actions = " | ".join(r.action.lower() for r in res.recommendations)
+    assert "inventory" in actions or "demand" in actions
+    assert any("forecast" in r.risk.lower() for r in res.risks)
+
+
+def test_scenario_integration(sales_insights, impact_scenario):
+    """15. Scenario evidence is referenced in the recommendation."""
+    res = _engine().generate(RecommendationRequest(
+        insights=sales_insights, scenarios=[impact_scenario],
+        optimization_objective=RecommendationObjective.MAXIMIZE_REVENUE))
+    found = False
+    for rec in res.recommendations:
+        if rec.expected_impact and rec.expected_impact.availability.value == "available":
+            assert rec.expected_impact.scenario_name == "Increase marketing investment +10%"
+            found = True
+    assert found
+
+
+def test_monitoring_integration():
+    """16. High data drift triggers a validate/investigate recommendation."""
+    res = _engine().generate(RecommendationRequest(
+        optimization_objective=RecommendationObjective.REDUCE_RISK,
+        monitoring_results=[{"model_id": "m1",
+                             "data_drift": {"overall_drift": True, "severity": "HIGH"}}]))
+    actions = " | ".join(r.action.lower() for r in res.recommendations)
+    assert "validate incoming data" in actions
+    assert any("drift" in r.risk.lower() for r in res.risks)
+
+
+def test_performance_degradation_monitoring():
+    """16b. Performance degradation drives a recalibration review."""
+    res = _engine().generate(RecommendationRequest(
+        optimization_objective=RecommendationObjective.REDUCE_RISK,
+        monitoring_results=[{"model_id": "m1",
+                             "performance_drift": {"degradation_detected": True}}]))
+    actions = " | ".join(r.action.lower() for r in res.recommendations)
+    assert "recalibration" in actions
+
     for rec in res.recommendations:
         assert rec.score > 0
         assert rec.scoring.formula  # explainable formula documented
