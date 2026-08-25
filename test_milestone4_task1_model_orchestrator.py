@@ -407,3 +407,4 @@ def test_agent_result_and_evidence_generation(temp_registry, tabular_classificat
     assert len(result.evidence) > 0
     assert result.evidence[0].source == "UnifiedModelOrchestrator"
     assert "winner" in result.evidence[0].data_ref
+
