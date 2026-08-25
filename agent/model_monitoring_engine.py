@@ -117,6 +117,8 @@ class ModelMonitoringEngine:
                     "type": "numeric",
                     "mean": float(np.mean(v_target)) if len(v_target) > 0 else 0.0,
                     "std": float(np.std(v_target)) if len(v_target) > 0 else 0.0,
+                    "sample_values": v_target[:500].tolist(),
+                    "sample_quantiles": np.percentile(v_target, np.linspace(0, 100, 11)).tolist() if len(v_target) > 0 else [],
                 }
             else:
                 vc_t = s_target.dropna().astype(str).value_counts(normalize=True).to_dict()
@@ -124,6 +126,7 @@ class ModelMonitoringEngine:
                     "column": target_col,
                     "type": "categorical",
                     "frequencies": {str(k): round(float(v), 4) for k, v in vc_t.items()},
+                    "sample_values": s_target.dropna().astype(str).tolist()[:500],
                 }
 
         return profile
@@ -499,22 +502,19 @@ class ModelMonitoringEngine:
             curr_s = curr_df[col]
             if pd.api.types.is_numeric_dtype(curr_s):
                 curr_vals = curr_s.dropna().to_numpy(dtype=float)
+                ref_src = ref_profile.get("features", {}).get(col) or (ref_profile.get("target") if col == target_col else {})
                 ref_vals = (
                     ref_df[col].dropna().to_numpy(dtype=float)
                     if ref_df is not None and col in ref_df.columns
-                    else np.array(
-                        ref_profile.get("features", {}).get(col, {}).get(
-                            "sample_values",
-                            ref_profile.get("features", {}).get(col, {}).get("sample_quantiles", [])
-                        )
-                    )
+                    else np.array(ref_src.get("sample_values", ref_src.get("sample_quantiles", [])))
                 )
                 res = self.evaluate_numeric_feature_drift(col, ref_vals, curr_vals, thresh_cfg)
             else:
+                ref_src = ref_profile.get("features", {}).get(col) or (ref_profile.get("target") if col == target_col else {})
                 ref_s = (
                     ref_df[col]
                     if ref_df is not None and col in ref_df.columns
-                    else pd.Series(list(ref_profile.get("features", {}).get(col, {}).get("frequencies", {}).keys()))
+                    else pd.Series(ref_src.get("sample_values") or list(ref_src.get("frequencies", {}).keys()))
                 )
                 res = self.evaluate_categorical_feature_drift(col, ref_s, curr_s, thresh_cfg)
 

@@ -406,3 +406,70 @@ def test_model_monitor_agent_run(temp_registry, registered_clf_model, reference_
     assert result.status == AgentStatus.COMPLETED
     assert "overall_severity" in result.metadata
     assert len(result.evidence) > 0
+
+
+def test_target_drift_detection(temp_registry, registered_clf_model, reference_dataset):
+    """20. Test target distribution drift evaluation when target column is monitored."""
+    engine = ModelMonitoringEngine(registry=temp_registry)
+    curr_df = reference_dataset.copy()
+    # Shift target distribution heavily towards class 1 (e.g. 95% 1s)
+    curr_df["target"] = np.random.choice([0, 1], size=len(curr_df), p=[0.05, 0.95])
+
+    req = DriftRequest(
+        model_id=registered_clf_model,
+        current_dataset=curr_df,
+        feature_columns=["target"],
+    )
+    res = engine.monitor(req)
+
+    assert "target" in res.data_drift.feature_results
+    assert res.data_drift.feature_results["target"].drift_detected is True
+
+
+def test_regression_performance_monitoring(temp_registry):
+    """21. Test regression model performance monitoring and metric delta tracking."""
+    np.random.seed(42)
+    n = 100
+    X = np.random.normal(10, 2, size=(n, 2))
+    y = 3.5 * X[:, 0] + 1.2 * X[:, 1] + np.random.normal(0, 0.5, size=n)
+
+    reg = LinearRegression()
+    reg.fit(X, y)
+
+    df_train = pd.DataFrame({"x1": X[:, 0], "x2": X[:, 1], "y": y})
+    ref_profile = ModelMonitoringEngine.build_reference_profile(df_train, ["x1", "x2"], "y")
+
+    meta = temp_registry.register_model(
+        name="SalesRegressor",
+        model_object=reg,
+        model_family="traditional_ml",
+        algorithm="Linear Regression",
+        problem_type="regression",
+        target_column="y",
+        feature_columns=["x1", "x2"],
+        feature_dtypes={"x1": "float64", "x2": "float64"},
+        training_metrics={"r2": 0.95, "rmse": 0.50},
+        validation_metrics={"r2": 0.94, "rmse": 0.52},
+        primary_metric_name="r2",
+        primary_metric_value=0.94,
+        reference_profile=ref_profile,
+    )
+
+    engine = ModelMonitoringEngine(registry=temp_registry)
+
+    # Current data with corrupted target (force R2 degradation)
+    df_curr = df_train.copy()
+    df_curr["y"] = df_curr["y"] + np.random.normal(50, 10, size=n)
+
+    req = DriftRequest(
+        model_id=meta.model_id,
+        current_dataset=df_curr,
+        target_column="y",
+    )
+    res = engine.monitor(req)
+
+    assert res.performance_drift is not None
+    assert res.performance_drift.target_monitoring_status == "evaluated"
+    assert res.performance_drift.degradation_detected is True
+    assert "r2" in res.performance_drift.current_metrics
+    assert res.performance_drift.current_metrics["r2"] < 0.50
