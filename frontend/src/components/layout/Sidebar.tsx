@@ -51,7 +51,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Insights', to: '/upload', Icon: IconLightbulb },
       { label: 'Models', to: '/models', Icon: IconBrain },
-      { label: 'Forecasts', to: '/forecasts', Icon: IconTrendUp, comingSoon: true },
+      { label: 'Forecasts', to: '/forecasts', Icon: IconTrendUp },
       { label: 'Monitoring', to: '/monitoring', Icon: IconActivity, comingSoon: true },
     ],
   },

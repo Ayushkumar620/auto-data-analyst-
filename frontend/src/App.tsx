@@ -28,6 +28,9 @@ import WorkspacesPage from './pages/WorkspacesPage';
 import ModelRegistryPage from './pages/ModelRegistryPage';
 import ModelDetailPage from './pages/ModelDetailPage';
 
+// Phase 5 Live Pages
+import ForecastsPage from './pages/ForecastsPage';
+
 // Future Phase Placeholders
 import ComingSoonPage from './pages/ComingSoonPage';
 
@@ -81,17 +84,10 @@ export default function App() {
         <Route path="/models" element={<ModelRegistryPage />} />
         <Route path="/models/:modelId" element={<ModelDetailPage />} />
 
-        {/* Coming soon stubs (Phase 5–8) */}
-        <Route
-          path="/forecasts"
-          element={
-            <ComingSoonPage
-              title="Forecasts"
-              phase="Phase 5"
-              description="Autonomous time-series forecasting and what-if scenario analysis."
-            />
-          }
-        />
+        {/* Phase 5: Autonomous Forecasting & What-If */}
+        <Route path="/forecasts" element={<ForecastsPage />} />
+
+        {/* Coming soon stubs (Phase 6–8) */}
         <Route
           path="/monitoring"
           element={
