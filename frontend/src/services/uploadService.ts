@@ -27,7 +27,7 @@ type FastApiUploadResponse = {
 
 type UploadContext = {
   workspaceId?: string;
-  projectId?: string;
+  projectId?: string | number;
 };
 
 function normalizeUploadResponse(payload: FastApiUploadResponse): DatasetProfile {
@@ -50,7 +50,7 @@ function normalizeUploadResponse(payload: FastApiUploadResponse): DatasetProfile
     recommendations: payload.recommendations,
     insights: payload.insights,
     workspace_id: payload.workspace_id ?? undefined,
-    project_id: payload.project_id ?? undefined,
+    project_id: payload.project_id ? String(payload.project_id) : undefined,
     workspace_dataset_id: payload.workspace_dataset_id ?? undefined,
   };
 }
@@ -61,8 +61,8 @@ export async function uploadDataset(file: File, context?: UploadContext): Promis
   if (context?.workspaceId) {
     formData.append('workspace_id', context.workspaceId);
   }
-  if (context?.projectId) {
-    formData.append('project_id', context.projectId);
+  if (context?.projectId !== undefined && context?.projectId !== null) {
+    formData.append('project_id', String(context.projectId));
   }
 
   const response = await fetch(buildApiUrl('/api/v1/datasets/upload'), {

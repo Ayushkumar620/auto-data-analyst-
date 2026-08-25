@@ -2,23 +2,26 @@ import React from 'react';
 
 type IconProps = {
   size?: number;
+  color?: string;
   className?: string;
+  style?: React.CSSProperties;
   'aria-hidden'?: boolean;
 };
 
 const icon = (path: React.ReactNode) =>
-  ({ size = 18, className, 'aria-hidden': ariaHidden = true }: IconProps) => (
+  ({ size = 18, color, className, style, 'aria-hidden': ariaHidden = true }: IconProps) => (
     <svg
       xmlns="http://www.w3.org/2000/svg"
       width={size}
       height={size}
       viewBox="0 0 24 24"
       fill="none"
-      stroke="currentColor"
+      stroke={color || 'currentColor'}
       strokeWidth={1.75}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
+      style={style}
       aria-hidden={ariaHidden}
     >
       {path}

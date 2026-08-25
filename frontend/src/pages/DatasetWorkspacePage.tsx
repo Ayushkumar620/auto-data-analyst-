@@ -12,7 +12,7 @@ import { getDatasetById } from '../services/datasetService';
 import { useDataset } from '../context/DatasetContext';
 import { useNotification } from '../context/NotificationContext';
 import type { DatasetItem, DatasetProfile } from '../types';
-import { IconDatabase, IconChevronRight } from '../ui/Icons';
+import { IconDatabase, IconChevronRight } from '../components/ui/Icons';
 
 type TabKey = 'overview' | 'schema' | 'preview' | 'quality';
 

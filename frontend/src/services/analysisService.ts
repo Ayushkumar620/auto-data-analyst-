@@ -2,15 +2,15 @@ import { buildApiUrl } from './api';
 
 type AnalysisContext = {
   workspaceId?: string;
-  projectId?: string;
+  projectId?: string | number;
 };
 
 function appendContext(formData: FormData, context?: AnalysisContext): void {
   if (context?.workspaceId) {
     formData.append('workspace_id', context.workspaceId);
   }
-  if (context?.projectId) {
-    formData.append('project_id', context.projectId);
+  if (context?.projectId !== undefined && context?.projectId !== null) {
+    formData.append('project_id', String(context.projectId));
   }
 }
 

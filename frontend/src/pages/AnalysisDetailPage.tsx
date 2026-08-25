@@ -155,16 +155,16 @@ export default function AnalysisDetailPage() {
                       color: 'var(--primary)',
                     }}
                   >
-                    {ev.claim_type || 'FACT'}
+                    {String(ev.claim_type || 'FACT')}
                   </span>
                   {ev.confidence !== undefined && (
                     <span className="muted" style={{ fontSize: '0.78rem' }}>
-                      Confidence: {Math.round((ev.confidence as number) * 100)}%
+                      Confidence: {Math.round(Number(ev.confidence) * 100)}%
                     </span>
                   )}
                 </div>
                 <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--ink-secondary)' }}>
-                  {ev.claim || ev.statement || JSON.stringify(ev)}
+                  {String(ev.claim || ev.statement || JSON.stringify(ev))}
                 </p>
               </div>
             ))}
