@@ -71,3 +71,4 @@ export function getAnalysisById(id: string): AnalysisRecord | null {
   const all = getStoredAnalyses();
   return all.find((a) => a.id === id) || null;
 }
+

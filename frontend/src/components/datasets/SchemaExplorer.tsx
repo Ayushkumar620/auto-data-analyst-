@@ -207,3 +207,4 @@ export default function SchemaExplorer({ profile }: SchemaExplorerProps) {
     </div>
   );
 }
+

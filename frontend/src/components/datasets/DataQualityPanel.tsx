@@ -146,3 +146,4 @@ export default function DataQualityPanel({ profile }: DataQualityPanelProps) {
     </div>
   );
 }
+
