@@ -120,3 +120,4 @@ def test_fastapi_phone_otp_endpoints():
     assert verify_resp.status_code == 200
     v_data = verify_resp.json()
     assert "access_token" in v_data
+
