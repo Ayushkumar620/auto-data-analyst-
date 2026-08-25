@@ -60,6 +60,8 @@ from backend.app.api.v1.analysis import router as analysis_router
 from backend.app.api.v1.sql_router import router as sql_router
 from backend.app.api.v1.sandbox_router import router as sandbox_router
 from backend.app.api.v1.vision_router import router as vision_router
+from backend.app.api.v1.monitoring import router as monitoring_router
+from backend.app.auth.router import router as auth_router
 from backend.app.api.v1.connectors import router as connectors_router
 from backend.app.api.v1.governance import router as governance_router
 from backend.app.api.v1.alerts import router as alerts_router
