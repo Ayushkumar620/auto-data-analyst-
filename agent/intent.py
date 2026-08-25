@@ -487,19 +487,27 @@ class CommandIntelligenceAgent(BaseAgent):
         return cleaned.title()
 
     def _extract_comparison(self, text: str) -> Optional[Dict[str, Any]]:
-        # Match "X vs Y" or "X versus Y"
-        vs_match = re.search(r"\b([\w\s]+?)\s+(?:vs|versus)\s+([\w\s]+?)(?:\s+(?:in|for|by)|\?|$)", text)
-        if vs_match:
-            entity_a = vs_match.group(1).strip()
-            entity_b = vs_match.group(2).strip()
-            return {"entity_a": entity_a, "entity_b": entity_b}
+        # Match "between X and Y"
+        between_match = re.search(r"\bbetween\s+([a-zA-Z0-9_\s]+?)\s+and\s+([a-zA-Z0-9_\s]+?)(?:\s+in|\s+by|\s+for|$|\.)", text, flags=re.IGNORECASE)
+        if between_match:
+            left = self._clean_entity_name(between_match.group(1))
+            right = self._clean_entity_name(between_match.group(2))
+            return {"type": "between_entities", "entities": [left, right], "entity_a": left, "entity_b": right}
+        if "vs" in text or "versus" in text:
+            parts = re.split(r"\b(?:vs|versus)\b", text, flags=re.IGNORECASE)
+            if len(parts) >= 2:
+                left = self._clean_entity_name(parts[0])
+                right = self._clean_entity_name(parts[1])
+                return {"type": "between_entities", "entities": [left, right], "entity_a": left, "entity_b": right}
         return None
 
     def _extract_filters(self, text: str, comparison: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        filters = {}
-        # Comparison entities become filters if not already captured
-        if comparison:
-            filters["comparison_targets"] = [comparison["entity_a"], comparison["entity_b"]]
+        filters: Dict[str, Any] = {}
+        if comparison and comparison.get("type") == "between_entities":
+            entities = comparison.get("entities", [])
+            filters["entities"] = entities
+            if len(entities) >= 2:
+                filters["comparison_targets"] = entities
 
         # Status / active filter
         if "active" in text and "inactive" not in text:
