@@ -145,3 +145,4 @@ export default function ForecastBuilder({ profile, onRun, loading }: ForecastBui
     </form>
   );
 }
+

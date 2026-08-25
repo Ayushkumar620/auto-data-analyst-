@@ -67,3 +67,4 @@ export default function ForecastSummary({ result }: ForecastSummaryProps) {
     </div>
   );
 }
+

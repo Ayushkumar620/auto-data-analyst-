@@ -62,3 +62,4 @@ export async function runWhatIfScenario(params: RunWhatIfParams): Promise<Scenar
 
   return res.json();
 }
+

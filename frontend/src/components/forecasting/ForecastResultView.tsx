@@ -173,3 +173,4 @@ export default function ForecastResultView({ result, historicalData }: ForecastR
     </div>
   );
 }
+
