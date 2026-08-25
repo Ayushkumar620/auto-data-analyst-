@@ -16,6 +16,15 @@ import ProjectsPage from './pages/ProjectsPage';
 import ProjectViewPage from './pages/ProjectViewPage';
 import ProfilePage from './pages/ProfilePage';
 import DashboardPage from './pages/DashboardPage';
+
+// Phase 2 Live Pages
+import DatasetsPage from './pages/DatasetsPage';
+import DatasetWorkspacePage from './pages/DatasetWorkspacePage';
+import AnalysesPage from './pages/AnalysesPage';
+import AnalysisDetailPage from './pages/AnalysisDetailPage';
+import WorkspacesPage from './pages/WorkspacesPage';
+
+// Future Phase Placeholders
 import ComingSoonPage from './pages/ComingSoonPage';
 
 export default function App() {
@@ -47,7 +56,7 @@ export default function App() {
           </RequireAuth>
         }
       >
-        {/* Core routes */}
+        {/* Core workspace & analytics routes */}
         <Route path="/overview" element={<OverviewPage />} />
         <Route path="/analyst" element={<AnalystPage />} />
         <Route path="/upload" element={<UploadPage />} />
@@ -57,27 +66,14 @@ export default function App() {
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
 
-        {/* Coming soon stubs (Phase 2–8) */}
-        <Route
-          path="/datasets"
-          element={
-            <ComingSoonPage
-              title="Datasets"
-              phase="Phase 2"
-              description="Browse, manage, and compare all uploaded datasets in one place."
-            />
-          }
-        />
-        <Route
-          path="/analyses"
-          element={
-            <ComingSoonPage
-              title="Analyses"
-              phase="Phase 2"
-              description="View all past autonomous analyses, evidence chains, and execution graphs."
-            />
-          }
-        />
+        {/* Phase 2: Datasets & Workspace Management */}
+        <Route path="/datasets" element={<DatasetsPage />} />
+        <Route path="/datasets/:datasetId" element={<DatasetWorkspacePage />} />
+        <Route path="/analyses" element={<AnalysesPage />} />
+        <Route path="/analyses/:analysisId" element={<AnalysisDetailPage />} />
+        <Route path="/workspaces" element={<WorkspacesPage />} />
+
+        {/* Coming soon stubs (Phase 3–8) */}
         <Route
           path="/models"
           element={
@@ -115,16 +111,6 @@ export default function App() {
               title="Reports"
               phase="Phase 7"
               description="Generate executive PDF and slide deck reports from your analyses."
-            />
-          }
-        />
-        <Route
-          path="/workspaces"
-          element={
-            <ComingSoonPage
-              title="Workspaces"
-              phase="Phase 2"
-              description="Manage collaborative workspaces and team dataset access."
             />
           }
         />

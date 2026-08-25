@@ -42,8 +42,8 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Overview', to: '/overview', Icon: IconHome },
       { label: 'Analyst', to: '/analyst', Icon: IconAnalyst },
-      { label: 'Datasets', to: '/datasets', Icon: IconDatabase, comingSoon: true },
-      { label: 'Analyses', to: '/analyses', Icon: IconBarChart, comingSoon: true },
+      { label: 'Datasets', to: '/datasets', Icon: IconDatabase },
+      { label: 'Analyses', to: '/analyses', Icon: IconBarChart },
     ],
   },
   {
@@ -65,7 +65,7 @@ const NAV_GROUPS: NavGroup[] = [
     group: 'PROJECT',
     items: [
       { label: 'Projects', to: '/projects', Icon: IconFolder },
-      { label: 'Workspaces', to: '/workspaces', Icon: IconWorkspace, comingSoon: true },
+      { label: 'Workspaces', to: '/workspaces', Icon: IconWorkspace },
     ],
   },
   {

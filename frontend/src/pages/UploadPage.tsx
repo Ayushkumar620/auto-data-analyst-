@@ -14,10 +14,14 @@ import {
 } from '../services/analysisService';
 import { uploadDataset } from '../services/uploadService';
 import { createProject, createWorkspace } from '../services/workspaceService';
+import { useDataset } from '../context/DatasetContext';
+import { useNotification } from '../context/NotificationContext';
 import type { DatasetProfile, Project, Workspace } from '../types';
 import './upload-page.css';
 
 export default function UploadPage() {
+  const { setDataset } = useDataset();
+  const { notify } = useNotification();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [profile, setProfile] = useState<DatasetProfile | null>(null);
   const [eda, setEda] = useState<Record<string, unknown> | null>(null);
@@ -56,6 +60,8 @@ export default function UploadPage() {
         projectId: project?.id,
       });
       setProfile(result);
+      setDataset(result, selectedFile.name);
+      notify(`"${selectedFile.name}" uploaded and set as active dataset.`, 'success');
       resetDerivedResults();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
