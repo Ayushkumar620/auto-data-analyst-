@@ -62,10 +62,12 @@ from sklearn.model_selection import (
     train_test_split,
 )
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
+from sklearn.neural_network import MLPClassifier, MLPRegressor
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder, StandardScaler
 from sklearn.svm import SVC, SVR
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
+from agent.ann_schemas import ANNConfig, auto_select_ann_architecture
 from agent.base import BaseAgent
 from agent.model_selection_schemas import ModelCandidate
 from agent.model_training_schemas import (
@@ -85,7 +87,7 @@ from backend.app.ml.registry import ModelRegistry
 
 
 # ==============================================================================
-# 1. Base Model Trainer Interface & Scikit-Learn Adapter
+# 1. Base Model Trainer Interface & Concrete Adapters
 # ==============================================================================
 
 class BaseModelTrainer(ABC):
@@ -143,6 +145,43 @@ class TraditionalMLTrainer(BaseModelTrainer):
         joblib.dump(self.estimator, filepath)
 
     def load(self, filepath: Union[str, Path]) -> TraditionalMLTrainer:
+        self.estimator = joblib.load(filepath)
+        return self
+
+
+class ANNTrainer(BaseModelTrainer):
+    """Concrete Artificial Neural Network (MLP) trainer adapter."""
+
+    def __init__(
+        self,
+        estimator: Union[MLPClassifier, MLPRegressor],
+        model_name: str = "Artificial Neural Network (ANN/MLP)",
+        config: Optional[ANNConfig] = None,
+    ):
+        self.estimator = estimator
+        self.model_name = model_name
+        self.model_family = "ann"
+        self.config = config
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> ANNTrainer:
+        self.estimator.fit(X, y)
+        return self
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        return self.estimator.predict(X)
+
+    def predict_proba(self, X: np.ndarray) -> Optional[np.ndarray]:
+        if hasattr(self.estimator, "predict_proba"):
+            try:
+                return self.estimator.predict_proba(X)
+            except Exception:
+                pass
+        return None
+
+    def save(self, filepath: Union[str, Path]) -> None:
+        joblib.dump(self.estimator, filepath)
+
+    def load(self, filepath: Union[str, Path]) -> ANNTrainer:
         self.estimator = joblib.load(filepath)
         return self
 
@@ -300,6 +339,22 @@ class ModelTrainingEngine:
                 return SVC(probability=True, random_state=random_state), "Support Vector Classifier", "kernel"
             elif "knn" in name_lower or "neighbor" in name_lower:
                 return KNeighborsClassifier(n_neighbors=5), "K-Nearest Neighbors", "neighbors"
+            elif "ann" in name_lower or "neural" in name_lower or "mlp" in name_lower:
+                hidden_layers = tuple(hyperparams.get("hidden_layer_sizes", (64, 32)))
+                activation = hyperparams.get("activation", "relu")
+                solver = hyperparams.get("solver", "adam")
+                alpha = float(hyperparams.get("alpha", 0.0001))
+                epochs = int(hyperparams.get("max_iter", hyperparams.get("epochs", 200)))
+                early_stop = bool(hyperparams.get("early_stopping", True))
+                return MLPClassifier(
+                    hidden_layer_sizes=hidden_layers,
+                    activation=activation,
+                    solver=solver,
+                    alpha=alpha,
+                    max_iter=epochs,
+                    early_stopping=early_stop,
+                    random_state=random_state,
+                ), "Artificial Neural Network (ANN/MLP)", "ann"
             else:
                 return LogisticRegression(max_iter=500, random_state=random_state), name or "Logistic Regression", family
 
@@ -323,6 +378,22 @@ class ModelTrainingEngine:
                 return SVR(), "Support Vector Regressor", "kernel"
             elif "knn" in name_lower or "neighbor" in name_lower:
                 return KNeighborsRegressor(n_neighbors=5), "K-Nearest Neighbors Regressor", "neighbors"
+            elif "ann" in name_lower or "neural" in name_lower or "mlp" in name_lower:
+                hidden_layers = tuple(hyperparams.get("hidden_layer_sizes", (64, 32)))
+                activation = hyperparams.get("activation", "relu")
+                solver = hyperparams.get("solver", "adam")
+                alpha = float(hyperparams.get("alpha", 0.0001))
+                epochs = int(hyperparams.get("max_iter", hyperparams.get("epochs", 200)))
+                early_stop = bool(hyperparams.get("early_stopping", True))
+                return MLPRegressor(
+                    hidden_layer_sizes=hidden_layers,
+                    activation=activation,
+                    solver=solver,
+                    alpha=alpha,
+                    max_iter=epochs,
+                    early_stopping=early_stop,
+                    random_state=random_state,
+                ), "Artificial Neural Network (ANN/MLP)", "ann"
             else:
                 return LinearRegression(), name or "Linear Regression", family
 
@@ -697,6 +768,69 @@ class ModelTrainingEngine:
             status=overall_status,
             warnings=warnings_list,
         )
+
+    # ------------------------------------------------------------------
+    # Prediction Pipeline with Schema & Feature-Order Enforcement
+    # ------------------------------------------------------------------
+    def predict_model(
+        self,
+        model_id: str,
+        new_data: Union[pd.DataFrame, Dict[str, Any], List[Dict[str, Any]]],
+    ) -> Dict[str, Any]:
+        """
+        Execute schema-validated inference on new data with feature ordering and inverse transformation.
+        """
+        if isinstance(new_data, dict):
+            df_new = pd.DataFrame([new_data])
+        elif isinstance(new_data, list):
+            df_new = pd.DataFrame(new_data)
+        elif isinstance(new_data, pd.DataFrame):
+            df_new = new_data.copy()
+        else:
+            raise ValueError(f"Unsupported new_data format: {type(new_data)}")
+
+        model_obj, preprocessor, meta = self.registry.get_model(model_id)
+
+        # Validate feature presence and ordering
+        missing_features = [f for f in meta.feature_columns if f not in df_new.columns]
+        if missing_features:
+            raise ValueError(f"Prediction data missing required features: {missing_features}")
+
+        # Enforce exact training feature order
+        df_features = df_new[meta.feature_columns].copy()
+
+        # Transform using fitted preprocessor
+        if preprocessor is not None:
+            X_t = preprocessor.transform(df_features)
+        else:
+            X_t = df_features.select_dtypes(include=[np.number]).to_numpy(dtype=float)
+
+        # Predict
+        preds = model_obj.predict(X_t)
+        proba = None
+        if hasattr(model_obj, "predict_proba"):
+            try:
+                proba = model_obj.predict_proba(X_t).tolist()
+            except Exception:
+                pass
+
+        # Inverse transform if target encoder exists
+        decoded_preds = preds.tolist()
+        if preprocessor is not None and preprocessor.target_encoder is not None:
+            try:
+                decoded_preds = preprocessor.target_encoder.inverse_transform(preds).tolist()
+            except Exception:
+                pass
+
+        return {
+            "model_id": model_id,
+            "model_name": meta.name,
+            "problem_type": meta.problem_type,
+            "target_column": meta.target_column,
+            "predictions": decoded_preds,
+            "probabilities": proba,
+            "row_count": len(df_new),
+        }
 
 
 # ==============================================================================

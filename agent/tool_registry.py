@@ -89,6 +89,7 @@ class ToolRegistry:
         """Register all default analytical and data engineering tools."""
         from agent.agents import (
             AnalysisAgent,
+            ANNAgent,
             CleaningAgent,
             DataValidationAgent,
             ForecastAgent,
