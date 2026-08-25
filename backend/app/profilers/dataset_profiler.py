@@ -7,7 +7,7 @@ import pandas as pd
 
 class DatasetProfiler:
     def profile(self, dataframe: pd.DataFrame, filename: str, file_type: str, file_size: str) -> Dict[str, Any]:
-        numeric_columns = [col for col in dataframe.columns if pd.api.types.is_numeric_dtype(dataframe[col])]
+        numeric_columns = [col for col in dataframe.columns if pd.api.types.is_numeric_dtype(dataframe[col]) and not pd.api.types.is_bool_dtype(dataframe[col])]
         categorical_columns = [col for col in dataframe.columns if col not in numeric_columns and not pd.api.types.is_datetime64_any_dtype(dataframe[col])]
         date_columns = [col for col in dataframe.columns if pd.api.types.is_datetime64_any_dtype(dataframe[col])]
 

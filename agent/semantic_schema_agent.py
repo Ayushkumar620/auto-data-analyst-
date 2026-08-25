@@ -304,7 +304,13 @@ class SemanticSchemaAgent(BaseAgent):
 
             # 6. Fallback Categorical / Text Check
             else:
-                if n_unique <= 50 or unique_ratio < 0.20:
+                if unique_ratio > 0.80 and not any(t in norm_name for t in ("category", "type", "group", "class", "region", "city", "status", "segment", "country")):
+                    sem_type = SemanticType.UNKNOWN
+                    role = "uncertain"
+                    category = "ambiguous"
+                    confidence = 0.50
+                    rationale.append(f"High uniqueness string column ({n_unique}/{n_valid}) without semantic hints; flagged as uncertain.")
+                elif n_unique <= 50 or unique_ratio < 0.20:
                     sem_type = SemanticType.DIMENSION
                     role = "dimension"
                     category = "categorical"
@@ -323,7 +329,7 @@ class SemanticSchemaAgent(BaseAgent):
                         sem_type = SemanticType.DIMENSION
                         role = "dimension"
                         category = "categorical"
-                        confidence = 0.65
+                        confidence = 0.55
                         rationale.append(f"High-cardinality nominal column ({n_unique} unique values).")
 
         # Check for ambiguity & mark uncertain

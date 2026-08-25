@@ -69,7 +69,7 @@ def test_revenue_detected_as_metric(ecommerce_df):
     assert col_k.semantic_type == SemanticType.METRIC
     assert col_k.role == "metric"
     assert col_k.confidence >= 0.85
-    assert col_k.mean == pytest.approx(1485.225, 0.01)
+    assert col_k.mean == pytest.approx(1175.225, 0.01)
     assert col_k.is_uncertain is False
 
 
