@@ -1144,7 +1144,12 @@ function renderInsight(result, intent) {
                     otpSent = true;
                     otpCodeGroup.classList.remove('hidden');
                     submitBtn.textContent = 'Verify & Enter Studio';
-                    authSuccess.textContent = `✔ Verification code sent! (Localhost Code: ${lastDemoOtp})`;
+                    
+                    if (data.sent_via_smtp) {
+                        authSuccess.textContent = `✔ Verification email sent to ${email}! Please check your inbox (or spam folder) for the 6-digit code.`;
+                    } else {
+                        authSuccess.textContent = `✔ Code generated! Localhost Code: ${lastDemoOtp}`;
+                    }
                     authSuccess.style.display = 'block';
                     otpInput.focus();
                 } catch (err) {

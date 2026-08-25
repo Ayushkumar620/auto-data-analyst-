@@ -96,12 +96,13 @@ def login(payload: LoginRequest, db: Annotated[Session, Depends(get_db)]) -> Tok
 
 @router.post("/otp/send", response_model=OtpResponse)
 def send_otp(payload: OtpRequest) -> OtpResponse:
-    """Generate and return 6-digit Email OTP."""
+    """Generate and dispatch 6-digit Email OTP via SMTP or dev fallback."""
+    from backend.app.core.email_service import global_email_service
     email = payload.email.lower().strip()
-    otp = f"{random.randint(100000, 999999)}"
-    OTP_CACHE[email] = {"otp": otp, "expires_at": time.time() + 300}
+    sent_via_smtp, status_message, otp = global_email_service.send_otp_email(recipient_email=email)
+    OTP_CACHE[email] = {"otp": otp, "expires_at": time.time() + 600}
     return OtpResponse(
-        message=f"Verification code sent to {email}.",
+        message=status_message,
         email=email,
         demo_otp=otp,
     )
@@ -110,14 +111,16 @@ def send_otp(payload: OtpRequest) -> OtpResponse:
 @router.post("/otp/verify", response_model=TokenResponse)
 def verify_otp(payload: OtpVerifyRequest, db: Annotated[Session, Depends(get_db)]) -> TokenResponse:
     """Verify 6-digit OTP code and authenticate user."""
+    from backend.app.core.email_service import global_email_service
     email = payload.email.lower().strip()
     entered = payload.otp.strip()
 
+    is_valid, msg = global_email_service.verify_otp(email, entered)
     cached = OTP_CACHE.get(email)
-    is_demo = email == "demo@example.com" and entered in ("123456", "strongpass123")
+    is_demo = (email == "demo@example.com" and entered in ("123456", "strongpass123")) or (cached and cached["otp"] == entered)
 
-    if not is_demo and (not cached or cached["otp"] != entered or time.time() > cached["expires_at"]):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired verification code.")
+    if not is_valid and not is_demo:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg or "Invalid or expired verification code.")
 
     user = db.query(User).filter(User.email == email).first()
     if user is None:
