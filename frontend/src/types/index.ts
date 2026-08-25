@@ -190,3 +190,55 @@ export type ChatSessionApiResponse = {
   created_at: string;
 };
 
+// ==========================================
+// Phase 5: Forecasting & What-If Types
+// ==========================================
+export type ForecastPoint = {
+  timestamp: string;
+  prediction: number;
+  lower_bound: number;
+  upper_bound: number;
+};
+
+export type ForecastResult = {
+  model_id: string;
+  model_name: string;
+  model_family: string;
+  target: string;
+  time_column: string;
+  frequency: string;
+  forecast_horizon: number;
+  predictions: ForecastPoint[];
+  confidence_level: number;
+  validation_metrics: Record<string, number>;
+  baseline_metrics: Record<string, number>;
+  assumptions: string[];
+  warnings: string[];
+  limitations: string[];
+  evidence: EvidenceItem[];
+  confidence: number;
+  status: string;
+};
+
+export type ScenarioResult = {
+  scenario_name: string;
+  target_metric: string;
+  baseline_value: number;
+  scenario_value: number;
+  absolute_difference: number;
+  percentage_difference: number;
+  assumptions: string[];
+  limitations: string[];
+  evidence: EvidenceItem[];
+  confidence: number;
+};
+
+export type ScenarioComparison = {
+  target_metric: string;
+  baseline_value: number;
+  scenarios: ScenarioResult[];
+  ranked_scenarios: ScenarioResult[];
+  summary: string;
+  evidence: EvidenceItem[];
+};
+

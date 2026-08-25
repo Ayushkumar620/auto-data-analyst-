@@ -1,18 +1,21 @@
 from __future__ import annotations
 
 import json
-from typing import Any
-
+from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel, Field
 
 from backend.app.api.v1.context import link_uploaded_dataset, resolve_context
 from backend.app.config import UPLOAD_DIR
 from backend.app.forecasting import Forecaster
 from backend.app.services.dataset_service import DatasetService
+from agent.autonomous_forecaster_agent import AutonomousForecasterAgent
+from agent.forecasting_schemas import ForecastRequest, WhatIfRequest
 
 router = APIRouter(prefix="/forecast", tags=["forecasting"])
+_forecaster_agent = AutonomousForecasterAgent()
 
 
 def _json_default(value: Any) -> Any:
@@ -30,6 +33,23 @@ def _json_default(value: Any) -> Any:
         except TypeError:
             pass
     raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
+
+class ForecastRunRequest(BaseModel):
+    dataset: Optional[List[Dict[str, Any]]] = None
+    target_column: Optional[str] = None
+    time_column: Optional[str] = None
+    forecast_horizon: int = 6
+    confidence_level: float = 0.80
+
+
+class WhatIfRunRequest(BaseModel):
+    dataset: Optional[List[Dict[str, Any]]] = None
+    target: str
+    scenario_name: str = "Custom Scenario"
+    changed_variables: Dict[str, Any] = Field(default_factory=dict)
+    assumptions: List[str] = Field(default_factory=list)
+    scenarios: Optional[Dict[str, Dict[str, Any]]] = None
 
 
 @router.post("")
@@ -61,3 +81,56 @@ def forecast_dataset(
         "workspace_dataset_id": linked_dataset["id"] if linked_dataset else None,
     }
     return json.loads(json.dumps(payload, default=_json_default))
+
+
+@router.post("/run")
+def run_autonomous_forecast(req: ForecastRunRequest) -> dict[str, Any]:
+    """Execute autonomous time-series forecasting with probabilistic uncertainty intervals."""
+    if not req.dataset or len(req.dataset) == 0:
+        raise HTTPException(status_code=400, detail="Dataset records are required for forecasting.")
+
+    try:
+        df = pd.DataFrame(req.dataset)
+        fc_req = ForecastRequest(
+            dataset=df,
+            target_column=req.target_column,
+            time_column=req.time_column,
+            forecast_horizon=req.forecast_horizon,
+            confidence_level=req.confidence_level,
+        )
+        res = _forecaster_agent.forecast(fc_req)
+        return json.loads(json.dumps(res.to_dict(), default=_json_default))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Autonomous forecasting failed: {str(exc)}") from exc
+
+
+@router.post("/whatif")
+def run_whatif_scenario(req: WhatIfRunRequest) -> dict[str, Any]:
+    """Execute counterfactual What-If scenario simulations against dataset baseline."""
+    if not req.dataset or len(req.dataset) == 0:
+        raise HTTPException(status_code=400, detail="Dataset records are required for What-If scenario modeling.")
+
+    try:
+        df = pd.DataFrame(req.dataset)
+
+        # Multi-scenario comparison
+        if req.scenarios:
+            comp_res = _forecaster_agent.compare_scenarios(
+                df=df,
+                target=req.target,
+                scenarios_spec=req.scenarios,
+            )
+            return json.loads(json.dumps(comp_res.to_dict(), default=_json_default))
+
+        # Single scenario simulation
+        whatif_req = WhatIfRequest(
+            dataset=df,
+            target=req.target,
+            scenario_name=req.scenario_name,
+            changed_variables=req.changed_variables,
+            assumptions=req.assumptions,
+        )
+        scen_res = _forecaster_agent.scenario(whatif_req)
+        return json.loads(json.dumps(scen_res.to_dict(), default=_json_default))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"What-If scenario simulation failed: {str(exc)}") from exc
