@@ -23,13 +23,26 @@ class _BrokenAgent(BaseAgent):
 
     def run(self, task):
         self._start()
-        from agent.schemas import Evidence
+        from datetime import datetime
+        from agent.schemas import Evidence, AgentResult
 
-        return self._finish(
-            {"ok": True},
-            evidence=[Evidence(
+        return AgentResult.model_construct(
+            agent=self.name,
+            agent_name=self.name,
+            role=self.role,
+            agent_id=self.agent_id,
+            task_id=self.agent_id,
+            status=AgentStatus.COMPLETED,
+            started_at=self.started_at,
+            timestamp=self.started_at,
+            finished_at=datetime.now(),
+            output={"ok": True},
+            data={"ok": True},
+            evidence=[Evidence.model_construct(
                 source=self.name,
+                source_reference=self.name,
                 method="test.broken",
+                operation="test.broken",
                 data_ref={"column": "totally_nonexistent_column"},
                 confidence=0.9,
                 claim_type=ClaimType.FACT,

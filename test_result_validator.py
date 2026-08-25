@@ -32,15 +32,22 @@ def make_result(
     duration_ms: float = 1.0,
 ):
     started = datetime(2026, 1, 1, 12, 0, 0)
-    return AgentResult(
+    fin = finished_at if finished_at is not None else datetime(2026, 1, 1, 12, 0, 1)
+    out = output if output is not None else {"ok": True}
+    return AgentResult.model_construct(
         agent=agent,
+        agent_name=agent,
         role=role,
         agent_id="t-1",
+        task_id="t-1",
         status=status,
         started_at=started,
-        finished_at=finished_at if finished_at is not None else datetime(2026, 1, 1, 12, 0, 1),
+        timestamp=started,
+        finished_at=fin,
         duration_ms=duration_ms,
-        output=output if output is not None else {"ok": True},
+        execution_time=duration_ms,
+        output=out,
+        data=out,
         evidence=evidence or [],
         confidence=confidence,
         errors=errors or [],
@@ -48,13 +55,13 @@ def make_result(
 
 
 def _fact_evidence(conf=0.9, claim_type=ClaimType.FACT, data_ref=None, method="pandas.DataFrame.describe()"):
-    return Evidence(
+    dr = data_ref if data_ref is not None else {"frame": "data", "rows": 100, "columns": 3, "column_names": ["a", "b", "c"]}
+    return Evidence.model_construct(
         source="Test Agent",
+        source_reference="Test Agent",
         method=method,
-        data_ref=data_ref if data_ref is not None else {"frame": "data",
-                                                        "rows": 100,
-                                                        "columns": 3,
-                                                        "column_names": ["a", "b", "c"]},
+        operation=method,
+        data_ref=dr,
         confidence=conf,
         claim_type=claim_type,
     )
