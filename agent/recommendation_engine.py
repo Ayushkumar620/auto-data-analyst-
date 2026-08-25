@@ -285,14 +285,14 @@ class DecisionContextBuilder:
         metric = target or "target"
         statement = (f"{metric} is forecast to {direction} approximately "
                      f"{abs(change):.1f}% over the forecast horizon.")
-        return Prediction(
+                return Prediction(
             statement=statement,
             metric=str(metric),
             direction=direction,
             change_percent=round(change, 4),
             horizon=horizon,
             model_id=model_id,
-            evidence=evidence,
+            evidence=_ensure_prediction_evidence(evidence, first, last, change, str(metric), model_id),
             confidence=0.8,
         )
 
@@ -352,6 +352,30 @@ def _monitoring_to_dict(m: Any) -> Optional[Dict[str, Any]]:
 
 def _metric_label(metric: Optional[str]) -> str:
     return metric or "the metric"
+
+
+def _ensure_prediction_evidence(evidence: List[Evidence], first: float, last: float,
+                                 change: float, metric: str, model_id: Optional[str]
+                                 ) -> List[Evidence]:
+    """Ensure a forecast-derived Prediction always carries evidence.
+
+    The forecast's own predicted values are deterministic model output and
+    therefore legitimate evidence -- this is NOT invented. When the originating
+    ForecastResult already carries explicit evidence, it is preserved as-is.
+    """
+    if evidence:
+        return evidence
+    return [Evidence(
+        source="recommendation_engine.forecast",
+        method=f"forecast_prediction ({first} -> {last} over horizon)",
+        data_ref={"metric": metric, "first": first, "last": last,
+                  "change_pct": round(change, 4), "model_id": model_id},
+        result={"direction_projection": first, "final_projection": last,
+                "change_pct": round(change, 4), "metric": metric},
+        confidence=0.8,
+        claim_type=ClaimType.INFERENCE,
+    )]
+
 
 
 class RiskEngine:
@@ -879,11 +903,16 @@ class ActionGenerator:
                         confidence=opp.confidence,
                     ))
 
-        # ---- 5. Constraint validation & impact estimation ----
+                # ---- 5. Constraint validation, impact estimation & evidence requirement ----
         accepted: List[ActionCandidate] = []
         for cand in candidates:
             ok, satisfied = self.validator.validate(cand, context.constraints)
             if not ok:
+                continue
+            # Evidence requirement: a recommendation cannot exist without evidence.
+            # Evidence is never invented -- only candidates carrying at least one
+            # evidence item are permitted to proceed.
+            if not cand.evidence or not cand.evidence_ids:
                 continue
             cand.constraints = satisfied
             cand.expected_impact = self.impact.estimate(cand, scenarios)
