@@ -170,6 +170,24 @@ def test_multiple_candidate_execution_and_comparison(temp_registry, tabular_clas
     assert "selected because it achieved" in res.selection_reason
 
 
+def test_optimization_metric_lower_is_better(temp_registry, tabular_regression_df):
+    """Test that regression models with RMSE/MAE prioritize lowest error score."""
+    orchestrator = UnifiedModelOrchestrator(registry=temp_registry)
+    req = TrainingRequest(
+        target_column="sales",
+        feature_columns=["feature_1", "feature_2"],
+        task_type="regression",
+        candidate_models=["Linear Regression", "Ridge Regression"],
+        optimization_metric="rmse",
+    )
+    res = orchestrator.orchestrate(req, tabular_regression_df, data_modality="tabular", parallel=False)
+
+    assert res.status == "success"
+    assert res.best_model is not None
+    # Winner should have lowest RMSE
+    assert res.ranking[0]["score"] <= res.ranking[1]["score"]
+
+
 # ==============================================================================
 # 8-9. Failure Isolation & Complete Failure Handling
 # ==============================================================================
@@ -229,6 +247,21 @@ def test_parallel_execution_and_sequential_fallback(temp_registry, tabular_regre
     assert len(res_parallel.candidates) == 3
 
 
+def test_dynamic_candidate_selection_when_none_provided(temp_registry, tabular_regression_df):
+    """Test that orchestrator dynamically plans candidate pool when none are explicitly provided."""
+    orchestrator = UnifiedModelOrchestrator(registry=temp_registry)
+    req = TrainingRequest(
+        target_column="sales",
+        feature_columns=["feature_1", "feature_2"],
+        task_type="regression",
+        candidate_models=[],  # Empty -> auto-selected
+        optimization_metric="r2",
+    )
+    res = orchestrator.orchestrate(req, tabular_regression_df, data_modality="tabular")
+    assert res.status == "success"
+    assert len(res.candidates) >= 2
+
+
 # ==============================================================================
 # 13-14. Model Registry & Versioning
 # ==============================================================================
@@ -274,13 +307,36 @@ def test_unified_prediction_routing(temp_registry, tabular_classification_df):
     res = orchestrator.orchestrate(req, tabular_classification_df)
     model_id = res.best_model.model_id
 
-    # New data prediction
+    # New data prediction (DataFrame format)
     new_data = tabular_classification_df[["feature_1", "feature_2", "category"]].iloc[:3].copy()
     pred_res = orchestrator.predict(model_id, new_data)
 
     assert pred_res["model_id"] == model_id
     assert len(pred_res["predictions"]) == 3
     assert pred_res["status"] == "success"
+
+
+def test_prediction_with_dict_and_list_inputs(temp_registry, tabular_classification_df):
+    """Test unified prediction when input data is supplied as dict or list of dicts."""
+    orchestrator = UnifiedModelOrchestrator(registry=temp_registry)
+    req = TrainingRequest(
+        target_column="churn",
+        feature_columns=["feature_1", "feature_2", "category"],
+        task_type="binary_classification",
+        candidate_models=["Logistic Regression"],
+    )
+    res = orchestrator.orchestrate(req, tabular_classification_df)
+    model_id = res.best_model.model_id
+
+    # Single dict
+    single_dict = {"feature_1": 25.0, "feature_2": 150.0, "category": "Tier1"}
+    pred_single = orchestrator.predict(model_id, single_dict)
+    assert len(pred_single["predictions"]) == 1
+
+    # List of dicts
+    list_dicts = [single_dict, {"feature_1": 30.0, "feature_2": 200.0, "category": "Tier2"}]
+    pred_list = orchestrator.predict(model_id, list_dicts)
+    assert len(pred_list["predictions"]) == 2
 
 
 def test_prediction_schema_validation_error(temp_registry, tabular_classification_df):
@@ -323,7 +379,7 @@ def test_dynamic_planner_model_orchestrator_integration():
         required_capabilities=["model_orchestration"],
         original_command="Benchmark and find the best model for revenue",
     )
-    plan = planner.synthesize_plan_from_intent(intent)
+    plan = planner.create_execution_plan(intent)
 
     assert isinstance(plan, ExecutionPlan)
     tool_names = [s.tool_name for s in plan.steps]
