@@ -454,3 +454,136 @@ class Recommendation(BaseModel):
             "human_approval_required": self.human_approval_required,
         }
 
+
+class TradeOff(BaseModel):
+    """A transparent trade-off between competing options for multiple objectives."""
+    option: str
+    expected_impact: Optional[ExpectedImpact] = None
+    risk: str = ""
+    note: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "option": self.option,
+            "expected_impact": self.expected_impact.to_dict() if self.expected_impact else None,
+            "risk": self.risk,
+            "note": self.note,
+        }
+
+
+class AuditRecord(BaseModel):
+    """Recommendation explainability / audit trail."""
+    recommendation_id: str
+    input_evidence_ids: List[str] = Field(default_factory=list)
+    analysis_ids: List[str] = Field(default_factory=list)
+    model_ids: List[str] = Field(default_factory=list)
+    scenario_ids: List[str] = Field(default_factory=list)
+    assumptions: List[str] = Field(default_factory=list)
+    scoring_factors: Dict[str, Any] = Field(default_factory=dict)
+    final_score: float = 0.0
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "recommendation_id": self.recommendation_id,
+            "input_evidence_ids": self.input_evidence_ids,
+            "analysis_ids": self.analysis_ids,
+            "model_ids": self.model_ids,
+            "scenario_ids": self.scenario_ids,
+            "assumptions": self.assumptions,
+            "scoring_factors": self.scoring_factors,
+            "final_score": round(float(self.final_score), 4),
+            "timestamp": self.timestamp.isoformat(),
+        }
+
+
+class DecisionContext(BaseModel):
+    """The single source of truth from which every recommendation is generated.
+
+    Holds facts, insights, predictions, risks, opportunities, constraints,
+    assumptions, uncertainties, and available actions in strict categories.
+    """
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    facts: List[Fact] = Field(default_factory=list)
+    insights: List[Any] = Field(default_factory=list)
+    predictions: List[Prediction] = Field(default_factory=list)
+    risks: List[RiskAssessment] = Field(default_factory=list)
+    opportunities: List[OpportunityAssessment] = Field(default_factory=list)
+    constraints: List[DecisionConstraint] = Field(default_factory=list)
+    assumptions: List[str] = Field(default_factory=list)
+    uncertainties: List[str] = Field(default_factory=list)
+    available_actions: List[ActionCandidate] = Field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "facts": [f.to_dict() for f in self.facts],
+            "insights": [i.to_dict() if hasattr(i, "to_dict") else i for i in self.insights],
+            "predictions": [p.to_dict() for p in self.predictions],
+            "risks": [r.to_dict() for r in self.risks],
+            "opportunities": [o.to_dict() for o in self.opportunities],
+            "constraints": [c.to_dict() for c in self.constraints],
+            "assumptions": self.assumptions,
+            "uncertainties": self.uncertainties,
+            "available_actions": [a.to_dict() for a in self.available_actions],
+        }
+
+
+class RecommendationRequest(BaseModel):
+    """Specification for a recommendation-generation request."""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    user_intent: Optional[str] = None
+    dataset_context: Optional[Any] = None                     # DatasetKnowledge
+    insights: List[Any] = Field(default_factory=list)         # Insight objects / dicts
+    forecasts: List[Any] = Field(default_factory=list)        # ForecastResult objects / dicts
+    scenarios: List[Any] = Field(default_factory=list)        # ScenarioResult objects / dicts
+    model_results: List[Any] = Field(default_factory=list)
+    monitoring_results: List[Any] = Field(default_factory=list)  # MonitoringResult objects / dicts
+    business_constraints: List[Any] = Field(default_factory=list)  # DecisionConstraint / dict
+    optimization_objective: Optional[Any] = None              # str | RecommendationObjective | list
+    risk_tolerance: Optional[str] = None                      # "LOW" | "MEDIUM" | "HIGH"
+    max_recommendations: int = Field(default=5, ge=1, le=20)
+
+
+class RecommendationResult(BaseModel):
+    """Complete output of the recommendation engine."""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    status: str = "success"  # "success" | "needs_objective" | "partial" | "failed"
+    executive_summary: str = ""
+    recommendations: List[Recommendation] = Field(default_factory=list)
+    risks: List[RiskAssessment] = Field(default_factory=list)
+    opportunities: List[OpportunityAssessment] = Field(default_factory=list)
+    expected_impacts: List[ExpectedImpact] = Field(default_factory=list)
+    assumptions: List[str] = Field(default_factory=list)
+    limitations: List[str] = Field(default_factory=list)
+    evidence: List[Evidence] = Field(default_factory=list)
+    confidence: float = Field(default=0.8, ge=0.0, le=1.0)
+    execution_time: float = 0.0
+    objectives: List[RecommendationObjective] = Field(default_factory=list)
+    trade_offs: List[TradeOff] = Field(default_factory=list)
+    audit_trail: List[AuditRecord] = Field(default_factory=list)
+    needs_objective_clarification: bool = False
+    human_approval_required: bool = True
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "status": self.status,
+            "executive_summary": self.executive_summary,
+            "recommendations": [r.to_dict() for r in self.recommendations],
+            "risks": [r.to_dict() for r in self.risks],
+            "opportunities": [o.to_dict() for o in self.opportunities],
+            "expected_impacts": [e.to_dict() for e in self.expected_impacts],
+            "assumptions": self.assumptions,
+            "limitations": self.limitations,
+            "evidence": [e.to_dict() for e in self.evidence],
+            "confidence": round(float(self.confidence), 3),
+            "execution_time": round(float(self.execution_time), 4),
+            "objectives": [o.value for o in self.objectives],
+            "trade_offs": [t.to_dict() for t in self.trade_offs],
+            "audit_trail": [a.to_dict() for a in self.audit_trail],
+            "needs_objective_clarification": self.needs_objective_clarification,
+            "human_approval_required": self.human_approval_required,
+        }
+
