@@ -561,18 +561,32 @@ class DynamicTaskPlanner(BaseAgent):
             )
             step_idx += 1
 
-        else:
-            # Default EDA / General Summary
-            metric_target = user_intent.metrics[0] if user_intent.metrics else (knowledge.get_primary_metric() if knowledge else None)
-            eda_step = f"step_{step_idx}"
+        elif primary_intent_val in ("autonomous_analysis", "exploratory_data_analysis", "eda", "insight_generation", "general_summary") or "autonomous_analysis" in req_caps:
+            auto_step = f"step_{step_idx}"
             steps.append(
                 ExecutionStep(
-                    step_id=eda_step,
-                    tool_name="eda",
-                    agent_name="AnalysisAgent",
-                    purpose="Compute summary statistics and distributions.",
-                    inputs={"request": "summary"},
-                    required_capabilities=["eda"],
+                    step_id=auto_step,
+                    tool_name="autonomous_analyst",
+                    agent_name="AutonomousAnalystAgent",
+                    purpose="Perform autonomous multidimensional data analysis, pattern discovery, and insight ranking.",
+                    inputs={"user_intent": user_intent.model_dump(), "analysis_depth": "standard"},
+                    required_capabilities=["autonomous_analysis"],
+                    dependencies=upstream_dep,
+                )
+            )
+            step_idx += 1
+
+        else:
+            # Default Autonomous Analysis / General Summary
+            auto_step = f"step_{step_idx}"
+            steps.append(
+                ExecutionStep(
+                    step_id=auto_step,
+                    tool_name="autonomous_analyst",
+                    agent_name="AutonomousAnalystAgent",
+                    purpose="Perform autonomous multidimensional data analysis, pattern discovery, and insight ranking.",
+                    inputs={"user_intent": user_intent.model_dump() if user_intent else {}, "analysis_depth": "standard"},
+                    required_capabilities=["autonomous_analysis"],
                     dependencies=upstream_dep,
                 )
             )

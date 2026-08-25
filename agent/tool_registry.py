@@ -94,6 +94,7 @@ class ToolRegistry:
         from agent.agents import (
             AnalysisAgent,
             ANNAgent,
+            AutonomousAnalystAgent,
             CleaningAgent,
             CNNAgent,
             DataValidationAgent,
@@ -288,6 +289,19 @@ class ToolRegistry:
                 output_schema={"overall_severity": "str", "data_drift": "dict", "performance_drift": "dict", "recommendations": "list"},
                 execution_fn=lambda **kw: ModelMonitorAgent().run(kw),
                 validation_requirements=["overall_severity is not empty"],
+            )
+        )
+
+        # 15. Autonomous Data Analysis & Insight Generation (Milestone 5, Task 1)
+        self.register(
+            ToolDefinition(
+                name="autonomous_analyst",
+                description="Performs autonomous exploratory data analysis, pattern discovery, trend tracking, segmentation, correlation, anomaly detection, concentration analysis, and ranked evidence-based insight generation.",
+                capabilities=["autonomous_analysis", "insight_generation", "pattern_discovery", "trend_analysis", "segmentation", "correlation_analysis", "anomaly_detection", "concentration_analysis"],
+                input_schema={"data": "pd.DataFrame", "user_intent": "UserIntent", "analysis_depth": "str"},
+                output_schema={"summary": "str", "insights": "list", "key_metrics": "dict"},
+                execution_fn=lambda data, **kw: AutonomousAnalystAgent().run({"data": data, **kw}),
+                validation_requirements=["insights is not empty or summary is not empty"],
             )
         )
 
