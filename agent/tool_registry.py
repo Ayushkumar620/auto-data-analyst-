@@ -108,6 +108,7 @@ class ToolRegistry:
             ModelSelectionAgent,
             ModelTrainingAgent,
             PredictionAgent,
+            RecommendationAgent,
             ReportAgent,
             VisualizationAgent,
         )
@@ -343,6 +344,24 @@ class ToolRegistry:
                 output_schema={"scenario_value": "float", "percentage_difference": "float"},
                 execution_fn=lambda data, **kw: AutonomousForecasterAgent().run({"data": data, "mode": "scenario", **kw}),
                 validation_requirements=["status != 'FAILED'"],
+            )
+        )
+
+        # 19. Autonomous Decision & Recommendation Engine (Milestone 5, Task 4)
+        self.register(
+            ToolDefinition(
+                name="decision_engine",
+                description="Evidence-backed decision support: ranked recommendations, risk assessment, opportunity detection, action prioritization, expected impact, and audit trail.",
+                capabilities=["decision_support", "recommendation_generation", "risk_assessment",
+                              "opportunity_detection", "action_prioritization", "recommendation_engine"],
+                input_schema={"data": "pd.DataFrame", "insights": "list", "forecasts": "list",
+                              "scenarios": "list", "monitoring_results": "list",
+                              "business_constraints": "list", "objective": "Any",
+                              "user_intent": "str", "max_recommendations": "int"},
+                output_schema={"status": "str", "executive_summary": "str",
+                               "recommendations": "list", "risks": "list", "audit_trail": "list"},
+                execution_fn=lambda **kw: RecommendationAgent().run(kw),
+                validation_requirements=["status != 'failed'"],
             )
         )
 

@@ -21,6 +21,7 @@ from .analysis_discovery_agent import AnalysisDiscoveryAgent
 from .conversational_analyst import ConversationalAnalystAgent
 from .evidence_report_generator import EvidenceReportGenerator
 from .autonomous_forecaster_agent import AutonomousForecasterAgent
+from .recommendation_agent import RecommendationAgent
 from .ann_agent import ANNAgent
 from .cnn_agent import CNNAgent
 from .registry_agent import ModelRegistryAgent
