@@ -95,6 +95,7 @@ class ToolRegistry:
             AnalysisAgent,
             ANNAgent,
             AutonomousAnalystAgent,
+            AutonomousForecasterAgent,
             CleaningAgent,
             CNNAgent,
             ConversationalAnalystAgent,
@@ -316,6 +317,32 @@ class ToolRegistry:
                 output_schema={"response": "str", "resolved_command": "str", "intent": "str"},
                 execution_fn=lambda **kw: ConversationalAnalystAgent().run(kw),
                 validation_requirements=["response is not empty"],
+            )
+        )
+
+        # 17. Autonomous Forecasting Engine (Milestone 5, Task 3)
+        self.register(
+            ToolDefinition(
+                name="forecast_engine",
+                description="Autonomous time-series forecasting, chronological candidate benchmarking (Naive, Moving Average, Exponential Smoothing, ML), and prediction intervals.",
+                capabilities=["forecasting", "time_series_forecasting", "forecast_validation", "uncertainty_estimation"],
+                input_schema={"data": "pd.DataFrame", "target_column": "str", "time_column": "str", "horizon": "int"},
+                output_schema={"predictions": "list", "model_name": "str", "validation_metrics": "dict"},
+                execution_fn=lambda data, **kw: AutonomousForecasterAgent().run({"data": data, "mode": "forecast", **kw}),
+                validation_requirements=["status != 'FAILED'"],
+            )
+        )
+
+        # 18. What-If Scenario Engine (Milestone 5, Task 3)
+        self.register(
+            ToolDefinition(
+                name="scenario_engine",
+                description="Deterministic counterfactual What-If simulations, segment elasticity shocks, and optimistic/expected/pessimistic multi-scenario comparisons.",
+                capabilities=["what_if_analysis", "scenario_comparison", "counterfactual_simulation", "sensitivity_analysis"],
+                input_schema={"data": "pd.DataFrame", "target": "str", "changed_variables": "dict"},
+                output_schema={"scenario_value": "float", "percentage_difference": "float"},
+                execution_fn=lambda data, **kw: AutonomousForecasterAgent().run({"data": data, "mode": "scenario", **kw}),
+                validation_requirements=["status != 'FAILED'"],
             )
         )
 

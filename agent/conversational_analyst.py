@@ -43,6 +43,8 @@ from agent.conversational_schemas import (
     ReportType,
 )
 from agent.evidence_report_generator import EvidenceReportGenerator
+from agent.autonomous_forecaster_agent import AutonomousForecasterAgent
+from agent.forecasting_schemas import ForecastRequest, WhatIfRequest
 from agent.intent import UserIntent
 from agent.schemas import (
     AgentError,
@@ -68,6 +70,7 @@ class ConversationalAnalystAgent(BaseAgent):
         self.max_turns_limit = max_turns_limit
         self.resolver = ContextResolver()
         self.analyst_agent = AutonomousAnalystAgent()
+        self.forecaster_agent = AutonomousForecasterAgent()
         self.report_generator = EvidenceReportGenerator()
         self._sessions: Dict[str, ConversationSession] = {}
 
@@ -199,9 +202,63 @@ class ConversationalAnalystAgent(BaseAgent):
             resp = "No active dataset found in this session. Please provide or upload a dataset to begin analysis."
             return resp, [], {"error": "no_data"}
 
-        # Create structured intent for autonomous analysis
         target_metric = session.dataset_context.primary_metric if session.dataset_context else None
         target_dim = session.dataset_context.primary_dimension if session.dataset_context else None
+
+        # 5a. Handle Forecasting & What-If Queries
+        is_what_if = bool(re.search(r"\b(what if|what happens|scenario|best (and|&) worst|increases? by|decreases? by|drops? by|grows? by)\b", command, re.I))
+        if intent == ConversationalIntent.FORECAST or is_what_if:
+            fc_agent_res = self.forecaster_agent.run({"data": df, "command": command, "target": target_metric})
+            fc_data = fc_agent_res.data
+            
+            # Format Markdown Response
+            if is_what_if:
+                if "scenarios" in fc_data:
+                    scen_lines = [f"🔮 **What-If Multi-Scenario Analysis for '{target_metric}':**\n", f"Baseline Value: **{fc_data.get('baseline_value', 0):,.2f}**\n", "| Scenario | Projected Value | Absolute Delta | Percentage Delta |", "| :--- | :---: | :---: | :---: |"]
+                    for sc in fc_data.get("ranked_scenarios", []):
+                        scen_lines.append(f"| **{sc.get('scenario_name')}** | {sc.get('scenario_value'):,.2f} | {sc.get('absolute_difference'):+,.2f} | **{sc.get('percentage_difference'):+.1f}%** |")
+                    scen_lines.append("\n> [!NOTE]\n> *Projections represent associational model co-movements and do not constitute proven causal interventions.*")
+                    final_response = "\n".join(scen_lines)
+                else:
+                    final_response = (
+                        f"🔮 **What-If Simulation Result:**\n"
+                        f"- Target Metric: **{fc_data.get('target_metric')}**\n"
+                        f"- Baseline Value: **{fc_data.get('baseline_value', 0):,.2f}**\n"
+                        f"- Simulated Value: **{fc_data.get('scenario_value', 0):,.2f}**\n"
+                        f"- Estimated Impact: **{fc_data.get('absolute_difference', 0):+,.2f} ({fc_data.get('percentage_difference', 0):+.1f}%)**\n\n"
+                        f"> [!NOTE]\n"
+                        f"> *Simulation reflects predictive associations and does not guarantee causal intervention outcome.*"
+                    )
+            else:
+                if fc_data.get("status") == "NOT_SUPPORTED":
+                    final_response = f"⚠️ **Forecasting Unavailable:** {fc_data.get('warnings', ['Dataset is not suitable for time-series forecasting.'])[0]}"
+                else:
+                    preds = fc_data.get("predictions", [])
+                    fc_lines = [
+                        f"📈 **Time-Series Forecast for '{fc_data.get('target')}' ({fc_data.get('forecast_horizon')} Periods Ahead):**\n",
+                        f"- **Selected Model:** `{fc_data.get('model_name')}` (Validation MAE: {fc_data.get('validation_metrics', {}).get('MAE', 0):.2f})",
+                        f"- **Prediction Interval:** {int(fc_data.get('confidence_level', 0.8)*100)}% probabilistic bounds\n",
+                        "| Timestamp | Forecast | Lower Bound | Upper Bound |",
+                        "| :--- | :---: | :---: | :---: |",
+                    ]
+                    for p in preds:
+                        fc_lines.append(f"| `{p.get('timestamp')}` | **{p.get('prediction'):,.2f}** | {p.get('lower_bound'):,.2f} | {p.get('upper_bound'):,.2f} |")
+                    fc_lines.append("\n> [!TIP]\n> *Forecasts are probabilistic projections with widening intervals over extended horizons.*")
+                    final_response = "\n".join(fc_lines)
+
+            turn = ConversationTurn(
+                session_id=session_id,
+                user_message=command,
+                resolved_intent=intent,
+                referenced_entities=entities,
+                evidence=fc_agent_res.evidence,
+                assistant_response=final_response,
+                result=fc_data,
+            )
+            session.turns.append(turn)
+            return final_response, fc_agent_res.evidence, {"result": fc_data, "intent": intent.value}
+
+        # Create structured intent for autonomous analysis
 
         user_intent = UserIntent(
             intent_type=intent.value,
