@@ -174,12 +174,12 @@ class ConversationalAnalystAgent(BaseAgent):
         if intent == ConversationalIntent.GENERATE_REPORT:
             # Determine ReportType
             r_type = ReportType.ANALYST_REPORT
-            if re.search(r"\bquick|brief|short\b", command, re.I):
-                r_type = ReportType.QUICK_SUMMARY
-            elif re.search(r"\bexecutive|business|strategic\b", command, re.I):
+            if re.search(r"\b(executive|business|strategic)\b", command, re.I):
                 r_type = ReportType.EXECUTIVE_REPORT
-            elif re.search(r"\btechnical|data science|statistical\b", command, re.I):
+            elif re.search(r"\b(technical|technically|data science|statistical)\b", command, re.I):
                 r_type = ReportType.TECHNICAL_REPORT
+            elif re.search(r"\b(quick|short|\bbrief\b)\b", command, re.I):
+                r_type = ReportType.QUICK_SUMMARY
 
             report = self.report_generator.generate_report(session=session, report_type=r_type)
             turn = ConversationTurn(
