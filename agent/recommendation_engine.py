@@ -282,10 +282,10 @@ class DecisionContextBuilder:
         first, last = vals[0], vals[-1]
         change = ((last - first) / first * 100.0) if first else 0.0
         direction = "up" if change > 2.0 else ("down" if change < -2.0 else "stable")
-        metric = target or "target"
+                metric = target or "target"
         statement = (f"{metric} is forecast to {direction} approximately "
                      f"{abs(change):.1f}% over the forecast horizon.")
-                return Prediction(
+        return Prediction(
             statement=statement,
             metric=str(metric),
             direction=direction,
