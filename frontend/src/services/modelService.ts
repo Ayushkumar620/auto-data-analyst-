@@ -81,3 +81,4 @@ export async function deleteModel(modelId: string): Promise<{ status: string; me
 
   return res.json();
 }
+

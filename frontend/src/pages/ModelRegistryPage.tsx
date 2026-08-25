@@ -203,3 +203,4 @@ export default function ModelRegistryPage() {
     </PageContainer>
   );
 }
+

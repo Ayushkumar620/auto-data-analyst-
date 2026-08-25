@@ -49,3 +49,4 @@ export default function MetricBadge({ name, value, label }: MetricBadgeProps) {
     </div>
   );
 }
+
