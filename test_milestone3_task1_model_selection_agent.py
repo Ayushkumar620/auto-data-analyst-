@@ -349,3 +349,4 @@ def test_llm_unavailable_deterministic_fallback(binary_classification_df):
     assert result.task_type == MLTaskType.BINARY_CLASSIFICATION.value
     assert result.selected_model in ("Random Forest Classifier", "Gradient Boosting Classifier", "Logistic Regression")
     assert len(result.candidates) >= 3
+

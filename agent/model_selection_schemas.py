@@ -135,3 +135,4 @@ class ModelSelectionResult(BaseModel):
             "target_column": self.target_column,
             "feature_columns": self.feature_columns,
         }
+
