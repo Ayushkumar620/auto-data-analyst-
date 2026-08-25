@@ -253,3 +253,4 @@ class MonitoringResult(BaseModel):
             "confidence": self.confidence,
             "timestamp": self.timestamp.isoformat(),
         }
+

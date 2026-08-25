@@ -124,3 +124,4 @@ class ModelMonitorAgent(BaseAgent):
                 "drift_percentage": result.data_drift.drift_percentage if result.data_drift else 0.0,
             },
         )
+
