@@ -1,24 +1,33 @@
 """
-Base Agent - Defines the base class for all specialized agents.
+Base Agent - Standardized execution contract for all multi-agent components.
+
+Guarantees:
+1. Every agent returns a standardized Pydantic AgentResult
+2. Uniform lifecycle management (_start, _finish, _partial, _error)
+3. Safe execution isolation that does not expose raw stack traces to users
+4. Automatic execution time measurement and diagnostic metadata
 """
+from __future__ import annotations
+
 import time
+import traceback
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from .schemas import (
-    AgentResult,
     AgentError,
+    AgentResult,
     AgentStatus,
     ClaimType,
-    Evidence,
     ErrorCategory,
+    Evidence,
     ValidationResult,
 )
 
 
 class BaseAgent:
-    """Base class for all agents in the multi-agent system."""
+    """Standardized base class for all specialized agents in the system."""
 
     name = "Base Agent"
     description = "Base agent class"
@@ -32,76 +41,173 @@ class BaseAgent:
         self.finished_at: Optional[datetime] = None
         self.messages: List[str] = []
 
-    def _start(self):
-        """Mark the agent as started."""
+    def _start(self) -> None:
+        """Mark the agent as started and record timestamp."""
         self.status = AgentStatus.WORKING
         self.started_at = datetime.now()
         self.messages.append(f"{self.name} started working.")
 
+    def _calculate_duration(self) -> float:
+        """Calculate elapsed execution time in milliseconds."""
+        if self.started_at:
+            end_t = self.finished_at or datetime.now()
+            return round((end_t - self.started_at).total_seconds() * 1000, 2)
+        return 0.0
+
     def _finish(
         self,
         result: Dict[str, Any],
-        evidence: List[Evidence] = None,
+        message: str = "",
+        evidence: Optional[List[Evidence]] = None,
         confidence: float = 1.0,
-        warnings: List[str] = None,
-        metadata: Dict[str, Any] = None,
+        warnings: Optional[List[str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        model_used: Optional[str] = None,
     ) -> AgentResult:
-        """Mark the agent as finished and return standardized AgentResult."""
+        """Mark the agent as successfully finished and return standardized AgentResult."""
         self.finished_at = datetime.now()
         self.status = AgentStatus.COMPLETED
-        duration = round((self.finished_at - self.started_at).total_seconds() * 1000, 2) if self.started_at else 0
-        self.messages.append(f"{self.name} completed in {duration}ms.")
+        duration = self._calculate_duration()
+        msg = message or f"{self.name} completed successfully in {duration}ms."
+        self.messages.append(msg)
 
         return AgentResult.success(
             agent=self.name,
+            agent_name=self.name,
             role=self.role,
             agent_id=self.agent_id,
+            task_id=self.agent_id,
             started_at=self.started_at,
+            timestamp=self.started_at or datetime.now(),
             output=result,
+            data=result,
+            message=msg,
             evidence=evidence or [],
             confidence=confidence,
             duration_ms=duration,
-            warnings=warnings or [],
+            execution_time=duration,
+            warnings=(warnings or []) + [m for m in self.messages if "warning" in m.lower()],
             metadata=metadata or {},
+            model_used=model_used,
+        )
+
+    def _partial(
+        self,
+        result: Dict[str, Any],
+        message: str = "",
+        evidence: Optional[List[Evidence]] = None,
+        confidence: float = 0.5,
+        errors: Optional[List[AgentError]] = None,
+        warnings: Optional[List[str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        model_used: Optional[str] = None,
+    ) -> AgentResult:
+        """Mark the agent as partially finished and return standardized AgentResult."""
+        self.finished_at = datetime.now()
+        self.status = AgentStatus.PARTIAL
+        duration = self._calculate_duration()
+        msg = message or f"{self.name} partially completed in {duration}ms."
+        self.messages.append(msg)
+
+        return AgentResult.partial(
+            agent=self.name,
+            agent_name=self.name,
+            role=self.role,
+            agent_id=self.agent_id,
+            task_id=self.agent_id,
+            started_at=self.started_at,
+            timestamp=self.started_at or datetime.now(),
+            output=result,
+            data=result,
+            message=msg,
+            evidence=evidence or [],
+            confidence=confidence,
+            duration_ms=duration,
+            execution_time=duration,
+            errors=errors or [],
+            warnings=(warnings or []) + self.messages,
+            metadata=metadata or {},
+            model_used=model_used,
         )
 
     def _error(
         self,
         message: str,
+        code: str = "COMPUTATION_ERROR",
         category: ErrorCategory = ErrorCategory.UNKNOWN,
-        details: Dict[str, Any] = None,
+        details: Optional[Dict[str, Any]] = None,
         recoverable: bool = True,
-        suggested_fix: str = None,
-        fallback_agent: str = None,
-        output: Dict[str, Any] = None,
+        suggested_fix: Optional[str] = None,
+        fallback_agent: Optional[str] = None,
+        output: Optional[Dict[str, Any]] = None,
+        model_used: Optional[str] = None,
     ) -> AgentResult:
-        """Mark the agent as failed and return standardized AgentResult."""
+        """Mark the agent as failed with sanitized error and return standardized AgentResult."""
         self.finished_at = datetime.now()
         self.status = AgentStatus.ERROR
+        duration = self._calculate_duration()
+
+        # Sanitize message: never expose raw multi-line Python tracebacks in user message
+        clean_message = message.split("\n")[-1].strip() if "\n" in message else message.strip()
+        if not clean_message:
+            clean_message = "An internal computational error occurred during agent execution."
 
         error = AgentError(
+            code=code,
             category=category,
-            message=message,
+            message=clean_message,
             details=details or {},
             recoverable=recoverable,
+            agent_name=self.name,
             suggested_fix=suggested_fix,
             fallback_agent=fallback_agent,
         )
 
         return AgentResult.failure(
             agent=self.name,
+            agent_name=self.name,
             role=self.role,
             agent_id=self.agent_id,
+            task_id=self.agent_id,
             started_at=self.started_at or datetime.now(),
+            timestamp=self.started_at or datetime.now(),
             errors=[error],
-            duration_ms=round((self.finished_at - self.started_at).total_seconds() * 1000, 2) if self.started_at else 0,
-            output=output or {"error": message},
-            warnings=self.messages + [f"{self.name} failed: {message}"],
+            duration_ms=duration,
+            execution_time=duration,
+            output=output or {"error": clean_message},
+            data=output or {"error": clean_message},
+            message=f"{self.name} failed: {clean_message}",
+            warnings=self.messages + [f"{self.name} error encountered."],
+            model_used=model_used,
         )
 
     def run(self, task) -> AgentResult:
         """Execute the task. Subclasses must override and return AgentResult."""
         raise NotImplementedError("Subclasses must implement run() and return AgentResult")
+
+    def safe_run(self, task: Any) -> AgentResult:
+        """
+        Safely execute the agent's run() method, catching unhandled exceptions
+        without exposing raw internal tracebacks to the user.
+        """
+        self._start()
+        try:
+            res = self.run(task)
+            if isinstance(res, AgentResult):
+                return res
+            elif isinstance(res, dict):
+                return self._finish(res)
+            else:
+                return self._finish({"result": res})
+        except Exception as exc:
+            tb = traceback.format_exc()
+            return self._error(
+                message=f"Agent execution encountered an error: {str(exc)}",
+                code="UNHANDLED_EXCEPTION",
+                category=ErrorCategory.COMPUTATION,
+                details={"exception_type": type(exc).__name__, "traceback": tb},
+                recoverable=False,
+            )
 
     def execute_with_retry(
         self,
@@ -119,15 +225,18 @@ class BaseAgent:
                 result.retry_count = attempts
                 if result.is_success:
                     return result
-                # If error is not recoverable, do not retry
+                # If error is not recoverable, stop retrying
                 if result.is_error:
                     has_recoverable = any(e.recoverable for e in result.errors)
                     if not has_recoverable or attempts >= max_retries:
                         return result
             except Exception as exc:
+                tb = traceback.format_exc()
                 err_result = self._error(
-                    str(exc),
+                    message=f"Execution error on attempt {attempts + 1}: {str(exc)}",
+                    code="RETRY_EXCEPTION",
                     category=ErrorCategory.COMPUTATION,
+                    details={"exception_type": type(exc).__name__, "traceback": tb},
                     recoverable=True,
                 )
                 err_result.retry_count = attempts
@@ -150,28 +259,35 @@ class BaseAgent:
         self,
         method: str,
         data_ref: Dict[str, Any],
-        confidence: float = 0.9,
-        claim_type: "ClaimType" = ClaimType.OBSERVATION,
+        confidence: float = 1.0,
+        claim_type: ClaimType = ClaimType.OBSERVATION,
         raw_value: Any = None,
-        metadata: Dict[str, Any] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        dataset_name: Optional[str] = None,
+        columns: Optional[List[str]] = None,
+        operation: Optional[str] = None,
+        calculation: Optional[str] = None,
     ) -> Evidence:
-        """Build an Evidence object with this agent as the source.
-
-        Every claim an agent makes should be traceable back to the exact
-        computation (method), the data it was derived from (data_ref), and a
-        numeric confidence.
-        """
+        """Create a standardized Evidence instance attributed to this agent."""
+        cols = columns or list(data_ref.get("columns", [])) if isinstance(data_ref, dict) else []
+        op = operation or method
         return Evidence(
             source=self.name,
+            source_reference=self.name,
             method=method,
+            operation=op,
+            calculation=calculation,
+            dataset_name=dataset_name,
+            dataset_id=dataset_name,
+            columns=cols,
             data_ref=data_ref,
             confidence=confidence,
             claim_type=claim_type,
             raw_value=raw_value,
-            metadata={"agent_id": self.agent_id, **(metadata or {})},
+            result=raw_value,
+            metadata=metadata or {},
         )
 
-    # Backward compatibility: allow dict-like access for existing code
     def to_legacy_dict(self, result: AgentResult) -> Dict[str, Any]:
         """Convert AgentResult to legacy dict format for backward compatibility."""
         return result.to_dict()
