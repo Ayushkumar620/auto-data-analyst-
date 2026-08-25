@@ -1028,7 +1028,7 @@ class RecommendationScorer:
 class RecommendationEngine:
     """Orchestrates the full evidence-backed recommendation pipeline."""
 
-        def __init__(self) -> None:
+    def __init__(self) -> None:
         self.builder = DecisionContextBuilder()
         self.risk_engine = RiskEngine()
         self.opportunity_engine = OpportunityEngine()
