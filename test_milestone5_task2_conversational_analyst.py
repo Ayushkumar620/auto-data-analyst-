@@ -314,3 +314,51 @@ def test_conversational_agent_run_conformance(sales_df):
     assert "response" in result.data
     assert len(result.evidence) > 0
     assert "session_id" in result.metadata
+
+
+def test_executive_report_generation(sales_df):
+    """22. Test executive report formatting."""
+    agent = ConversationalAnalystAgent()
+    sess_id = "sess_exec_rep"
+
+    agent.chat("Analyze sales.", session_id=sess_id, data=sales_df)
+    resp, ev, meta = agent.chat("Give me an executive strategic briefing.", session_id=sess_id)
+
+    assert "EXECUTIVE_REPORT" in resp
+    assert "Strategic Business Drivers" in resp
+
+
+def test_predict_it_pronoun_resolution(sales_df):
+    """23. Test 'Predict it' pronoun resolution."""
+    agent = ConversationalAnalystAgent()
+    sess_id = "sess_predict_it"
+
+    agent.chat("Analyze revenue.", session_id=sess_id, data=sales_df)
+    resp, ev, meta = agent.chat("Predict it for next month.", session_id=sess_id)
+
+    assert "revenue" in meta["resolved_command"].lower()
+    assert meta["intent"] in ("predict", "forecast")
+
+
+def test_memory_turn_trimming(sales_df):
+    """24. Test that turn count is capped at max_turns_limit."""
+    agent = ConversationalAnalystAgent(max_turns_limit=5)
+    sess_id = "sess_trim_test"
+
+    for i in range(8):
+        agent.chat(f"Analyze step {i}", session_id=sess_id, data=sales_df)
+
+    sess = agent.get_or_create_session(sess_id)
+    assert len(sess.turns) == 5
+
+
+def test_independent_session_insights(sales_df):
+    """25. Test that insights collected in Session 1 are not present in Session 2."""
+    agent = ConversationalAnalystAgent()
+    
+    agent.chat("Analyze sales.", session_id="sess_1", data=sales_df)
+    sess1 = agent.get_or_create_session("sess_1")
+    sess2 = agent.get_or_create_session("sess_2")
+
+    assert len(sess1.previous_insights) > 0
+    assert len(sess2.previous_insights) == 0

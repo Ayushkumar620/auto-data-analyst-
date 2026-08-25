@@ -26,7 +26,7 @@ class ContextResolver:
     """
 
     INTENT_KEYWORDS = [
-        (re.compile(r"\b(report|generate report|briefing|executive summary|presentation)\b", re.I), ConversationalIntent.GENERATE_REPORT),
+        (re.compile(r"\b(report|generate report|briefing|executive summary|presentation|technical report|technically)\b", re.I), ConversationalIntent.GENERATE_REPORT),
         (re.compile(r"\b(why|driver|cause|reason|investigate|root cause|what caused)\b", re.I), ConversationalIntent.INVESTIGATE),
         (re.compile(r"\b(compare|versus|vs|difference between|compared to)\b", re.I), ConversationalIntent.COMPARE),
         (re.compile(r"\b(forecast|future|next month|next quarter|next year)\b", re.I), ConversationalIntent.FORECAST),
@@ -69,13 +69,13 @@ class ContextResolver:
         # 2. Check for Ambiguity across Competing Metrics
         # e.g., if previous insights featured multiple metrics and user says "Why did it increase?"
         pronoun_match = re.search(r"\b(it|that|this)\b", cmd_clean, re.I)
-        if pronoun_match and not session.active_metric:
+        active_m = session.active_metric or (session.dataset_context.primary_metric if session.dataset_context else None)
+        if pronoun_match and not active_m:
             # Check if previous insights discuss multiple distinct metrics
             mentioned_metrics = set()
             for ins in session.previous_insights:
                 for col in ins.affected_columns:
-                    if session.dataset_context and col in session.dataset_context.numeric_columns:
-                        mentioned_metrics.add(col)
+                    mentioned_metrics.add(col)
 
             if len(mentioned_metrics) > 1:
                 metrics_list = sorted(list(mentioned_metrics))

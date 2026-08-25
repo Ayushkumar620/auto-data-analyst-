@@ -113,6 +113,9 @@ class ConversationSession(BaseModel):
     active_dataset: Optional[Any] = None  # In-memory DataFrame or reference
     active_analysis: Optional[str] = None
     active_model: Optional[str] = None
+    active_metric: Optional[str] = None
+    active_dimension: Optional[str] = None
+    active_target: Optional[str] = None
     previous_results: List[Dict[str, Any]] = Field(default_factory=list)
     previous_insights: List[Insight] = Field(default_factory=list)
     previous_questions: List[str] = Field(default_factory=list)
