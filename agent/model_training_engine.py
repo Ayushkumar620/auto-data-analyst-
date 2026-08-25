@@ -452,6 +452,15 @@ class ModelTrainingEngine:
                 return SVC(probability=True, random_state=random_state), "Support Vector Classifier", "kernel"
             elif "knn" in name_lower or "neighbor" in name_lower:
                 return KNeighborsClassifier(n_neighbors=5), "K-Nearest Neighbors", "neighbors"
+            elif "cnn" in name_lower or "convolutional" in name_lower:
+                filters = hyperparams.get("filters", [16, 32])
+                conv_blocks = [CNNLayerConfig(filters=f) for f in filters] if isinstance(filters, list) else None
+                cnn_hp = CNNHyperparameters(
+                    conv_blocks=conv_blocks or [CNNLayerConfig(filters=16), CNNLayerConfig(filters=32)],
+                    epochs=int(hyperparams.get("epochs", 80)),
+                    random_state=random_state,
+                )
+                return CNNTrainer(hyperparams=cnn_hp), "Convolutional Neural Network (CNN)", "cnn"
             elif "ann" in name_lower or "neural" in name_lower or "mlp" in name_lower:
                 hidden_layers = tuple(hyperparams.get("hidden_layer_sizes", (64, 32)))
                 activation = hyperparams.get("activation", "relu")
@@ -468,15 +477,6 @@ class ModelTrainingEngine:
                     early_stopping=early_stop,
                     random_state=random_state,
                 ), "Artificial Neural Network (ANN/MLP)", "ann"
-            elif "cnn" in name_lower or "convolutional" in name_lower:
-                filters = hyperparams.get("filters", [16, 32])
-                conv_blocks = [CNNLayerConfig(filters=f) for f in filters] if isinstance(filters, list) else None
-                cnn_hp = CNNHyperparameters(
-                    conv_blocks=conv_blocks or [CNNLayerConfig(filters=16), CNNLayerConfig(filters=32)],
-                    epochs=int(hyperparams.get("epochs", 80)),
-                    random_state=random_state,
-                )
-                return CNNTrainer(hyperparams=cnn_hp), "Convolutional Neural Network (CNN)", "cnn"
             else:
                 return LogisticRegression(max_iter=500, random_state=random_state), name or "Logistic Regression", family
 
@@ -500,6 +500,15 @@ class ModelTrainingEngine:
                 return SVR(), "Support Vector Regressor", "kernel"
             elif "knn" in name_lower or "neighbor" in name_lower:
                 return KNeighborsRegressor(n_neighbors=5), "K-Nearest Neighbors Regressor", "neighbors"
+            elif "cnn" in name_lower or "convolutional" in name_lower:
+                filters = hyperparams.get("filters", [16, 32])
+                conv_blocks = [CNNLayerConfig(filters=f) for f in filters] if isinstance(filters, list) else None
+                cnn_hp = CNNHyperparameters(
+                    conv_blocks=conv_blocks or [CNNLayerConfig(filters=16), CNNLayerConfig(filters=32)],
+                    epochs=int(hyperparams.get("epochs", 80)),
+                    random_state=random_state,
+                )
+                return CNNTrainer(hyperparams=cnn_hp), "Convolutional Neural Network (CNN)", "cnn"
             elif "ann" in name_lower or "neural" in name_lower or "mlp" in name_lower:
                 hidden_layers = tuple(hyperparams.get("hidden_layer_sizes", (64, 32)))
                 activation = hyperparams.get("activation", "relu")
@@ -516,15 +525,6 @@ class ModelTrainingEngine:
                     early_stopping=early_stop,
                     random_state=random_state,
                 ), "Artificial Neural Network (ANN/MLP)", "ann"
-            elif "cnn" in name_lower or "convolutional" in name_lower:
-                filters = hyperparams.get("filters", [16, 32])
-                conv_blocks = [CNNLayerConfig(filters=f) for f in filters] if isinstance(filters, list) else None
-                cnn_hp = CNNHyperparameters(
-                    conv_blocks=conv_blocks or [CNNLayerConfig(filters=16), CNNLayerConfig(filters=32)],
-                    epochs=int(hyperparams.get("epochs", 80)),
-                    random_state=random_state,
-                )
-                return CNNTrainer(hyperparams=cnn_hp), "Convolutional Neural Network (CNN)", "cnn"
             else:
                 return LinearRegression(), name or "Linear Regression", family
 
