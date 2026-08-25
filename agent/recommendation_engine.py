@@ -996,3 +996,187 @@ class RecommendationScorer:
             return PriorityLevel.MEDIUM
         return PriorityLevel.LOW
 
+class RecommendationEngine:
+    """Orchestrates the full evidence-backed recommendation pipeline."""
+
+    def __init__(self) -> None:
+        self.builder = DecisionContextBuilder()
+        self.risk_engine = RiskEngine()
+        self.opportunity_engine = OpportunityEngine()
+        self.action_generator = ActionGenerator()
+        self.scorer = RecommendationScorer()
+
+    def generate(self, request: RecommendationRequest) -> RecommendationResult:
+        start = time.perf_counter()
+        objectives = RecommendationObjective.normalize(request.optimization_objective)
+        if not objectives and request.user_intent:
+            objectives = RecommendationObjective.parse_objectives(request.user_intent)
+
+        context = self.builder.build(request)
+
+        monitoring = [m for m in (_monitoring_to_dict(x) for x in request.monitoring_results) if m]
+        scenarios = [s for s in (DecisionContextBuilder._scenario_to_dict(x) for x in request.scenarios) if s]
+
+        risks = self.risk_engine.assess(context, monitoring=monitoring)
+        opportunities = self.opportunity_engine.detect(context, scenarios)
+        context.risks = risks
+        context.opportunities = opportunities
+
+        candidates = self.action_generator.generate(
+            context, objectives, scenarios, monitoring, risk_tolerance=request.risk_tolerance)
+        context.available_actions = candidates
+
+        recommendations: List[Recommendation] = []
+        for cand in candidates:
+            factors, score = self.scorer.score(cand, context, objectives, request.risk_tolerance)
+            recommendations.append(self._to_recommendation(cand, factors, score))
+
+        recommendations.sort(key=lambda r: r.score, reverse=True)
+        limited = recommendations[: request.max_recommendations]
+
+        trade_offs = self._build_trade_offs(limited, objectives)
+        audit = self._build_audit(limited)
+
+        all_evidence: List[Evidence] = []
+        for r in limited:
+            all_evidence.extend(r.evidence)
+        for r in risks:
+            all_evidence.extend(r.evidence)
+        for o in opportunities:
+            all_evidence.extend(o.evidence)
+
+        expected_impacts = [r.expected_impact for r in limited
+                            if r.expected_impact and r.expected_impact.availability == ImpactAvailability.AVAILABLE]
+
+        needs_objective = not bool(objectives)
+        confidence = self._overall_confidence(limited, risks)
+        summary = self._executive_summary(limited, objectives, risks, needs_objective)
+        elapsed = round(time.perf_counter() - start, 4)
+
+        return RecommendationResult(
+            status="needs_objective" if needs_objective else "success",
+            executive_summary=summary,
+            recommendations=limited,
+            risks=risks,
+            opportunities=opportunities,
+            expected_impacts=expected_impacts,
+            assumptions=context.assumptions,
+            limitations=context.uncertainties,
+            evidence=all_evidence,
+            confidence=confidence,
+            execution_time=elapsed,
+            objectives=objectives,
+            trade_offs=trade_offs,
+            audit_trail=audit,
+            needs_objective_clarification=needs_objective,
+        )
+
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _to_recommendation(cand: ActionCandidate, factors: ScoringFactors,
+                           score: float) -> Recommendation:
+        why_parts = [cand.rationale] if cand.rationale else []
+        if cand.expected_impact and cand.expected_impact.availability == ImpactAvailability.AVAILABLE:
+            ei = cand.expected_impact
+            if ei.estimated_impact_pct is not None:
+                why_parts.append(f"Expected impact from scenario '{ei.scenario_name}': "
+                                 f"{ei.estimated_impact:+,.2f} ({ei.estimated_impact_pct:+.1f}%).")
+            else:
+                why_parts.append(f"Expected impact: {ei.estimated_impact:+,.2f}.")
+        why = " ".join(why_parts) if why_parts else cand.action
+        rec_confidence = max(0.1, min(1.0, float(cand.confidence) * 0.95))
+        return Recommendation(
+            recommendation_id=f"REC-{uuid.uuid4().hex[:8].upper()}",
+            action=cand.action,
+            why=why,
+            action_type=cand.action_type,
+            objective=cand.objective,
+            affected_metric=cand.affected_metric,
+            affected_segment=cand.affected_segment,
+            evidence=cand.evidence,
+            evidence_ids=cand.evidence_ids,
+            expected_impact=cand.expected_impact,
+            risks=cand.risks,
+            assumptions=cand.assumptions,
+            limitations=[],
+            confidence=round(rec_confidence, 3),
+            priority=RecommendationScorer.priority_for(score),
+            score=round(score, 4),
+            scoring=factors,
+            human_approval_required=True,
+        )
+
+    @staticmethod
+    def _overall_confidence(recommendations: List[Recommendation],
+                            risks: List[RiskAssessment]) -> float:
+        if not recommendations:
+            base = 0.5
+        else:
+            base = sum(r.confidence for r in recommendations) / len(recommendations)
+        for r in risks:
+            if r.severity in (RiskSeverity.HIGH, RiskSeverity.CRITICAL):
+                base -= 0.05
+        return round(max(0.0, min(1.0, base)), 3)
+
+    def _executive_summary(self, recommendations: List[Recommendation],
+                           objectives: List[RecommendationObjective],
+                           risks: List[RiskAssessment],
+                           needs_objective: bool) -> str:
+        if needs_objective:
+            top = "; ".join(f"'{r.action}' ({r.priority.value})" for r in recommendations[:3])
+            return ("Evidence-backed observations generated. No business objective was specified. "
+                    "What business objective should I optimize the recommendations for "
+                    "(e.g. revenue, cost, retention, risk, conversion, profit, efficiency)? "
+                    + (f"Top observations: {top}." if top else ""))
+        obj_label = ", ".join(RecommendationObjective.label(o) for o in objectives) or "unspecified"
+        summary = f"Optimizing for: {obj_label}. "
+        if recommendations:
+            top = recommendations[0]
+            summary += (f"Top recommendation: {top.action}. Supported by "
+                        f"{len(top.evidence)} evidence item(s) with {top.confidence:.0%} "
+                        f"confidence ({top.priority.value} priority).")
+        else:
+            summary += "No evidence-backed recommendation could be generated from the current context."
+        risk_high = [r for r in risks if r.severity in (RiskSeverity.HIGH, RiskSeverity.CRITICAL)]
+        if risk_high:
+            summary += " Key risks to monitor: " + "; ".join(r.risk for r in risk_high[:2]) + "."
+        return summary
+
+    def _build_trade_offs(self, recommendations: List[Recommendation],
+                          objectives: List[RecommendationObjective]) -> List[TradeOff]:
+        if len(objectives) <= 1 or len(recommendations) < 2:
+            return []
+        a, b = recommendations[0], recommendations[1]
+        a_imp = (a.expected_impact.estimated_impact if a.expected_impact else None)
+        b_imp = (b.expected_impact.estimated_impact if b.expected_impact else None)
+        a_risk = "yes" if (a.risks or a.scoring.risk_penalty >= 0.25) else "low"
+        b_risk = "yes" if (b.risks or b.scoring.risk_penalty >= 0.25) else "low"
+        note = (f"Option A ('{a.action}') expected impact "
+                f"{a_imp if a_imp is not None else 'unavailable'} with risk {a_risk}; "
+                f"Option B ('{b.action}') expected impact "
+                f"{b_imp if b_imp is not None else 'unavailable'} with risk {b_risk}. "
+                f"Choosing the higher-impact option may increase risk. Both require human approval.")
+        return [
+            TradeOff(option="A", expected_impact=a.expected_impact, risk=a_risk, note=note),
+            TradeOff(option="B", expected_impact=b.expected_impact, risk=b_risk,
+                     note=f"Option B: {b.action}."),
+        ]
+
+    def _build_audit(self, recommendations: List[Recommendation]) -> List[AuditRecord]:
+        records = []
+        for r in recommendations:
+            scenario_ids = []
+            if r.expected_impact and r.expected_impact.scenario_id:
+                scenario_ids.append(r.expected_impact.scenario_id)
+            records.append(AuditRecord(
+                recommendation_id=r.recommendation_id,
+                input_evidence_ids=list(r.evidence_ids),
+                analysis_ids=[],
+                model_ids=[],
+                scenario_ids=scenario_ids,
+                assumptions=list(r.assumptions),
+                scoring_factors=r.scoring.to_dict(),
+                final_score=r.score,
+            ))
+        return records
+
