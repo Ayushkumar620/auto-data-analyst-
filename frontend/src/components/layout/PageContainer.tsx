@@ -3,11 +3,11 @@ import React from 'react';
 // ──────────────────────────────────────────────────────────────────────────
 // PageContainer
 // ──────────────────────────────────────────────────────────────────────────
-type PageContainerProps = { children: React.ReactNode; className?: string };
+type PageContainerProps = { children: React.ReactNode; className?: string; style?: React.CSSProperties };
 
-export function PageContainer({ children, className }: PageContainerProps) {
+export function PageContainer({ children, className, style }: PageContainerProps) {
   return (
-    <div className={`page-container${className ? ` ${className}` : ''}`}>
+    <div className={`page-container${className ? ` ${className}` : ''}`} style={style}>
       {children}
     </div>
   );

@@ -129,6 +129,14 @@ export type ModelMetadata = {
   feature_importances?: Record<string, number>;
 };
 
+export type InferenceResponse = {
+  model_id: string;
+  predictions: Array<number | string>;
+  probabilities?: Array<number[] | Record<string, number>>;
+  duration_ms?: number;
+  batch_size?: number;
+};
+
 // ==========================================
 // Phase 4: Conversational AI Analyst Types
 // ==========================================
