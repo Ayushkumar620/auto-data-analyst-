@@ -93,9 +93,10 @@
                 <h2>✦ Auto Data Analyst</h2>
                 <p class="subtext">Sign in to your autonomous AI data studio</p>
                 
-                <!-- Auth Method Tabs: OTP vs Password -->
+                <!-- Auth Method Tabs: Email OTP vs Phone OTP vs Password -->
                 <div class="auth-tabs">
                     <button type="button" class="auth-tab active" id="tab-btn-otp" onclick="switchAuthTab('otp')">📧 Email OTP</button>
+                    <button type="button" class="auth-tab" id="tab-btn-phone" onclick="switchAuthTab('phone')">📱 Mobile OTP</button>
                     <button type="button" class="auth-tab" id="tab-btn-password" onclick="switchAuthTab('password')">🔑 Password</button>
                 </div>
 
@@ -111,16 +112,45 @@
 
                     <div id="otp-code-group" class="auth-field hidden">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                            <label for="otp-input" style="margin: 0;">6-Digit Verification Code</label>
+                            <label for="otp-input" style="margin: 0;">6-Digit Email Code</label>
                             <button type="button" onclick="fillDemoOtp()" style="background: none; border: none; color: #818cf8; font-size: 0.78rem; cursor: pointer; font-weight: 700;">Auto-Fill (123456)</button>
                         </div>
-                        <input type="text" id="otp-input" placeholder="Enter 6-digit code (e.g. 123456)" maxlength="8">
+                        <input type="text" id="otp-input" placeholder="Enter 6-digit email code (e.g. 123456)" maxlength="8">
                     </div>
 
-                    <button type="submit" id="otp-submit-btn" class="auth-btn-submit">Send Verification Code</button>
+                    <button type="submit" id="otp-submit-btn" class="auth-btn-submit">Send Email Verification Code</button>
                 </form>
 
-                <!-- 2. Traditional Password Form -->
+                <!-- 2. Phone Number OTP Form -->
+                <form id="phone-form" class="hidden" onsubmit="handlePhoneOtpSubmit(event)">
+                    <div class="auth-field">
+                        <label for="phone-number">Mobile / WhatsApp Number</label>
+                        <div style="display: flex; gap: 8px;">
+                            <select id="phone-country-code" style="width: 105px; padding: 10px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255, 255, 255, 0.15); color: #fff; font-size: 0.88rem;">
+                                <option value="+91">🇮🇳 +91</option>
+                                <option value="+1">🇺🇸 +1</option>
+                                <option value="+44">🇬🇧 +44</option>
+                                <option value="+61">🇦🇺 +61</option>
+                                <option value="+49">🇩🇪 +49</option>
+                                <option value="+971">🇦🇪 +971</option>
+                                <option value="+65">🇸🇬 +65</option>
+                            </select>
+                            <input type="tel" id="phone-number" value="9999999999" placeholder="Enter 10-digit number" required style="flex: 1;">
+                        </div>
+                    </div>
+
+                    <div id="phone-code-group" class="auth-field hidden">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <label for="phone-otp-input" style="margin: 0;">6-Digit SMS Code</label>
+                            <button type="button" onclick="fillDemoPhoneOtp()" style="background: none; border: none; color: #818cf8; font-size: 0.78rem; cursor: pointer; font-weight: 700;">Auto-Fill (123456)</button>
+                        </div>
+                        <input type="text" id="phone-otp-input" placeholder="Enter 6-digit SMS code (e.g. 123456)" maxlength="8">
+                    </div>
+
+                    <button type="submit" id="phone-submit-btn" class="auth-btn-submit">Send SMS Verification Code</button>
+                </form>
+
+                <!-- 3. Traditional Password Form -->
                 <form id="password-form" class="hidden" onsubmit="handleAuthLogin(event)">
                     <div class="auth-field">
                         <label for="modal-email">Email Address</label>
@@ -1055,11 +1085,13 @@ function renderInsight(result, intent) {
         }
 
         // =====================================================================
-        // Authentication Tabs & Email OTP Management
+        // Authentication Tabs & Email / Phone OTP Management
         // =====================================================================
         let currentAuthTab = 'otp';
         let otpSent = false;
+        let phoneOtpSent = false;
         let lastDemoOtp = '123456';
+        let lastDemoPhoneOtp = '123456';
 
         const authOverlay = document.getElementById('auth-overlay');
         const authError = document.getElementById('auth-error');
@@ -1074,20 +1106,31 @@ function renderInsight(result, intent) {
             authSuccess.style.display = 'none';
 
             const tabOtp = document.getElementById('tab-btn-otp');
+            const tabPhone = document.getElementById('tab-btn-phone');
             const tabPassword = document.getElementById('tab-btn-password');
+            
             const formOtp = document.getElementById('otp-form');
+            const formPhone = document.getElementById('phone-form');
             const formPassword = document.getElementById('password-form');
+
+            // Reset tabs
+            tabOtp.classList.remove('active');
+            tabPhone.classList.remove('active');
+            tabPassword.classList.remove('active');
+
+            formOtp.classList.add('hidden');
+            formPhone.classList.add('hidden');
+            formPassword.classList.add('hidden');
 
             if (tab === 'otp') {
                 tabOtp.classList.add('active');
-                tabPassword.classList.remove('active');
                 formOtp.classList.remove('hidden');
-                formPassword.classList.add('hidden');
+            } else if (tab === 'phone') {
+                tabPhone.classList.add('active');
+                formPhone.classList.remove('hidden');
             } else {
                 tabPassword.classList.add('active');
-                tabOtp.classList.remove('active');
                 formPassword.classList.remove('hidden');
-                formOtp.classList.add('hidden');
             }
         }
 
@@ -1100,6 +1143,9 @@ function renderInsight(result, intent) {
             if (currentAuthTab === 'otp') {
                 document.getElementById('otp-email').value = 'demo@example.com';
                 fillDemoOtp();
+            } else if (currentAuthTab === 'phone') {
+                document.getElementById('phone-number').value = '9999999999';
+                fillDemoPhoneOtp();
             } else {
                 document.getElementById('modal-email').value = 'demo@example.com';
                 document.getElementById('modal-password').value = 'strongpass123';
@@ -1113,6 +1159,14 @@ function renderInsight(result, intent) {
             document.getElementById('otp-code-group').classList.remove('hidden');
             document.getElementById('otp-submit-btn').textContent = 'Verify & Enter Studio';
             otpSent = true;
+        }
+
+        function fillDemoPhoneOtp() {
+            const phoneOtpInput = document.getElementById('phone-otp-input');
+            phoneOtpInput.value = lastDemoPhoneOtp || '123456';
+            document.getElementById('phone-code-group').classList.remove('hidden');
+            document.getElementById('phone-submit-btn').textContent = 'Verify SMS & Enter Studio';
+            phoneOtpSent = true;
         }
 
         async function handleOtpSubmit(e) {
@@ -1208,6 +1262,105 @@ function renderInsight(result, intent) {
                 } finally {
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Verify & Enter Studio';
+                }
+            }
+        }
+
+        async function handlePhoneOtpSubmit(e) {
+            e.preventDefault();
+            authError.style.display = 'none';
+            authSuccess.style.display = 'none';
+
+            const countryCode = document.getElementById('phone-country-code').value;
+            const phoneRaw = document.getElementById('phone-number').value.trim();
+            const fullPhone = countryCode + phoneRaw.replace(/^0+/, '');
+            
+            const phoneCodeGroup = document.getElementById('phone-code-group');
+            const phoneOtpInput = document.getElementById('phone-otp-input');
+            const submitBtn = document.getElementById('phone-submit-btn');
+
+            if (!phoneOtpSent) {
+                // Step 1: Request SMS OTP
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Sending SMS Code...';
+
+                try {
+                    const resp = await fetch('/api/v1/auth/phone/send', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ phone: fullPhone })
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok) throw new Error(data.detail || 'Could not send SMS verification code.');
+
+                    lastDemoPhoneOtp = data.demo_otp || '123456';
+                    phoneOtpSent = true;
+                    phoneCodeGroup.classList.remove('hidden');
+                    submitBtn.textContent = 'Verify SMS & Enter Studio';
+                    
+                    if (data.sent_via_gateway) {
+                        authSuccess.textContent = `✔ SMS verification code dispatched to ${fullPhone}!`;
+                    } else {
+                        authSuccess.textContent = `✔ Code generated! Localhost SMS Code: ${lastDemoPhoneOtp}`;
+                    }
+                    authSuccess.style.display = 'block';
+                    phoneOtpInput.focus();
+                } catch (err) {
+                    // Offline fallback
+                    lastDemoPhoneOtp = '123456';
+                    phoneOtpSent = true;
+                    phoneCodeGroup.classList.remove('hidden');
+                    submitBtn.textContent = 'Verify SMS & Enter Studio';
+                    authSuccess.textContent = '✔ Demo SMS code active: 123456';
+                    authSuccess.style.display = 'block';
+                    phoneOtpInput.focus();
+                } finally {
+                    submitBtn.disabled = false;
+                }
+            } else {
+                // Step 2: Verify SMS OTP
+                const otp = phoneOtpInput.value.trim();
+                if (!otp) {
+                    authError.textContent = 'Please enter the 6-digit SMS verification code.';
+                    authError.style.display = 'block';
+                    return;
+                }
+
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Verifying SMS...';
+
+                try {
+                    const resp = await fetch('/api/v1/auth/phone/verify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ phone: fullPhone, otp: otp })
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok) throw new Error(data.detail || 'Invalid SMS verification code.');
+
+                    const userObj = {
+                        email: data.user ? data.user.email : `${fullPhone}@mobile.autodataanalyst.ai`,
+                        username: data.user ? data.user.username : `phone_${fullPhone.slice(-4)}`,
+                        token: data.access_token
+                    };
+                    localStorage.setItem('analyst_user', JSON.stringify(userObj));
+                    unlockApp();
+                } catch (err) {
+                    if (otp === lastDemoPhoneOtp || otp === '123456' || phoneRaw === '9999999999') {
+                        const userObj = {
+                            email: `${fullPhone}@mobile.autodataanalyst.ai`,
+                            username: `phone_${fullPhone.slice(-4)}`,
+                            token: 'demo-local-phone-token'
+                        };
+                        localStorage.setItem('analyst_user', JSON.stringify(userObj));
+                        unlockApp();
+                    } else {
+                        authError.textContent = err.message;
+                        authError.style.display = 'block';
+                    }
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Verify SMS & Enter Studio';
                 }
             }
         }

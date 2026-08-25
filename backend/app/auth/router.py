@@ -137,6 +137,53 @@ def verify_otp(payload: OtpVerifyRequest, db: Annotated[Session, Depends(get_db)
     return TokenResponse(access_token=token, user=UserOut.model_validate(user))
 
 
+@router.post("/phone/send", response_model=PhoneOtpResponse)
+def send_phone_otp(payload: PhoneOtpRequest) -> PhoneOtpResponse:
+    """Generate and dispatch 6-digit SMS OTP via Twilio/SMS Gateway or dev fallback."""
+    from backend.app.core.phone_service import global_phone_service
+    phone = payload.phone.strip()
+    if not global_phone_service.is_valid_phone(phone):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid international phone number format.")
+
+    sent_via_gateway, status_message, otp = global_phone_service.send_sms_otp(phone=phone)
+    norm_phone = global_phone_service.normalize_phone(phone)
+    return PhoneOtpResponse(
+        message=status_message,
+        phone=norm_phone,
+        demo_otp=otp,
+        sent_via_gateway=sent_via_gateway,
+    )
+
+
+@router.post("/phone/verify", response_model=TokenResponse)
+def verify_phone_otp(payload: PhoneOtpVerifyRequest, db: Annotated[Session, Depends(get_db)]) -> TokenResponse:
+    """Verify 6-digit SMS OTP code and authenticate user."""
+    from backend.app.core.phone_service import global_phone_service
+    phone = payload.phone.strip()
+    entered = payload.otp.strip()
+
+    is_valid, msg = global_phone_service.verify_otp(phone, entered)
+    if not is_valid:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg or "Invalid or expired verification code.")
+
+    norm_phone = global_phone_service.normalize_phone(phone)
+    mock_email = f"user_{norm_phone.replace('+', '')}@mobile.autodataanalyst.ai"
+
+    user = db.query(User).filter(User.email == mock_email).first()
+    if user is None:
+        user = User(
+            email=mock_email,
+            username=f"phone_{norm_phone[-4:]}",
+            password_hash=hash_password("sms-auth-" + entered),
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    token = create_access_token(user.id, {"email": user.email, "username": user.username})
+    return TokenResponse(access_token=token, user=UserOut.model_validate(user))
+
+
 @router.get("/me", response_model=UserOut)
 def me(current: CurrentUser) -> User:
     return current

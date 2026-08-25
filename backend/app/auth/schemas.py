@@ -55,3 +55,20 @@ class OtpResponse(BaseModel):
     message: str
     email: str
     demo_otp: Optional[str] = None
+    sent_via_smtp: bool = False
+
+
+class PhoneOtpRequest(BaseModel):
+    phone: str = Field(min_length=8, max_length=20)
+
+
+class PhoneOtpVerifyRequest(BaseModel):
+    phone: str = Field(min_length=8, max_length=20)
+    otp: str = Field(min_length=4, max_length=8)
+
+
+class PhoneOtpResponse(BaseModel):
+    message: str
+    phone: str
+    demo_otp: Optional[str] = None
+    sent_via_gateway: bool = False
