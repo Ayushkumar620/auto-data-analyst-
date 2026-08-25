@@ -212,6 +212,12 @@ def test_opportunity_detection(sales_insights):
 def test_recommendation_scoring(sales_insights):
     """10. Transparent, documented scoring factors."""
     res = _engine().generate(RecommendationRequest(insights=sales_insights))
+    assert res.recommendations, "expected recommendations to score"
+    for rec in res.recommendations:
+        assert rec.scoring.formula  # explainable formula documented
+        assert rec.scoring.final_score == pytest.approx(rec.score, abs=1e-4)
+        assert rec.score > 0
+        assert rec.priority.value in ("HIGH", "MEDIUM", "LOW")
 def test_ranking(sales_insights):
     """11. Recommendations are ranked by descending score."""
     res = _engine().generate(RecommendationRequest(insights=sales_insights, max_recommendations=10))
@@ -289,9 +295,123 @@ def test_performance_degradation_monitoring():
     actions = " | ".join(r.action.lower() for r in res.recommendations)
     assert "recalibration" in actions
 
-    for rec in res.recommendations:
+        for rec in res.recommendations:
         assert rec.score > 0
         assert rec.scoring.formula  # explainable formula documented
         assert rec.scoring.final_score == pytest.approx(rec.score, abs=1e-4)
         assert rec.priority.value in ("HIGH", "MEDIUM", "LOW")
+
+
+# ==============================================================================
+# 17-23. Conversational, ToolRegistry, AgentResult integration, audit trail,
+#        evidence traceability, human-approval boundary, LLM-unavailable mode
+# ==============================================================================
+
+def test_conversational_integration(sales_insights):
+    """17. Conversational decision-support query routes through the agent."""
+    from agent.recommendation_agent import RecommendationAgent
+    agent = RecommendationAgent()
+    resp = agent.handle_query("How can I increase revenue?",
+                              {"insights": sales_insights})
+    assert "response" in resp
+    assert resp["query_type"] in ("recommend", "highest_impact", "safest")
+    assert resp["result"]["objectives"] or resp["result"]["needs_objective_clarification"] is not True
+
+
+def test_evidence_traceability_and_audit_trail(sales_insights, impact_scenario):
+    """18. Every recommendation has a complete audit trail with evidence IDs."""
+    res = _engine().generate(RecommendationRequest(
+        insights=sales_insights, scenarios=[impact_scenario],
+        optimization_objective=RecommendationObjective.MAXIMIZE_REVENUE))
+    assert len(res.audit_trail) == len(res.recommendations)
+    for audit, rec in zip(res.audit_trail, res.recommendations):
+        assert audit.recommendation_id == rec.recommendation_id
+        assert audit.scoring_factors  # documented factors
+        assert audit.final_score == pytest.approx(rec.score, abs=1e-4)
+        # evidence IDs must be traceable
+        for evid in audit.input_evidence_ids:
+            assert evid.startswith("EV-")
+
+
+def test_unsupported_recommendation_rejection():
+    """19. Recommendations without evidence are rejected."""
+    # Insights without any evidence should produce no recommendations
+    empty_ev_insights = [{
+        "insight_id": "no_evidence",
+        "title": "no evidence insight",
+        "summary": "Some observation",
+        "category": "concentration",
+        "claim_type": "fact",
+        "confidence": 0.9,
+        "evidence": [],
+        "affected_segments": [],
+        "affected_columns": ["revenue"],
+        "calculation": {"dimension": "region", "metric": "revenue",
+                        "top_20_percent_share": 55.0, "top_3_entities_share": 42.0},
+        "source_analysis": "synthetic",
+    }]
+    res = _engine().generate(RecommendationRequest(insights=empty_ev_insights))
+    assert len(res.recommendations) == 0, \
+        "recommendations without evidence must be rejected"
+
+
+def test_human_approval_boundary(sales_insights):
+    """20. Recommendations are advisory -- human approval required, no auto-execution."""
+    res = _engine().generate(RecommendationRequest(insights=sales_insights))
+    assert res.human_approval_required is True
+    for rec in res.recommendations:
+        assert rec.human_approval_required is True
+
+
+def test_llm_unavailable_deterministic_mode(sales_insights):
+    """21. Engine operates fully deterministically with no LLM / API keys."""
+    res = _engine().generate(RecommendationRequest(insights=sales_insights))
+    # Deterministic: same input always produces same number of recommendations
+    res2 = _engine().generate(RecommendationRequest(insights=sales_insights))
+    assert len(res.recommendations) == len(res2.recommendations)
+    assert res.status in ("success", "needs_objective")
+
+
+def test_toolregistry_decision_engine_integration(sales_insights):
+    """22. The decision_engine tool is registered and callable via ToolRegistry."""
+    from agent.tool_registry import DEFAULT_TOOL_REGISTRY
+    tool = DEFAULT_TOOL_REGISTRY.get_tool("decision_engine")
+    assert tool is not None
+    assert "decision_support" in tool.capabilities
+    assert "recommendation_generation" in tool.capabilities
+    # Execute via the registry
+    result = DEFAULT_TOOL_REGISTRY.execute(
+        "decision_engine",
+        insights=sales_insights,
+        objective=RecommendationObjective.MAXIMIZE_REVENUE,
+        max_recommendations=3,
+    )
+    # ToolRegistry wraps via BaseAgent.run() which returns AgentResult
+    from agent.schemas import AgentResult
+    assert isinstance(result, AgentResult)
+    assert result.is_success
+    output = result.output
+    # The output should contain a 'result' key with the RecommendationResult dict
+    result_data = output.get("result", output)
+    assert result_data.get("status") == "success"
+    assert len(result_data.get("recommendations", [])) >= 1
+
+
+def test_agentresult_integration(sales_insights):
+    """23. RecommendationAgent.run() returns a standardized AgentResult."""
+    from agent.recommendation_agent import RecommendationAgent
+    from agent.schemas import AgentResult, AgentStatus
+    agent = RecommendationAgent()
+    task = {
+        "insights": sales_insights,
+        "objective": RecommendationObjective.MAXIMIZE_REVENUE,
+    }
+    result = agent.run(task)
+    assert isinstance(result, AgentResult)
+    assert result.status in (AgentStatus.COMPLETED, AgentStatus.SUCCESS)
+    assert result.is_success
+    output = result.output
+    result_data = output.get("result", output)
+    assert "recommendations" in result_data
+    assert "executive_summary" in result_data
 
