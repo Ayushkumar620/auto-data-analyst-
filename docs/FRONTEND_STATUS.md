@@ -99,3 +99,4 @@ Tested and verified across key viewport tiers:
    - Wire dataset selector to `DatasetContext` globally.
 2. **Phase 3 (Model Registry & Leaderboard)**:
    - Build UI for `/models` connecting to `GET /api/v1/models` and prediction endpoints.
+
