@@ -123,3 +123,4 @@ export default function ReportList({ reports, onDeleteReport, onCreateClick }: R
     </div>
   );
 }
+

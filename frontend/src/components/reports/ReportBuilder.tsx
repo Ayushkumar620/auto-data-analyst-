@@ -188,3 +188,4 @@ export default function ReportBuilder({ profile, onSubmit, onCancel, loading }: 
     </form>
   );
 }
+

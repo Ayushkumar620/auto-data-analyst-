@@ -71,7 +71,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     group: 'SYSTEM',
     items: [
-      { label: 'Settings', to: '/settings', Icon: IconSettings, comingSoon: true },
+      { label: 'Settings', to: '/settings', Icon: IconSettings },
     ],
   },
 ];

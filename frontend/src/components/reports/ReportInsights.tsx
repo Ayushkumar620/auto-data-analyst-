@@ -48,3 +48,4 @@ export default function ReportInsights({ insights }: ReportInsightsProps) {
     </div>
   );
 }
+

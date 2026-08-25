@@ -46,3 +46,4 @@ export default function ReportMetrics({ kpis }: ReportMetricsProps) {
     </div>
   );
 }
+

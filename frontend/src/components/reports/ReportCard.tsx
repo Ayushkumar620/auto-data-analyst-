@@ -184,3 +184,4 @@ export default function ReportCard({ report, onDelete }: ReportCardProps) {
     </div>
   );
 }
+
