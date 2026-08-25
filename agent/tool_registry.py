@@ -97,6 +97,7 @@ class ToolRegistry:
             AutonomousAnalystAgent,
             CleaningAgent,
             CNNAgent,
+            ConversationalAnalystAgent,
             DataValidationAgent,
             ForecastAgent,
             InsightAgent,
@@ -302,6 +303,19 @@ class ToolRegistry:
                 output_schema={"summary": "str", "insights": "list", "key_metrics": "dict"},
                 execution_fn=lambda data, **kw: AutonomousAnalystAgent().run({"data": data, **kw}),
                 validation_requirements=["insights is not empty or summary is not empty"],
+            )
+        )
+
+        # 16. Conversational Analyst & Multi-Turn Context (Milestone 5, Task 2)
+        self.register(
+            ToolDefinition(
+                name="conversational_analyst",
+                description="Executes multi-turn conversational data intelligence, anaphora/pronoun resolution, evidence-grounded responses, and structured report synthesis.",
+                capabilities=["conversational_analysis", "context_resolution", "follow_up_analysis", "multi_turn_chat", "conversational_reporting"],
+                input_schema={"command": "str", "session_id": "str", "data": "Any"},
+                output_schema={"response": "str", "resolved_command": "str", "intent": "str"},
+                execution_fn=lambda **kw: ConversationalAnalystAgent().run(kw),
+                validation_requirements=["response is not empty"],
             )
         )
 
