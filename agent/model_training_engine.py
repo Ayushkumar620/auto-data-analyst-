@@ -468,6 +468,15 @@ class ModelTrainingEngine:
                     early_stopping=early_stop,
                     random_state=random_state,
                 ), "Artificial Neural Network (ANN/MLP)", "ann"
+            elif "cnn" in name_lower or "convolutional" in name_lower:
+                filters = hyperparams.get("filters", [16, 32])
+                conv_blocks = [CNNLayerConfig(filters=f) for f in filters] if isinstance(filters, list) else None
+                cnn_hp = CNNHyperparameters(
+                    conv_blocks=conv_blocks or [CNNLayerConfig(filters=16), CNNLayerConfig(filters=32)],
+                    epochs=int(hyperparams.get("epochs", 80)),
+                    random_state=random_state,
+                )
+                return CNNTrainer(hyperparams=cnn_hp), "Convolutional Neural Network (CNN)", "cnn"
             else:
                 return LogisticRegression(max_iter=500, random_state=random_state), name or "Logistic Regression", family
 
@@ -507,6 +516,15 @@ class ModelTrainingEngine:
                     early_stopping=early_stop,
                     random_state=random_state,
                 ), "Artificial Neural Network (ANN/MLP)", "ann"
+            elif "cnn" in name_lower or "convolutional" in name_lower:
+                filters = hyperparams.get("filters", [16, 32])
+                conv_blocks = [CNNLayerConfig(filters=f) for f in filters] if isinstance(filters, list) else None
+                cnn_hp = CNNHyperparameters(
+                    conv_blocks=conv_blocks or [CNNLayerConfig(filters=16), CNNLayerConfig(filters=32)],
+                    epochs=int(hyperparams.get("epochs", 80)),
+                    random_state=random_state,
+                )
+                return CNNTrainer(hyperparams=cnn_hp), "Convolutional Neural Network (CNN)", "cnn"
             else:
                 return LinearRegression(), name or "Linear Regression", family
 
