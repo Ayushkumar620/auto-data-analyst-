@@ -463,6 +463,22 @@ class DynamicTaskPlanner(BaseAgent):
             )
             step_idx += 1
 
+        elif primary_intent_val in ("model_monitoring", "drift_detection", "data_drift") or "data_drift_detection" in req_caps or "model_monitoring" in req_caps:
+            metric_target = user_intent.metrics[0] if user_intent.metrics else "model"
+            mon_step = f"step_{step_idx}"
+            steps.append(
+                ExecutionStep(
+                    step_id=mon_step,
+                    tool_name="model_monitor",
+                    agent_name="ModelMonitorAgent",
+                    purpose=f"Evaluate statistical data drift, schema consistency, prediction shift, and degradation for '{metric_target}'.",
+                    inputs={"model_id": metric_target},
+                    required_capabilities=["data_drift_detection", "model_monitoring"],
+                    dependencies=upstream_dep,
+                )
+            )
+            step_idx += 1
+
         elif primary_intent_val in ("model_orchestration", "multi_model_training", "model_comparison") or "model_orchestration" in req_caps:
             metric_target = user_intent.metrics[0] if user_intent.metrics else (knowledge.get_primary_metric() if knowledge else "target")
             orch_step = f"step_{step_idx}"

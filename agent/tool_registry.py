@@ -99,6 +99,7 @@ class ToolRegistry:
             DataValidationAgent,
             ForecastAgent,
             InsightAgent,
+            ModelMonitorAgent,
             ModelOrchestratorAgent,
             ModelRegistryAgent,
             ModelSelectionAgent,
@@ -274,6 +275,19 @@ class ToolRegistry:
                 output_schema={"best_model": "dict", "ranking": "list", "selection_reason": "str"},
                 execution_fn=lambda data, **kw: ModelOrchestratorAgent().run({"data": data, **kw}),
                 validation_requirements=["best_model is not empty"],
+            )
+        )
+
+        # 14. Model Monitoring & Drift Detection (Milestone 4, Task 2)
+        self.register(
+            ToolDefinition(
+                name="model_monitor",
+                description="Performs statistical data drift detection (KS test, Chi-square, PSI), schema drift analysis, prediction shift monitoring, and performance degradation tracking.",
+                capabilities=["data_drift_detection", "schema_drift_detection", "prediction_drift_detection", "performance_monitoring", "data_quality_monitoring", "model_monitoring"],
+                input_schema={"model_id": "str", "current_data": "Any", "reference_data": "Any", "thresholds": "dict"},
+                output_schema={"overall_severity": "str", "data_drift": "dict", "performance_drift": "dict", "recommendations": "list"},
+                execution_fn=lambda **kw: ModelMonitorAgent().run(kw),
+                validation_requirements=["overall_severity is not empty"],
             )
         )
 
