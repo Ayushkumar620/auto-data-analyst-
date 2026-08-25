@@ -493,3 +493,122 @@ class RiskEngine:
             ))
         return out
 
+class OpportunityEngine:
+    """Evidence-backed opportunity detection. Never labels something an
+    opportunity without measurable supporting evidence."""
+
+    def detect(self, context: DecisionContext,
+               scenarios: Optional[List[Dict[str, Any]]] = None) -> List[OpportunityAssessment]:
+        opportunities: List[OpportunityAssessment] = []
+        seen = set()
+
+        for ins in context.insights:
+            calc = ins.get("calculation") or {}
+            ev = _to_evidence_list(ins.get("evidence"))
+            cat = str(ins.get("category", "")).lower()
+            metric = calc.get("metric") or (ins.get("affected_columns") or [None])[-1] or None
+            segment = calc.get("top_segment") or calc.get("segment") or (ins.get("affected_segments") or [None])[0]
+
+            if cat == "opportunity":
+                key = ("opp", ins.get("title", ""))
+                if key not in seen:
+                    seen.add(key)
+                    opportunities.append(OpportunityAssessment(
+                        opportunity=ins.get("summary") or ins.get("title", ""),
+                        evidence=ev,
+                        evidence_ids=[_evidence_id(e) for e in ev],
+                        affected_segment=segment,
+                        affected_metric=metric,
+                        confidence=float(ins.get("confidence", 0.8)),
+                        assumptions=[],
+                    ))
+            elif cat == "trend":
+                growth = calc.get("overall_growth_pct")
+                if isinstance(growth, (int, float)) and growth >= 10.0:
+                    key = ("trend", metric)
+                    if key not in seen:
+                        seen.add(key)
+                        opportunities.append(OpportunityAssessment(
+                            opportunity=(f"Strong {growth:.0f}% growth in '{metric}' "
+                                         f"represents a momentum opportunity."),
+                            evidence=ev,
+                            evidence_ids=[_evidence_id(e) for e in ev],
+                            affected_segment=segment,
+                            affected_metric=metric,
+                            confidence=float(ins.get("confidence", 0.8)),
+                            assumptions=["Historical trend is assumed to continue; this is a projection, not a guarantee."],
+                            risks=["Trend may not persist."],
+                        ))
+            elif cat == "performance":
+                share = calc.get("top_share_pct")
+                disparity = calc.get("disparity_ratio")
+                if isinstance(share, (int, float)) and share >= 40.0:
+                    key = ("high_value", calc.get("top_segment"))
+                    if key not in seen:
+                        seen.add(key)
+                        opportunities.append(OpportunityAssessment(
+                            opportunity=(f"High-value segment '{calc.get('top_segment')}' "
+                                         f"contributes {share:.0f}% of {metric}."),
+                            evidence=ev,
+                            evidence_ids=[_evidence_id(e) for e in ev],
+                            affected_segment=calc.get("top_segment"),
+                            affected_metric=metric,
+                            confidence=float(ins.get("confidence", 0.85)),
+                            assumptions=[],
+                            risks=["High segment concentration creates dependency risk."],
+                        ))
+                if disparity and isinstance(disparity, (int, float)) and disparity >= 3.0:
+                    key = ("open", calc.get("bottom_segment"))
+                    if key not in seen:
+                        seen.add(key)
+                        opportunities.append(OpportunityAssessment(
+                            opportunity=(f"Underpenetrated segment '{calc.get('bottom_segment')}' "
+                                         f"({disparity}x gap vs. leader) offers upside."),
+                            evidence=ev,
+                            evidence_ids=[_evidence_id(e) for e in ev],
+                            affected_segment=calc.get("bottom_segment"),
+                            affected_metric=metric,
+                            confidence=float(ins.get("confidence", 0.6)),
+                            assumptions=["Gap is addressable with the available levers."],
+                            risks=["Lagging segment may have structural constraints."],
+                        ))
+        return opportunities
+
+class ExpectedImpactEstimator:
+    """Estimates expected impact strictly from real scenario/model calculations.
+    If impact cannot be quantified, availability = 'unavailable'."""
+
+    def estimate(self, candidate: ActionCandidate,
+                 scenarios: Optional[List[Dict[str, Any]]]) -> ExpectedImpact:
+        metric = candidate.affected_metric
+        if not scenarios:
+            return ExpectedImpact()
+        matches = [s for s in scenarios if s and s.get("target_metric") == metric]
+        if not matches:
+            for s in scenarios:
+                name = (s.get("scenario_name") or "").lower()
+                if any(k in name for k in (candidate.objective.value.replace("_", " "),
+                                           candidate.action_type.value, str(metric or "").lower())):
+                    matches.append(s)
+        if not matches:
+            return ExpectedImpact()
+        best = max(matches, key=lambda s: abs(float(s.get("absolute_difference") or 0.0)))
+        baseline = best.get("baseline_value")
+        scenario_val = best.get("scenario_value")
+        abs_diff = best.get("absolute_difference")
+        pct_diff = best.get("percentage_difference")
+        if baseline is None or scenario_val is None:
+            return ExpectedImpact()
+        return ExpectedImpact(
+            availability=ImpactAvailability.AVAILABLE,
+            metric=metric,
+            baseline=float(baseline),
+            scenario=float(scenario_val),
+            estimated_impact=float(abs_diff) if abs_diff is not None else None,
+            estimated_impact_pct=float(pct_diff) if pct_diff is not None else None,
+            scenario_name=best.get("scenario_name"),
+            scenario_id=best.get("scenario_id"),
+            assumptions=list(best.get("assumptions", []) or []),
+            uncertainties=list(best.get("limitations", []) or []),
+        )
+
