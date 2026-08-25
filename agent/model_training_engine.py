@@ -788,3 +788,4 @@ class ModelTrainingAgent(BaseAgent):
                 "metric_value": best.primary_metric_value if best else None,
             },
         )
+
