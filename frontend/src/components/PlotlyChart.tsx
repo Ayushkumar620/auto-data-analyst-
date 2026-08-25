@@ -25,15 +25,20 @@ export default function PlotlyChart({ data, layout }: ChartSpec) {
         }
       };
 
-      const resizeObserver = new ResizeObserver(() => {
-        handleResize();
-      });
+      let resizeObserver: ResizeObserver | null = null;
+      if (typeof ResizeObserver !== 'undefined') {
+        resizeObserver = new ResizeObserver(() => {
+          handleResize();
+        });
+        resizeObserver.observe(ref.current);
+      }
 
-      resizeObserver.observe(ref.current);
       window.addEventListener('resize', handleResize);
 
       return () => {
-        resizeObserver.disconnect();
+        if (resizeObserver) {
+          resizeObserver.disconnect();
+        }
         window.removeEventListener('resize', handleResize);
       };
     }
