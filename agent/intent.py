@@ -18,12 +18,32 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union
 from pydantic import BaseModel, Field, field_validator
+import pandas as pd
 
 from agent.base import BaseAgent
 from agent.dataset_knowledge import ColumnKnowledge, DatasetKnowledge, SemanticType
 from agent.schemas import AgentResult, AgentStatus, ClaimType, Evidence, SemanticMapping
 from backend.app.core.llm_provider import BaseLLMProvider, LLMClientFactory, LLMMessage
 from backend.app.core.semantic import BUSINESS_CONCEPTS, _normalize
+
+
+# ---------------------------------------------------------------------------
+# Enums
+# ---------------------------------------------------------------------------
+
+class AnalyticalIntent(str, Enum):
+    """Legacy AnalyticalIntent enum for backwards compatibility."""
+    EDA = "eda"
+    CLEANING = "cleaning"
+    VISUALIZATION = "visualization"
+    PREDICTION = "prediction"
+    FORECASTING = "forecasting"
+    DEEP_LEARNING = "deep_learning"
+    CNN = "cnn"
+    EXPLANATION = "explanation"
+    ANOMALIES = "anomalies"
+    REPORT = "report"
+    UNKNOWN = "unknown"
 
 
 class IntentType(str, Enum):
@@ -48,9 +68,9 @@ class IntentType(str, Enum):
     UNKNOWN = "unknown"
 
 
-# Legacy alias for backward compatibility
-AnalyticalIntent = IntentType
-
+# ---------------------------------------------------------------------------
+# Structured Intent Models
+# ---------------------------------------------------------------------------
 
 class UserIntent(BaseModel):
     """
@@ -111,10 +131,10 @@ class UserIntent(BaseModel):
         return cls.model_validate(data)
 
 
-# Backward compatibility result class
 class IntentClassificationResult(BaseModel):
-    primary_intent: Union[IntentType, str]
-    secondary_intents: List[Union[IntentType, str]] = Field(default_factory=list)
+    """Legacy intent classification result for backwards compatibility."""
+    primary_intent: Union[AnalyticalIntent, IntentType, str]
+    secondary_intents: List[Union[AnalyticalIntent, IntentType, str]] = Field(default_factory=list)
     confidence: float = 0.9
     target_column: Optional[str] = None
     feature_columns: List[str] = Field(default_factory=list)
@@ -128,10 +148,11 @@ class IntentClassificationResult(BaseModel):
     reasoning: List[str] = Field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
-        pi = self.primary_intent.value if isinstance(self.primary_intent, IntentType) else str(self.primary_intent)
+        pi = self.primary_intent.value if hasattr(self.primary_intent, "value") else str(self.primary_intent)
+        sec = [i.value if hasattr(i, "value") else str(i) for i in self.secondary_intents]
         return {
             "primary_intent": pi,
-            "secondary_intents": [i.value if isinstance(i, IntentType) else str(i) for i in self.secondary_intents],
+            "secondary_intents": sec,
             "confidence": round(float(self.confidence), 3),
             "target_column": self.target_column,
             "feature_columns": self.feature_columns,
@@ -145,6 +166,10 @@ class IntentClassificationResult(BaseModel):
             "reasoning": self.reasoning,
         }
 
+
+# ---------------------------------------------------------------------------
+# Command Intelligence Agent
+# ---------------------------------------------------------------------------
 
 class CommandIntelligenceAgent(BaseAgent):
     """
@@ -576,27 +601,200 @@ class CommandIntelligenceAgent(BaseAgent):
         return " ".join(parts) + "."
 
 
-# Backward compatibility class: IntentAnalyzer
+# ---------------------------------------------------------------------------
+# Legacy IntentAnalyzer Implementation for Full Backward Compatibility
+# ---------------------------------------------------------------------------
+
 class IntentAnalyzer:
-    """Wrapper ensuring backward compatibility for older callers."""
+    """Deterministic, contextual intent extractor with semantic knowledge integration."""
+
+    INTENT_KEYWORDS = {
+        AnalyticalIntent.CLEANING: (
+            "clean", "preprocess", "impute", "missing", "outlier removal",
+            "dedup", "duplicates", "null values", "format data", "sanitize",
+        ),
+        AnalyticalIntent.FORECASTING: (
+            "forecast", "future", "predict next", "time series", "horizon",
+            "next month", "next quarter", "next year", "projection", "trend over time",
+        ),
+        AnalyticalIntent.CNN: (
+            "cnn", "convolutional", "image", "spatial", "spectrogram", "signal image",
+            "pixel", "grid data", "image classification",
+        ),
+        AnalyticalIntent.DEEP_LEARNING: (
+            "deep learning", "ann", "neural network", "mlp", "multi-layer perceptron",
+            "deep model", "pytorch",
+        ),
+        AnalyticalIntent.PREDICTION: (
+            "train", "predict", "classifier", "regression", "model", "churn",
+            "supervised", "forecast target", "random forest", "logistic regression",
+            "xgboost", "fit model",
+        ),
+        AnalyticalIntent.EXPLANATION: (
+            "explain", "driver", "drivers", "feature importance", "why",
+            "top factors", "influence", "key indicators", "shap", "coefficients",
+        ),
+        AnalyticalIntent.VISUALIZATION: (
+            "chart", "plot", "graph", "visualize", "bar chart", "line chart",
+            "scatter", "histogram", "heatmap", "distribution plot",
+        ),
+        AnalyticalIntent.ANOMALIES: (
+            "anomaly", "anomalies", "outlier", "outliers", "unusual", "deviations",
+        ),
+        AnalyticalIntent.REPORT: (
+            "report", "summary report", "executive summary", "overview",
+            "full analysis", "brief", "presentation",
+        ),
+        AnalyticalIntent.EDA: (
+            "eda", "describe", "summary", "stats", "statistics", "correlations",
+            "explore", "profile", "distribution", "overview",
+        ),
+    }
 
     def __init__(self):
-        self.agent = CommandIntelligenceAgent()
+        self.modern_agent = CommandIntelligenceAgent()
 
-    def analyze(self, query: str, df: Optional[Any] = None) -> IntentClassificationResult:
-        dk = None
-        if isinstance(df, DatasetKnowledge):
-            dk = df
-        user_intent = self.agent.analyze_intent(query, dataset_knowledge=dk)
+    def analyze(
+        self,
+        query: str,
+        knowledge: Optional[Union[DatasetKnowledge, pd.DataFrame]] = None,
+        dataframe: Optional[pd.DataFrame] = None,
+        df: Optional[Any] = None,
+    ) -> IntentClassificationResult:
+        """Parse natural language query into a structured multi-intent profile."""
+        if isinstance(knowledge, pd.DataFrame) and dataframe is None:
+            dataframe = knowledge
+            knowledge = None
+        if df is not None:
+            if isinstance(df, pd.DataFrame) and dataframe is None:
+                dataframe = df
+            elif isinstance(df, DatasetKnowledge) and knowledge is None:
+                knowledge = df
+
+        q_norm = query.strip().lower()
+        reasoning: List[str] = []
+        matched_intents: List[AnalyticalIntent] = []
+
+        # 1. Match all intents mentioned in the query
+        for intent, kw_list in self.INTENT_KEYWORDS.items():
+            hits = [kw for kw in kw_list if kw in q_norm or f" {kw} " in f" {q_norm} "]
+            if hits:
+                matched_intents.append(intent)
+                reasoning.append(f"Matched {intent.value} via keywords: {', '.join(hits)}")
+
+        # Distinguish prediction vs forecasting vs deep learning
+        primary = AnalyticalIntent.EDA
+        secondary: List[AnalyticalIntent] = []
+
+        if AnalyticalIntent.CNN in matched_intents:
+            primary = AnalyticalIntent.CNN
+        elif AnalyticalIntent.DEEP_LEARNING in matched_intents:
+            primary = AnalyticalIntent.DEEP_LEARNING
+        elif AnalyticalIntent.FORECASTING in matched_intents:
+            primary = AnalyticalIntent.FORECASTING
+        elif AnalyticalIntent.PREDICTION in matched_intents:
+            primary = AnalyticalIntent.PREDICTION
+        elif AnalyticalIntent.CLEANING in matched_intents:
+            primary = AnalyticalIntent.CLEANING
+        elif AnalyticalIntent.EXPLANATION in matched_intents:
+            primary = AnalyticalIntent.EXPLANATION
+        elif AnalyticalIntent.VISUALIZATION in matched_intents:
+            primary = AnalyticalIntent.VISUALIZATION
+        elif AnalyticalIntent.ANOMALIES in matched_intents:
+            primary = AnalyticalIntent.ANOMALIES
+        elif AnalyticalIntent.REPORT in matched_intents:
+            primary = AnalyticalIntent.REPORT
+        elif matched_intents:
+            primary = matched_intents[0]
+
+        secondary = [i for i in matched_intents if i != primary]
+
+        # 2. Extract Top-K requirement
+        top_k = None
+        top_k_match = re.search(r"top\s+(\d+)", q_norm)
+        if top_k_match:
+            top_k = int(top_k_match.group(1))
+            reasoning.append(f"Detected top-{top_k} limit")
+
+        # 3. Extract time horizon
+        horizon = None
+        horizon_match = re.search(r"next\s+(\d+)\s*(?:month|day|week|quarter|period|year)?", q_norm)
+        if horizon_match:
+            horizon = int(horizon_match.group(1))
+            reasoning.append(f"Detected time horizon of {horizon} periods")
+
+        # 4. Extract Chart Type
+        chart_type = None
+        for ctype in ("bar", "line", "scatter", "histogram", "heatmap", "box", "pie"):
+            if ctype in q_norm or f"{ctype} chart" in q_norm:
+                chart_type = ctype
+                reasoning.append(f"Detected requested chart type: {ctype}")
+                break
+
+        # 5. Extract Target Column and Features using DatasetKnowledge / DataFrame
+        target_col = None
+        feature_cols: List[str] = []
+        group_by_col = None
+
+        columns: List[str] = []
+        if knowledge is not None and hasattr(knowledge, "columns"):
+            columns = [c if isinstance(c, str) else c.column_name for c in knowledge.columns]
+        elif dataframe is not None:
+            columns = list(dataframe.columns)
+
+        if len(columns) > 0:
+            for col in columns:
+                col_lower = col.lower()
+                if col_lower in q_norm or col_lower.replace("_", " ") in q_norm:
+                    if target_col is None and (
+                        "predict" in q_norm or "target" in q_norm or "forecast" in q_norm
+                    ):
+                        target_col = col
+                        reasoning.append(f"Found target column '{col}' in query")
+                    else:
+                        feature_cols.append(col)
+
+            if target_col is None and knowledge is not None:
+                for concept in ("churn", "revenue", "profit", "sales", "price", "salary"):
+                    if concept in q_norm:
+                        matched = knowledge.find_columns_by_concept(concept)
+                        if matched:
+                            target_col = matched[0]
+                            reasoning.append(f"Mapped concept '{concept}' to column '{target_col}'")
+                            break
+
+            if target_col is None and primary in (
+                AnalyticalIntent.PREDICTION,
+                AnalyticalIntent.FORECASTING,
+                AnalyticalIntent.DEEP_LEARNING,
+            ):
+                if knowledge is not None:
+                    target_col = knowledge.get_primary_metric()
+                    if target_col:
+                        reasoning.append(f"Defaulted target to primary metric '{target_col}'")
+
+        needs_cleaning = AnalyticalIntent.CLEANING in matched_intents or "clean" in q_norm
+        needs_explanation = (
+            AnalyticalIntent.EXPLANATION in matched_intents
+            or "explain" in q_norm
+            or "driver" in q_norm
+            or top_k is not None
+        )
+
+        confidence = 0.95 if matched_intents else 0.70
 
         return IntentClassificationResult(
-            primary_intent=user_intent.intent_type,
-            confidence=user_intent.confidence,
-            target_column=user_intent.metrics[0] if user_intent.metrics else None,
-            feature_columns=user_intent.dimensions,
-            group_by=user_intent.dimensions[0] if user_intent.dimensions else None,
+            primary_intent=primary,
+            secondary_intents=secondary,
+            confidence=confidence,
+            target_column=target_col,
+            feature_columns=feature_cols,
+            group_by=group_by_col,
+            time_horizon=horizon,
+            chart_type=chart_type,
+            top_k=top_k,
+            needs_cleaning=needs_cleaning,
+            needs_explanation=needs_explanation,
             raw_query=query,
-            reasoning=[user_intent.objective],
-            needs_cleaning="data_cleaning" in user_intent.required_capabilities,
-            needs_explanation=user_intent.intent_type == IntentType.ROOT_CAUSE_ANALYSIS,
+            reasoning=reasoning,
         )
