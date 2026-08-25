@@ -144,7 +144,8 @@ class ResultValidator:
             if result.finished_at is None:
                 vr.add_issue(ValidationSeverity.ERROR, "MISSING_FINISHED_AT",
                              "A completed result must have finished_at set.")
-            if result.duration_ms < 0:
+            dur = result.duration_ms if result.duration_ms is not None else (result.execution_time or 0.0)
+            if dur < 0:
                 vr.add_issue(ValidationSeverity.ERROR, "NEGATIVE_DURATION",
                              "A completed result cannot have a negative duration_ms.",
                              field="duration_ms", actual=result.duration_ms)

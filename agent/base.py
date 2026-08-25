@@ -269,7 +269,16 @@ class BaseAgent:
         calculation: Optional[str] = None,
     ) -> Evidence:
         """Create a standardized Evidence instance attributed to this agent."""
-        cols = columns or list(data_ref.get("columns", [])) if isinstance(data_ref, dict) else []
+        cols = []
+        if columns is not None:
+            cols = list(columns) if isinstance(columns, (list, tuple, set)) else [str(columns)]
+        elif isinstance(data_ref, dict):
+            c_val = data_ref.get("column_names")
+            if isinstance(c_val, (list, tuple, set)):
+                cols = list(c_val)
+            elif isinstance(c_val, str):
+                cols = [c_val]
+
         op = operation or method
         return Evidence(
             source=self.name,

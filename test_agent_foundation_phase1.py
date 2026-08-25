@@ -307,15 +307,19 @@ def test_validator_repair_clamps_out_of_range_confidence():
     """Test that ResultValidator repair safely clamps out-of-range confidence values."""
     validator = ResultValidator()
     now = datetime.now()
-    result = AgentResult(
+    result = AgentResult.model_construct(
         agent="BadConfidenceAgent",
+        agent_name="BadConfidenceAgent",
         role="tester",
         agent_id="conf_001",
+        task_id="conf_001",
         status=AgentStatus.COMPLETED,
         started_at=now,
+        timestamp=now,
         finished_at=now,
         output={"metric": 1},
-        confidence=1.5,  # Out of [0, 1] range
+        data={"metric": 1},
+        confidence=1.5,  # Out of [0, 1] range constructed for repair testing
     )
 
     repaired_res, vr = validator.repair(result)

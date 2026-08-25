@@ -314,7 +314,7 @@ class AgentResult(BaseModel):
     role: str = "generalist"
     agent_id: Optional[str] = None
     output: Optional[Dict[str, Any]] = None
-    duration_ms: Optional[float] = None
+    duration_ms: float = Field(default=0.0)
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     validation: Optional[ValidationResult] = None
