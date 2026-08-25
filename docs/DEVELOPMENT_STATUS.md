@@ -2,7 +2,7 @@
 
 **Audit Date:** August 25, 2026  
 **Auditor:** Lead AI Architect & Senior Full-Stack Engineer  
-**Repository State:** 325 Unit & Integration Tests Passing (100% Pass Rate) | Clean Git Working Tree  
+**Repository State:** 340 Unit & Integration Tests Passing (100% Pass Rate) | Clean Git Working Tree  
 **Remote Repository:** `https://github.com/Ayushkumar620/auto-data-analyst-.git`
 
 ---
@@ -35,7 +35,7 @@ The **Auto Data Analyst** project is a **command-driven, multi-agent autonomous 
 
 ---
 
-## 2. Milestone 2, Task 1 — Command Intelligence & Intent Agent 🧠
+## 2. Milestone 2 — Intent Intelligence & Dynamic Planning 🧠🗺️
 
 | Component | Status | Details |
 | :--- | :---: | :--- |
@@ -43,22 +43,26 @@ The **Auto Data Analyst** project is a **command-driven, multi-agent autonomous 
 | **`CommandIntelligenceAgent`** | **COMPLETED** | Autonomous intent understanding agent subclassing `BaseAgent`. Generates traceable intent classifications, extracts entities, and cross-references them against `DatasetKnowledge`. |
 | **Temporal Understanding Engine** | **COMPLETED** | Non-synthetic date parsing for relative & absolute time structures (`today`, `yesterday`, `this/last quarter`, `Q1-Q4`, `this/last year`, `2025`, `January 2026`, `MoM`, `YoY`). |
 | **Semantic Cross-Referencing & Ambiguity Resolution** | **COMPLETED** | Cross-references terms with `DatasetKnowledge`. Detects multiple competing column candidates (e.g. `gross_sales` vs `net_sales`), prompts clarification (`needs_clarification=True`), and sets appropriate confidence. |
-| **Multi-Step Capabilities Extraction** | **COMPLETED** | Resolves compound multi-operation queries into ordered pipeline capabilities (`data_cleaning`, `duplicate_handling`, `aggregation`, `regional_analysis`, `forecasting`). |
-| **Milestone 2 Task 1 Tests** | **COMPLETED** | 15 dedicated unit test cases in `test_milestone2_task1_command_intelligence_agent.py` covering all 15 required scenarios (15/15 passed). |
-
----
-
-## 3. Milestone 2, Task 2 — Dynamic Task Planner & Execution Graph 🗺️
-
-| Component | Status | Details |
-| :--- | :---: | :--- |
 | **`ExecutionPlan` & `ExecutionStep` Models** | **COMPLETED** | Pydantic v2 models for DAG task plans, atomic execution steps, dependency declarations, retry policies, and execution metrics. |
 | **`ToolRegistry` System** | **COMPLETED** | Centralized capability registry mapping 11 core analytical tools with typed input/output schemas and validation rules (`agent/tool_registry.py`). |
 | **`ExecutionGraph` & Cycle Detection** | **COMPLETED** | Directed acyclic graph engine with cycle detection (DFS/topological sort), parallel level resolution, and upfront validation against unregistered tools and broken dependencies. |
 | **`ExecutionEngine`** | **COMPLETED** | Robust execution runner supporting topological step dispatch, recoverable error retries, upstream failure propagation with step skipping, and partial success preservation (`agent/execution_engine.py`). |
-| **Dynamic Multi-Step Planning** | **COMPLETED** | Constructs multi-step execution plans from `UserIntent` + `DatasetKnowledge` + `ToolRegistry` for root-cause analysis, compound pipelines, comparisons, forecasting, and ML workflows. |
-| **Deterministic Fallback & Legacy Compatibility** | **COMPLETED** | Complete offline deterministic planning fallback without LLM dependency, plus full backward compatibility for `PlannerAgent.plan`, `plan_and_execute`, `TaskPlan`, and `PlanStep`. |
-| **Milestone 2 Task 2 Tests** | **COMPLETED** | 15 dedicated unit test cases in `test_milestone2_task2_dynamic_planner_and_execution_graph.py` covering all 15 required scenarios (15/15 passed). |
+| **Milestone 2 Tests** | **COMPLETED** | 30 dedicated unit test cases across Task 1 (15/15) and Task 2 (15/15) fully passing. |
+
+---
+
+## 3. Milestone 3, Task 1 — Intelligent Model Selection Agent 🤖
+
+| Component | Status | Details |
+| :--- | :---: | :--- |
+| **`ModelSelectionRequest`, `ModelCandidate`, `ModelSelectionResult`** | **COMPLETED** | Pydantic schemas for problem specifications, candidate algorithm pools with suitability scoring, hyperparameters, and comparison plans (`agent/model_selection_schemas.py`). |
+| **`ModelSelectionAgent`** | **COMPLETED** | Autonomous model selection agent subclassing `BaseAgent`. Integrates `MLModelComparisonEngine` with dataset inspection, task type discovery, and data modality analysis (`agent/model_selection_agent.py`). |
+| **Automatic Task & Modality Detection** | **COMPLETED** | Distinguishes between `regression`, `binary_classification`, `multiclass_classification`, `clustering`, `time_series_forecasting`, and `image_classification` across `tabular`, `time_series`, `image`, and `spatial` modalities. |
+| **Explainable Suitability Scoring** | **COMPLETED** | Computes transparent score ($0.0 \le s \le 1.0$) based on sample count, feature dimensionality, numeric/categorical mix, missing rates, class balance, and model inductive bias. |
+| **ANN & CNN Selection Guardrails** | **COMPLETED** | Selects ANN when sample size ($N \ge 200$) and complexity justify it; strictly sets CNN suitability to $0.0$ for tabular data with explicit explanation. |
+| **Data Leakage Protection** | **COMPLETED** | Detects and flags target-derived features, ID/identifier columns, post-outcome features, and near-perfect correlation features ($|r| \ge 0.99$). |
+| **Evaluation Metric Prioritization** | **COMPLETED** | Automatically selects optimal evaluation metric (e.g. $F_1$ score for imbalanced classification with minority class $\le 25\%$, $R^2$/RMSE for regression). |
+| **Milestone 3 Task 1 Tests** | **COMPLETED** | 15 dedicated unit test cases in `test_milestone3_task1_model_selection_agent.py` covering all 15 required scenarios (15/15 passed). |
 
 ---
 
@@ -73,6 +77,7 @@ The **Auto Data Analyst** project is a **command-driven, multi-agent autonomous 
 | **Tool Registry** | `agent/tool_registry.py` | 100% | Typed registry of 11 analytical operations, capabilities, input/output schemas, and execution wrappers. |
 | **Dynamic Task Planner** | `agent/dynamic_planner.py` | 100% | Dynamic DAG execution plan synthesis, cycle detection, tool validation, and deterministic fallback. |
 | **Execution Engine** | `agent/execution_engine.py` | 100% | Dependency-aware execution, retry/repair policies, partial success isolation, and step execution tracing. |
+| **Model Selection Agent** | `agent/model_selection_agent.py`, `agent/model_selection_schemas.py` | 100% | Task/modality detection, suitability scoring, CNN/ANN guardrails, leakage protection, and comparison plan generation. |
 | **Planner Agent** | `agent/planner.py` | 100% | Master coordinator connecting intent, knowledge, planner, and execution engine. |
 | **Command Orchestrator** | `agent/command_orchestrator.py` | 100% | End-to-end 6-stage autonomous lifecycle with execution graphs and timing breakdowns. |
 
