@@ -17,7 +17,6 @@ from agent.autonomous_analysis_schemas import (
 )
 from agent.base import BaseAgent
 from agent.dataset_knowledge import DatasetKnowledge
-from agent.dynamic_planner import ExecutionPlan, ExecutionStep
 from agent.intent import UserIntent
 from agent.schemas import AgentResult, AgentStatus, ClaimType, Evidence
 
