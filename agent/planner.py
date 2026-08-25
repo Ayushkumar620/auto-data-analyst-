@@ -262,6 +262,13 @@ class PlannerAgent:
             df = pd.DataFrame()
         return self._dynamic_planner.create_plan(query, dataframe=df)
 
+    def plan_execution(self, query: str, data=None, knowledge: Optional[Any] = None) -> Any:
+        """Create a modern dependency-aware ExecutionPlan."""
+        df = self.data if data is None else data
+        if not isinstance(df, pd.DataFrame):
+            df = pd.DataFrame()
+        return self._dynamic_planner.create_execution_plan(query, dataframe=df, knowledge=knowledge)
+
     def plan_and_execute(self, query: str, data=None) -> AgentResult:
         """Create and execute a multi-step dynamic plan from a natural language query."""
         df = self.data if data is None else data

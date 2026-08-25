@@ -467,6 +467,53 @@ class AgentResult(BaseModel):
     def from_dict(cls, data: Dict[str, Any]) -> "AgentResult":
         return cls.model_validate(data)
 
+    @classmethod
+    def error(
+        cls,
+        error: Union[str, AgentError],
+        agent_name: str = "Agent",
+        code: str = "ERROR",
+        details: Optional[Dict[str, Any]] = None,
+        task_id: str = "",
+    ) -> "AgentResult":
+        err_obj = error if isinstance(error, AgentError) else AgentError(
+            code=code,
+            message=str(error),
+            details=details or {},
+            agent_name=agent_name,
+        )
+        return cls(
+            status=AgentStatus.ERROR,
+            agent_name=agent_name,
+            task_id=task_id,
+            data={"error": err_obj.message},
+            message=f"{agent_name} failed: {err_obj.message}",
+            errors=[err_obj],
+            confidence=0.0,
+        )
+
+    @classmethod
+    def success(
+        cls,
+        output: Optional[Dict[str, Any]] = None,
+        agent_name: str = "Agent",
+        message: str = "Success",
+        evidence: Optional[List[Evidence]] = None,
+        confidence: float = 1.0,
+        metadata: Optional[Dict[str, Any]] = None,
+        task_id: str = "",
+    ) -> "AgentResult":
+        return cls(
+            status=AgentStatus.COMPLETED,
+            agent_name=agent_name,
+            task_id=task_id,
+            data=output or {},
+            message=message,
+            evidence=evidence or [],
+            confidence=confidence,
+            metadata=metadata or {},
+        )
+
     def get(self, key: str, default: Any = None) -> Any:
         """Dict-style get() for seamless backward compatibility."""
         if hasattr(self, key):
