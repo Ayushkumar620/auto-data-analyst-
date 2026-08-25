@@ -50,7 +50,7 @@ class AnalysisDiscoveryAgent(BaseAgent):
 
         # 1. Column Role Extraction
         num_cols = list(df.select_dtypes(include=[np.number]).columns)
-        cat_cols = list(df.select_dtypes(include=["object", "category"]).columns)
+        cat_cols = list(df.select_dtypes(include=["object", "category", "string", "str"]).columns)
         date_cols = []
         for c in cols:
             if pd.api.types.is_datetime64_any_dtype(df[c]):
@@ -237,8 +237,9 @@ class AnalysisDiscoveryAgent(BaseAgent):
         self,
         candidates: List[AnalysisCandidate],
         df: pd.DataFrame,
-    ) -> ExecutionPlan:
+    ) -> Any:
         """Construct DAG ExecutionPlan from discovered analysis candidates."""
+        from agent.dynamic_planner import ExecutionPlan, ExecutionStep
         steps: List[ExecutionStep] = []
         step_idx = 1
 

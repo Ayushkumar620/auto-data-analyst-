@@ -103,7 +103,7 @@ class AutonomousAnalystAgent(BaseAgent):
         warnings: List[str] = []
 
         num_cols = list(df.select_dtypes(include=[np.number]).columns)
-        cat_cols = list(df.select_dtypes(include=["object", "category"]).columns)
+        cat_cols = list(df.select_dtypes(include=["object", "category", "string", "str"]).columns)
         date_cols = []
         for c in df.columns:
             if pd.api.types.is_datetime64_any_dtype(df[c]):
