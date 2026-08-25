@@ -69,6 +69,7 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
 from agent.ann_schemas import ANNConfig, auto_select_ann_architecture
 from agent.base import BaseAgent
+from agent.cnn_schemas import CNNConfig, auto_select_cnn_architecture
 from agent.model_selection_schemas import ModelCandidate
 from agent.model_training_schemas import (
     ModelComparisonResult,
@@ -83,6 +84,7 @@ from agent.schemas import (
     ErrorCategory,
     Evidence,
 )
+from backend.app.ml.cnn_engine import CNNEngine, CNNHyperparameters, CNNLayerConfig
 from backend.app.ml.registry import ModelRegistry
 
 
@@ -183,6 +185,117 @@ class ANNTrainer(BaseModelTrainer):
 
     def load(self, filepath: Union[str, Path]) -> ANNTrainer:
         self.estimator = joblib.load(filepath)
+        return self
+
+
+class CNNTrainer(BaseModelTrainer):
+    """Concrete Convolutional Neural Network (CNN) trainer adapter."""
+
+    def __init__(
+        self,
+        engine: Optional[CNNEngine] = None,
+        hyperparams: Optional[CNNHyperparameters] = None,
+        model_name: str = "Convolutional Neural Network (CNN)",
+    ):
+        self.engine = engine or CNNEngine()
+        self.hyperparams = hyperparams or CNNHyperparameters()
+        self.model_name = model_name
+        self.model_family = "cnn"
+        self.spatial_shape: Tuple[int, int] = (8, 8)
+        self.head: Optional[Union[MLPClassifier, MLPRegressor]] = None
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> CNNTrainer:
+        """Fit convolutional feature extractor and dense projection head."""
+        if X.ndim == 2:
+            N, P = X.shape
+            side = int(math.isqrt(P))
+            if side * side == P and side >= 2:
+                self.spatial_shape = (side, side)
+            else:
+                self.spatial_shape = (1, P)
+            X_tensor = X.reshape(N, 1, self.spatial_shape[0], self.spatial_shape[1])
+        elif X.ndim == 3:
+            N, H, W = X.shape
+            self.spatial_shape = (H, W)
+            X_tensor = X.reshape(N, 1, H, W)
+        elif X.ndim == 4:
+            N, C, H, W = X.shape
+            self.spatial_shape = (H, W)
+            X_tensor = X
+        else:
+            raise ValueError(f"Unsupported tensor shape for CNN: {X.shape}")
+
+        X_conv = self.engine.extract_convolutional_features(X_tensor, self.hyperparams)
+        is_clf = len(np.unique(y)) <= 10 and (
+            np.issubdtype(y.dtype, np.integer) or y.dtype == bool or isinstance(y.flat[0], str)
+        )
+        solver = "lbfgs" if len(X) < 200 else "adam"
+
+        if is_clf:
+            self.head = MLPClassifier(
+                hidden_layer_sizes=self.hyperparams.dense_units,
+                activation=self.hyperparams.activation,
+                solver=solver,
+                max_iter=self.hyperparams.epochs,
+                random_state=self.hyperparams.random_state,
+            )
+        else:
+            self.head = MLPRegressor(
+                hidden_layer_sizes=self.hyperparams.dense_units,
+                activation=self.hyperparams.activation,
+                solver=solver,
+                max_iter=self.hyperparams.epochs,
+                random_state=self.hyperparams.random_state,
+            )
+
+        self.head.fit(X_conv, y)
+        return self
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        if self.head is None:
+            raise RuntimeError("CNN model is not fitted.")
+        if X.ndim == 2:
+            N, P = X.shape
+            X_tensor = X.reshape(N, 1, self.spatial_shape[0], self.spatial_shape[1])
+        elif X.ndim == 3:
+            N, H, W = X.shape
+            X_tensor = X.reshape(N, 1, H, W)
+        else:
+            X_tensor = X
+        X_conv = self.engine.extract_convolutional_features(X_tensor, self.hyperparams)
+        return self.head.predict(X_conv)
+
+    def predict_proba(self, X: np.ndarray) -> Optional[np.ndarray]:
+        if self.head is None:
+            return None
+        if hasattr(self.head, "predict_proba"):
+            if X.ndim == 2:
+                N, P = X.shape
+                X_tensor = X.reshape(N, 1, self.spatial_shape[0], self.spatial_shape[1])
+            elif X.ndim == 3:
+                N, H, W = X.shape
+                X_tensor = X.reshape(N, 1, H, W)
+            else:
+                X_tensor = X
+            X_conv = self.engine.extract_convolutional_features(X_tensor, self.hyperparams)
+            return self.head.predict_proba(X_conv)
+        return None
+
+    def save(self, filepath: Union[str, Path]) -> None:
+        state = {
+            "head": self.head,
+            "hyperparams": self.hyperparams,
+            "spatial_shape": self.spatial_shape,
+            "model_name": self.model_name,
+        }
+        joblib.dump(state, filepath)
+
+    def load(self, filepath: Union[str, Path]) -> CNNTrainer:
+        state = joblib.load(filepath)
+        self.head = state["head"]
+        self.hyperparams = state["hyperparams"]
+        self.spatial_shape = state["spatial_shape"]
+        self.model_name = state["model_name"]
         return self
 
 

@@ -95,6 +95,7 @@ class ToolRegistry:
             AnalysisAgent,
             ANNAgent,
             CleaningAgent,
+            CNNAgent,
             DataValidationAgent,
             ForecastAgent,
             InsightAgent,
@@ -245,6 +246,19 @@ class ToolRegistry:
                 input_schema={"data": "pd.DataFrame", "target": "str", "epochs": "int", "layers": "list"},
                 output_schema={"best_model": "dict", "metrics": "dict", "loss_curve": "list"},
                 execution_fn=lambda data, **kw: ANNAgent().run({"data": data, **kw}),
+                validation_requirements=["metrics is not empty"],
+            )
+        )
+
+        # 12. Convolutional Neural Network (CNN) Engine (Milestone 3, Task 4)
+        self.register(
+            ToolDefinition(
+                name="cnn_trainer",
+                description="Trains, tunes, and evaluates Convolutional Neural Networks on image, spatial grid, and signal spectrogram datasets.",
+                capabilities=["cnn_training", "image_classification", "spatial_modeling", "computer_vision"],
+                input_schema={"data": "Any", "target": "str", "epochs": "int", "spatial_shape": "tuple"},
+                output_schema={"best_model": "dict", "metrics": "dict", "spatial_gain": "float"},
+                execution_fn=lambda data, **kw: CNNAgent().run({"data": data, **kw}),
                 validation_requirements=["metrics is not empty"],
             )
         )
