@@ -2,6 +2,12 @@ import React, { useState } from 'react';
 import { executeCommand } from '../services/chatService';
 import type { CommandExecutionResponse } from '../services/chatService';
 import PlotlyChart from '../components/PlotlyChart';
+import AnalysisResponseRenderer from '../components/analyst/AnalysisResponseRenderer';
+import { useDataset } from '../context/DatasetContext';
+import { PageContainer, PageHeader, Card } from '../components/layout/PageContainer';
+import EmptyState from '../components/ui/EmptyState';
+import Spinner from '../components/ui/Spinner';
+import { IconDatabase, IconBrain, IconCheck, IconTrendUp, IconActivity } from '../components/ui/Icons';
 
 type HistoryEntry = {
   command: string;
@@ -9,23 +15,26 @@ type HistoryEntry = {
 };
 
 const SAMPLE_COMMANDS = [
-  'Analyze my sales data.',
-  'Why did profit decrease last year?',
+  'Analyze my sales data and identify top drivers.',
+  'Why did profit decrease last quarter?',
   'Clean this dataset and find the top 10 customers.',
-  'Compare revenue between India and the US.',
-  "Predict next month's sales.",
+  'Compare revenue between regions.',
+  "Forecast next quarter's performance.",
   'Build the best model to predict customer churn.',
-  'Find unusual transactions and explain them.',
-  'Create a report showing the financial performance.',
+  'Find unusual anomalies or correlation patterns.',
+  'Create an executive report showing financial variance.',
 ];
 
 export default function ChatPage() {
+  const { profile, fileName } = useDataset();
   const [file, setFile] = useState<File | null>(null);
   const [command, setCommand] = useState('');
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState('');
   const [activeResult, setActiveResult] = useState<CommandExecutionResponse | null>(null);
+
+  const activeDatasetName = file?.name || fileName || profile?.dataset_name;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFile(e.target.files?.[0] ?? null);
@@ -34,8 +43,8 @@ export default function ChatPage() {
 
   const handleExecute = async (cmdToRun?: string) => {
     const targetCommand = (cmdToRun ?? command).trim();
-    if (!file) {
-      setError('Please select a dataset file first.');
+    if (!file && !profile) {
+      setError('Please select or upload a dataset file first.');
       return;
     }
     if (!targetCommand) {
@@ -46,7 +55,23 @@ export default function ChatPage() {
     setError('');
 
     try {
-      const res = await executeCommand(file, targetCommand);
+      // If no new file uploaded, create a CSV Blob from active dataset preview
+      let targetFile = file;
+      if (!targetFile && profile?.preview && profile.preview.length > 0) {
+        const keys = Object.keys(profile.preview[0]);
+        const csvContent = [
+          keys.join(','),
+          ...profile.preview.map((row) => keys.map((k) => JSON.stringify(row[k] ?? '')).join(',')),
+        ].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        targetFile = new File([blob], fileName || `${profile.dataset_name || 'dataset'}.csv`, { type: 'text/csv' });
+      }
+
+      if (!targetFile) {
+        throw new Error('No dataset file available. Please upload a file.');
+      }
+
+      const res = await executeCommand(targetFile, targetCommand);
       setActiveResult(res);
       setHistory((h) => [{ command: targetCommand, result: res }, ...h]);
       setCommand('');
@@ -58,157 +83,339 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="page-stack chat-page">
-      <header>
-        <p className="hero-eyebrow">Autonomous AI Data Analyst</p>
-        <h1>Command-Driven Analysis Studio</h1>
-        <p className="muted">
-          Give a natural-language command describing your desired outcome. The multi-agent AI engine
-          will automatically inspect data, compose required tools, train models, validate results, and explain the findings.
-        </p>
-      </header>
+    <PageContainer className="command-studio-page">
+      <PageHeader
+        eyebrow="Autonomous AI Data Analyst"
+        title="Command-Driven Analysis Studio"
+        subtitle="Give a natural-language command. The multi-agent AI engine decomposes intent, formulates execution plans, trains models, validates evidence, and generates executive findings."
+      />
 
-      <section className="card">
-        <div className="field">
-          <label htmlFor="chat-file">Dataset file (CSV / Excel)</label>
-          <input
-            id="chat-file"
-            type="file"
-            accept=".csv,.xlsx,.xls"
-            onChange={handleFileChange}
-            disabled={working}
-          />
-        </div>
+      <div className="studio-layout-grid">
+        {/* ================================================================
+            LEFT PANEL: Upload, Profile, Command, Quick Commands
+            ================================================================ */}
+        <aside className="studio-left-panel">
+          {/* Dataset Upload Card */}
+          <Card className="studio-panel-card">
+            <h3 style={{ margin: '0 0 0.75rem', fontSize: '1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <IconDatabase size={16} /> Dataset Source
+            </h3>
 
-        {error ? <div className="status-error">{error}</div> : null}
+            <div className="field" style={{ marginBottom: '0.65rem' }}>
+              <label htmlFor="chat-file" style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: '0.3rem' }}>
+                Upload Dataset (CSV / Excel)
+              </label>
+              <input
+                id="chat-file"
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                onChange={handleFileChange}
+                disabled={working}
+                style={{ width: '100%', fontSize: '0.85rem' }}
+              />
+            </div>
 
-        <div className="chat-input-row">
-          <input
-            type="text"
-            value={command}
-            onChange={(e) => setCommand(e.target.value)}
-            placeholder="e.g. Clean this dataset, compare revenue between regions, and predict next month's sales..."
-            disabled={working}
-            onKeyDown={(e) => e.key === 'Enter' && !working && handleExecute()}
-            style={{ flex: 1, minWidth: 0 }}
-          />
-          <button
-            className="primary-btn"
-            onClick={() => handleExecute()}
-            disabled={working}
-            style={{ width: 'auto', minWidth: '130px' }}
-          >
-            {working ? 'Executing DAG…' : 'Run Command'}
-          </button>
-        </div>
-
-        <div style={{ marginTop: '12px' }}>
-          <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '6px' }}>
-            Quick command inspiration (click to fill):
-          </p>
-          <div className="chip-row">
-            {SAMPLE_COMMANDS.map((sample) => (
-              <button
-                key={sample}
-                className="action-btn"
-                onClick={() => {
-                  setCommand(sample);
-                  if (file) handleExecute(sample);
+            {activeDatasetName && (
+              <div
+                style={{
+                  padding: '0.65rem 0.85rem',
+                  borderRadius: '10px',
+                  backgroundColor: '#f0fdf4',
+                  border: '1px solid #bbf7d0',
+                  marginTop: '0.4rem',
                 }}
-                type="button"
-                style={{ fontSize: '0.82rem', padding: '4px 10px' }}
               >
-                {sample}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {activeResult ? (
-        <section className="card active-result-card">
-          <h2>Execution Breakdown & Explanation</h2>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '16px' }}>
-            <div style={{ padding: '10px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-              <strong>🎯 Detected Intent:</strong>
-              <div style={{ textTransform: 'capitalize', color: '#0284c7', fontWeight: 600 }}>{activeResult.user_intent}</div>
-            </div>
-            <div style={{ padding: '10px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-              <strong>🛡️ Validation Audit:</strong>
-              <div style={{ color: activeResult.validation_summary.status === 'PASSED' ? '#16a34a' : '#ea580c', fontWeight: 600 }}>
-                {activeResult.validation_summary.status} ({activeResult.validation_summary.critical_issues} issues)
-              </div>
-            </div>
-            <div style={{ padding: '10px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-              <strong>⏱️ Execution Time:</strong>
-              <div>{activeResult.duration_ms} ms</div>
-            </div>
-          </div>
-
-          <div style={{ marginBottom: '16px' }}>
-            <strong>⚙️ Decomposed Required Operations:</strong>
-            <ul style={{ paddingLeft: '20px', marginTop: '6px' }}>
-              {activeResult.required_operations.map((op, i) => (
-                <li key={i} style={{ color: '#475569', fontSize: '0.9rem' }}>{op}</li>
-              ))}
-            </ul>
-          </div>
-
-          <div style={{ marginBottom: '16px' }}>
-            <strong>🤖 Autonomous Agents Deployed:</strong>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' }}>
-              {activeResult.selected_agents.map((agent, i) => (
-                <span key={i} style={{ background: '#e0e7ff', color: '#3730a3', padding: '2px 8px', borderRadius: '4px', fontSize: '0.85rem' }}>
-                  {agent}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {activeResult.model_selection_summary ? (
-            <div style={{ padding: '12px', background: '#f0fdf4', borderRadius: '6px', border: '1px solid #bbf7d0', marginBottom: '16px' }}>
-              <strong>🏆 Best Model Selection:</strong>
-              <div>
-                <strong>Model:</strong> {String(activeResult.model_selection_summary.model_name ?? '')} |{' '}
-                <strong>Score:</strong> {Number(activeResult.model_selection_summary.primary_metric_value ?? 0).toFixed(4)}
-              </div>
-            </div>
-          ) : null}
-
-          <div style={{ padding: '16px', background: '#f1f5f9', borderRadius: '8px', marginBottom: '16px' }}>
-            <h3 style={{ marginTop: 0 }}>Analytical Finding & Explanation</h3>
-            <p style={{ whiteSpace: 'pre-line', margin: 0 }}>{activeResult.final_explanation}</p>
-          </div>
-
-          {activeResult.visualization && (activeResult.visualization.data || activeResult.visualization.chart_type) ? (
-            <div>
-              <h3>Visual Evidence</h3>
-              {activeResult.visualization.data ? (
-                <PlotlyChart data={activeResult.visualization.data as any} layout={activeResult.visualization.layout} />
-              ) : (
-                <div style={{ padding: '10px', background: '#e2e8f0', borderRadius: '6px' }}>
-                  Chart: {activeResult.visualization.chart_type} ({activeResult.visualization.x} vs {activeResult.visualization.y})
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#166534', wordBreak: 'break-all' }}>
+                    {activeDatasetName}
+                  </span>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#15803d', textTransform: 'uppercase' }}>
+                    Active
+                  </span>
                 </div>
-              )}
-            </div>
-          ) : null}
-        </section>
-      ) : null}
+                {profile && (
+                  <p className="muted" style={{ margin: '0.2rem 0 0', fontSize: '0.75rem' }}>
+                    {profile.rows.toLocaleString()} rows · {profile.columns} columns
+                  </p>
+                )}
+              </div>
+            )}
+          </Card>
 
-      {history.length > 1 ? (
-        <section className="card">
-          <h2>Recent Command History</h2>
-          <ul className="chat-history">
-            {history.slice(1).map((entry, idx) => (
-              <li key={idx} className="chat-bubble chat-user" style={{ cursor: 'pointer' }} onClick={() => setActiveResult(entry.result)}>
-                <strong>Command:</strong> {entry.command}
-                <div className="muted" style={{ fontSize: '0.85rem' }}>Intent: {entry.result.user_intent} | {entry.result.duration_ms} ms</div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-    </div>
+          {/* Command Input Card */}
+          <Card className="studio-panel-card">
+            <h3 style={{ margin: '0 0 0.6rem', fontSize: '1rem', fontWeight: 600 }}>
+              Enter Command
+            </h3>
+
+            {error ? <div className="status-error" style={{ marginBottom: '0.75rem', fontSize: '0.85rem', padding: '0.5rem 0.75rem', borderRadius: '8px' }}>{error}</div> : null}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              <textarea
+                value={command}
+                onChange={(e) => setCommand(e.target.value)}
+                placeholder="e.g. Clean this dataset, compare revenue between regions, and predict next month's performance..."
+                disabled={working}
+                rows={3}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey && !working) {
+                    e.preventDefault();
+                    handleExecute();
+                  }
+                }}
+                className="horizon-input"
+                style={{ width: '100%', minWidth: 0, resize: 'vertical', fontSize: '0.88rem' }}
+                aria-label="Analytical command"
+              />
+
+              <button
+                className="primary-btn"
+                onClick={() => handleExecute()}
+                disabled={working || (!file && !profile) || !command.trim()}
+                style={{ width: '100%', padding: '0.65rem 1rem' }}
+                type="button"
+              >
+                {working ? (
+                  <>
+                    <Spinner size={16} /> Executing DAG…
+                  </>
+                ) : (
+                  '⚡ Analyze Data'
+                )}
+              </button>
+            </div>
+          </Card>
+
+          {/* Quick Commands Card */}
+          <Card className="studio-panel-card">
+            <h3 style={{ margin: '0 0 0.5rem', fontSize: '0.92rem', fontWeight: 600 }} className="muted">
+              Quick Command Inspiration
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              {SAMPLE_COMMANDS.map((sample) => (
+                <button
+                  key={sample}
+                  className="analyst-chip"
+                  onClick={() => {
+                    setCommand(sample);
+                    if (file || profile) handleExecute(sample);
+                  }}
+                  type="button"
+                  style={{ textAlign: 'left', fontSize: '0.8rem', padding: '0.45rem 0.65rem' }}
+                  disabled={working}
+                >
+                  ⚡ {sample}
+                </button>
+              ))}
+            </div>
+          </Card>
+        </aside>
+
+        {/* ================================================================
+            RIGHT PANEL: Execution Graph, Report, Models, Visualizations
+            ================================================================ */}
+        <main className="studio-right-panel">
+          {activeResult ? (
+            <>
+              {/* Autonomous Agent Execution Graph Card */}
+              <Card className="execution-graph-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
+                  <div>
+                    <h2 className="section-title" style={{ margin: '0 0 0.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <IconBrain size={20} /> Autonomous Agent Execution Graph
+                    </h2>
+                    <p className="section-subtitle" style={{ margin: 0 }}>
+                      Multi-agent pipeline decomposed and executed across specialized autonomous agents.
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        padding: '0.2rem 0.6rem',
+                        borderRadius: '6px',
+                        backgroundColor: '#e0f2fe',
+                        color: '#0369a1',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      Intent: {activeResult.user_intent}
+                    </span>
+                    <span
+                      style={{
+                        padding: '0.2rem 0.6rem',
+                        borderRadius: '6px',
+                        backgroundColor: activeResult.validation_summary.status === 'PASSED' ? '#ecfdf5' : '#fff7ed',
+                        color: activeResult.validation_summary.status === 'PASSED' ? '#059669' : '#c2410c',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {activeResult.validation_summary.status}
+                    </span>
+                    <span
+                      style={{
+                        padding: '0.2rem 0.6rem',
+                        borderRadius: '6px',
+                        backgroundColor: '#f1f5f9',
+                        color: '#475569',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                      }}
+                    >
+                      ⏱️ {activeResult.duration_ms} ms
+                    </span>
+                  </div>
+                </div>
+
+                {/* Horizontal Scrollable DAG Graph Wrapper */}
+                <div className="graph-wrapper" aria-label="Agent execution graph flow">
+                  <div className="dag-flow">
+                    {/* Step 1: Intent & Planning */}
+                    <div className="dag-card dag-card--completed">
+                      <div className="dag-card-header">
+                        <span className="dag-card-step">Step 1</span>
+                        <span className="dag-card-status"><IconCheck size={10} aria-hidden /> Done</span>
+                      </div>
+                      <p className="dag-card-title">IntentAnalyzer</p>
+                      <p className="dag-card-role">Decompose query & formulate plan</p>
+                    </div>
+
+                    <span className="dag-connector">→</span>
+
+                    {/* Step 2: Quality & Validation */}
+                    <div className="dag-card dag-card--completed">
+                      <div className="dag-card-header">
+                        <span className="dag-card-step">Step 2</span>
+                        <span className="dag-card-status"><IconCheck size={10} aria-hidden /> Done</span>
+                      </div>
+                      <p className="dag-card-title">DataValidationAgent</p>
+                      <p className="dag-card-role">Verify schema & clean anomalies</p>
+                    </div>
+
+                    {/* Step 3+: Deployed Agents */}
+                    {activeResult.selected_agents.map((agentName, idx) => (
+                      <React.Fragment key={idx}>
+                        <span className="dag-connector">→</span>
+                        <div className="dag-card dag-card--completed">
+                          <div className="dag-card-header">
+                            <span className="dag-card-step">Step {idx + 3}</span>
+                            <span className="dag-card-status"><IconCheck size={10} aria-hidden /> Done</span>
+                          </div>
+                          <p className="dag-card-title">{agentName}</p>
+                          <p className="dag-card-role">
+                            {activeResult.required_operations[idx] || 'Compute analytical findings'}
+                          </p>
+                        </div>
+                      </React.Fragment>
+                    ))}
+
+                    <span className="dag-connector">→</span>
+
+                    {/* Final Step: Synthesis & Findings */}
+                    <div className="dag-card dag-card--completed">
+                      <div className="dag-card-header">
+                        <span className="dag-card-step">Synthesis</span>
+                        <span className="dag-card-status"><IconCheck size={10} aria-hidden /> Done</span>
+                      </div>
+                      <p className="dag-card-title">DecisionExplainer</p>
+                      <p className="dag-card-role">Synthesize executive evidence</p>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Best Model Selection (if applicable) */}
+              {activeResult.model_selection_summary && (
+                <Card style={{ borderLeft: '4px solid #10b981', backgroundColor: '#f0fdf4' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <IconTrendUp size={20} style={{ color: '#16a34a' }} />
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#15803d' }}>
+                        Autonomous Model Selection: {String(activeResult.model_selection_summary.model_name ?? '')}
+                      </h3>
+                      <p style={{ margin: '0.2rem 0 0', fontSize: '0.84rem', color: '#166534' }}>
+                        Primary Metric Score: <strong>{Number(activeResult.model_selection_summary.primary_metric_value ?? 0).toFixed(4)}</strong>
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {/* Executive Report & Key Findings Card */}
+              <Card>
+                <h2 className="section-title" style={{ margin: '0 0 0.75rem', color: 'var(--primary)' }}>
+                  Executive Report & Verifiable Findings
+                </h2>
+                <div className="executive-report-body">
+                  <AnalysisResponseRenderer content={activeResult.final_explanation} />
+                </div>
+              </Card>
+
+              {/* Visual Evidence Card (if chart available) */}
+              {activeResult.visualization && (activeResult.visualization.data || activeResult.visualization.chart_type) && (
+                <Card>
+                  <h2 className="section-title" style={{ margin: '0 0 0.75rem' }}>
+                    Visual Evidence & Projections
+                  </h2>
+                  <div className="chart-responsive-shell">
+                    {activeResult.visualization.data ? (
+                      <PlotlyChart data={activeResult.visualization.data as any} layout={activeResult.visualization.layout} />
+                    ) : (
+                      <div style={{ padding: '1rem', background: '#f8fafc', borderRadius: '8px', textAlign: 'center' }}>
+                        Chart Type: {activeResult.visualization.chart_type} ({activeResult.visualization.x} vs {activeResult.visualization.y})
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              )}
+            </>
+          ) : (
+            /* Empty State */
+            <Card>
+              <EmptyState
+                icon={<IconBrain size={48} />}
+                title="Ready for Analysis"
+                description="Select a dataset on the left panel and submit a natural-language command to trigger the autonomous multi-agent execution pipeline."
+              />
+            </Card>
+          )}
+
+          {/* Recent Command History */}
+          {history.length > 0 && (
+            <Card>
+              <h2 className="section-title" style={{ margin: '0 0 0.75rem' }}>
+                Recent Command History ({history.length})
+              </h2>
+              <div style={{ display: 'grid', gap: '0.5rem' }}>
+                {history.map((entry, idx) => (
+                  <div
+                    key={idx}
+                    className="glass-card"
+                    style={{
+                      padding: '0.75rem 1rem',
+                      cursor: 'pointer',
+                      border: activeResult === entry.result ? '1px solid var(--primary)' : '1px solid #e2e8f0',
+                      backgroundColor: activeResult === entry.result ? 'var(--primary-light)' : '#ffffff',
+                    }}
+                    onClick={() => setActiveResult(entry.result)}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong style={{ fontSize: '0.88rem', color: 'var(--ink)' }}>{entry.command}</strong>
+                      <span className="muted" style={{ fontSize: '0.74rem' }}>
+                        {entry.result.duration_ms} ms
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+        </main>
+      </div>
+    </PageContainer>
   );
 }
+

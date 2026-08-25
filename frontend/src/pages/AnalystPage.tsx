@@ -158,6 +158,8 @@ export default function AnalystPage() {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '0.75rem',
           backgroundColor: 'rgba(255, 255, 255, 0.95)',
           border: '1px solid rgba(226, 232, 240, 0.9)',
           borderRadius: '14px',
@@ -206,7 +208,7 @@ export default function AnalystPage() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <Link
             to="/datasets"
             className="action-btn"
@@ -226,9 +228,9 @@ export default function AnalystPage() {
       </div>
 
       {/* Main Conversation Layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr minmax(200px, 240px)', gap: '1.25rem', flex: 1, alignItems: 'start' }}>
+      <div className="analyst-layout-grid">
         {/* Chat Stream & Composer */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: '480px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: '480px', width: '100%', minWidth: 0 }}>
           <div
             style={{
               flex: 1,
@@ -330,7 +332,7 @@ export default function AnalystPage() {
         </div>
 
         {/* History sidebar (desktop) */}
-        <div className="glass-card glass-card--padded" style={{ alignSelf: 'stretch' }}>
+        <div className="glass-card glass-card--padded" style={{ alignSelf: 'start', width: '100%', minWidth: 0 }}>
           <ConversationHistory
             sessions={sessions}
             currentSessionId={currentSessionId}
