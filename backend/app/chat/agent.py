@@ -12,6 +12,8 @@ class ChatAgent:
         self.tools = tools or ToolRegistry(); self.validator = ResultValidator()
 
     def respond(self, dataframe: pd.DataFrame, message: str, context: dict[str, Any] | None = None) -> ChatResponse:
+        if dataframe is None or dataframe.empty:
+            return ChatResponse("The dataset is empty. Please provide or upload data to analyze.", "unsupported", "unsupported", suggested_questions=[])
         text = message.casefold().strip(); context = context or {}
         columns = list(dataframe.columns)
         mentioned = self._columns(text, columns)
@@ -198,7 +200,8 @@ class ChatAgent:
     @staticmethod
     def _format(value: Any) -> str: return f"{value:,.2f}" if isinstance(value, float) else f"{value:,}" if isinstance(value, int) else str(value)
     @staticmethod
-    def _ambiguous(text: str, metric: str | None, group: str | None) -> bool: return "best" in text and not metric
+    def _ambiguous(text: str, metric: str | None, group: str | None) -> bool:
+        return "best" in text and ("which is best" in text or not any(m in text for m in ("sales", "profit", "revenue", "cost", "margin", "units", "quantity", "price", "highest", "lowest")))
     def _metric_questions(self, dataframe: pd.DataFrame, group: str | None = None) -> list[str]:
         metrics = list(dataframe.select_dtypes(include="number").columns); metric = metrics[0] if metrics else "data"
         category = group or self._categorical_column(dataframe)
