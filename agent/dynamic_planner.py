@@ -29,6 +29,21 @@ from agent.result_validator import ResultValidator
 from agent.schemas import AgentError, AgentResult, AgentStatus, ClaimType, Evidence
 from agent.tool_registry import DEFAULT_TOOL_REGISTRY, ToolDefinition, ToolRegistry
 from backend.app.core.llm_provider import BaseLLMProvider, LLMClientFactory, LLMMessage
+from agent.agents import (
+    CleaningAgent,
+    AnalysisAgent,
+    PredictionAgent,
+    ForecastAgent,
+    VisualizationAgent,
+    InsightAgent,
+    ReportAgent,
+    ModelSelectionAgent,
+    ANNAgent,
+    CNNAgent,
+    ModelRegistryAgent,
+    DataValidationAgent,
+)
+from backend.app.core.semantic import SemanticSchemaAgent
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +173,7 @@ class TaskPlan:
     plan_id: str
     query: str
     intent: Union[IntentClassificationResult, Dict[str, Any]]
-    steps: List[Union[PlanStep, ExecutionStep]] = field(default_factory=list)
+    steps: List[PlanStep] = field(default_factory=list)
     dataset_validation: Dict[str, Any] = field(default_factory=dict)
     created_at: datetime = field(default_factory=datetime.now)
     total_duration_ms: float = 0.0
@@ -283,12 +298,14 @@ class DynamicTaskPlanner(BaseAgent):
         tool_registry: Optional[ToolRegistry] = None,
         intent_analyzer: Optional[IntentAnalyzer] = None,
         validator: Optional[ResultValidator] = None,
+        semantic_agent: Optional[SemanticSchemaAgent] = None,
         llm_provider: Optional[BaseLLMProvider] = None,
     ):
         super().__init__()
         self.tool_registry = tool_registry or DEFAULT_TOOL_REGISTRY
         self.intent_analyzer = intent_analyzer or IntentAnalyzer()
         self.validator = validator or ResultValidator()
+        self.semantic_agent = semantic_agent or SemanticSchemaAgent()
         self.llm_provider = llm_provider
         self.command_agent = CommandIntelligenceAgent(llm_provider=llm_provider)
         self.execution_engine = ExecutionEngine(tool_registry=self.tool_registry)
@@ -363,8 +380,6 @@ class DynamicTaskPlanner(BaseAgent):
 
         # 3. Main Analytical Execution Paths
         if primary_intent_val == "root_cause_analysis":
-            # Multi-step Root Cause DAG:
-            # A: Period Metric Aggregation -> B: Regional/Product Segmentation -> C: Anomaly Detection -> D: Explanation
             metric_target = user_intent.metrics[0] if user_intent.metrics else (knowledge.get_primary_metric() if knowledge else "revenue")
             
             # Step A: Aggregation & Trend
@@ -418,7 +433,6 @@ class DynamicTaskPlanner(BaseAgent):
             if user_intent.time_range and "month" in user_intent.time_range:
                 periods = 6
 
-            # If regional analysis or aggregation was requested before forecasting:
             if "regional_analysis" in req_caps or "aggregation" in req_caps:
                 agg_step = f"step_{step_idx}"
                 steps.append(
@@ -580,12 +594,112 @@ class DynamicTaskPlanner(BaseAgent):
         plan: Union[ExecutionPlan, TaskPlan],
         dataframe: pd.DataFrame,
     ) -> AgentResult:
-        """Execute plan via ExecutionEngine with upfront validation."""
+        """Execute plan with upfront validation and full backwards compatibility."""
         if isinstance(plan, ExecutionPlan):
             val_errors = ExecutionGraph.validate_plan(plan, self.tool_registry)
             if val_errors:
                 raise ValueError(f"Plan validation failed: {'; '.join(val_errors)}")
-        return self.execution_engine.execute_plan(plan, dataframe)
+            return self.execution_engine.execute_plan(plan, dataframe)
+
+        # Legacy TaskPlan execution loop
+        start_time = datetime.now()
+        current_data = dataframe.copy() if dataframe is not None else pd.DataFrame()
+        step_results: Dict[int, AgentResult] = {}
+        all_evidence: List[Evidence] = []
+        all_warnings: List[str] = []
+
+        agent_factory = {
+            "CleaningAgent": CleaningAgent,
+            "AnalysisAgent": AnalysisAgent,
+            "PredictionAgent": PredictionAgent,
+            "ForecastAgent": ForecastAgent,
+            "VisualizationAgent": VisualizationAgent,
+            "InsightAgent": InsightAgent,
+            "ReportAgent": ReportAgent,
+            "ModelSelectionAgent": ModelSelectionAgent,
+            "ANNAgent": ANNAgent,
+            "CNNAgent": CNNAgent,
+            "ModelRegistryAgent": ModelRegistryAgent,
+            "DataValidationAgent": DataValidationAgent,
+        }
+
+        for step in plan.steps:
+            step.status = "in_progress"
+            step_start = datetime.now()
+
+            task_payload = {"data": current_data, **step.parameters}
+            if step.agent_class_name == "ReportAgent":
+                task_payload["agent_outputs"] = list(step_results.values())
+
+            agent_cls = agent_factory.get(step.agent_class_name, AnalysisAgent)
+            agent_instance: BaseAgent = agent_cls()
+
+            try:
+                result = agent_instance.execute_with_retry(task_payload, max_retries=2)
+                step.duration_ms = round((datetime.now() - step_start).total_seconds() * 1000, 2)
+                step.result = result
+
+                if result.is_success:
+                    step.status = "completed"
+                    step_results[step.step_id] = result
+                    all_evidence.extend(result.evidence)
+                    all_warnings.extend(result.warnings)
+
+                    if step.action == "clean":
+                        reports = result.output.get("reports", []) if isinstance(result.output, dict) else []
+                        if reports and isinstance(reports, list) and "cleaned_data" in reports[0]:
+                            current_data = pd.DataFrame(reports[0]["cleaned_data"])
+                else:
+                    step.status = "failed"
+                    all_warnings.append(f"Step {step.step_id} ({step.name}) failed. Applied fallback: {step.fallback_strategy}")
+            except Exception as exc:
+                step.status = "failed"
+                step.duration_ms = round((datetime.now() - step_start).total_seconds() * 1000, 2)
+                all_warnings.append(f"Step {step.step_id} encountered exception: {str(exc)}")
+
+        total_duration = round((datetime.now() - start_time).total_seconds() * 1000, 2)
+        plan.total_duration_ms = total_duration
+
+        intent_pi = plan.intent.primary_intent.value if hasattr(plan.intent, "primary_intent") and hasattr(plan.intent.primary_intent, "value") else "eda"
+        outputs_summary = {
+            "plan_id": plan.plan_id,
+            "query": plan.query,
+            "primary_intent": intent_pi,
+            "steps_executed": [s.to_dict() for s in plan.steps],
+            "step_outputs": {str(sid): res.output for sid, res in step_results.items()},
+        }
+
+        final_report = None
+        for step in reversed(plan.steps):
+            if step.agent_class_name == "ReportAgent" and step.result and step.result.is_success:
+                final_report = step.result.output.get("report") if isinstance(step.result.output, dict) else None
+                break
+
+        if final_report:
+            outputs_summary["report"] = final_report
+
+        confidences = [r.confidence for r in step_results.values() if r.confidence > 0]
+        avg_conf = float(sum(confidences) / len(confidences)) if confidences else 0.85
+
+        evidence = all_evidence or [
+            Evidence(
+                source="DynamicTaskPlanner",
+                method="dag_execution",
+                data_ref={"steps_count": len(plan.steps), "successful_steps": len(step_results)},
+                confidence=round(avg_conf, 3),
+                claim_type=ClaimType.FACT,
+            )
+        ]
+
+        return AgentResult.success(
+            agent_name="DynamicTaskPlanner",
+            task_id=plan.plan_id,
+            output=outputs_summary,
+            evidence=evidence,
+            confidence=round(avg_conf, 3),
+            message="DynamicTaskPlanner executed successfully.",
+            metadata={"plan": plan.to_dict()},
+        )
 
     # ------------------------------------------------------------------
     # Legacy create_plan for Backwards Compatibility
@@ -596,31 +710,141 @@ class DynamicTaskPlanner(BaseAgent):
         dataframe: pd.DataFrame,
         knowledge: Optional[Any] = None,
     ) -> TaskPlan:
-        """Legacy helper returning TaskPlan for older callers."""
-        intent_res = self.intent_analyzer.analyze(query, knowledge=knowledge, dataframe=dataframe)
-        
-        # Build modern plan
-        exec_plan = self.create_execution_plan(query, dataframe=dataframe, knowledge=knowledge)
+        """Legacy helper returning TaskPlan with exact legacy step actions."""
+        if not isinstance(knowledge, DatasetKnowledge):
+            knowledge = None
 
-        # Convert to legacy TaskPlan
-        legacy_steps: List[PlanStep] = []
-        for idx, s in enumerate(exec_plan.steps):
-            legacy_steps.append(
+        intent_res = self.intent_analyzer.analyze(query, knowledge=knowledge, dataframe=dataframe)
+        if knowledge is None:
+            knowledge = self.semantic_agent.build_knowledge(dataframe)
+
+        dataset_val = self._validate_dataset_requirements(dataframe, intent_res, knowledge)
+
+        steps: List[PlanStep] = []
+        step_counter = 1
+
+        needs_cleaning = intent_res.needs_cleaning or knowledge.data_quality.get("quality_score", 100) < 85
+        cleaning_step_id = None
+        if needs_cleaning or intent_res.primary_intent == AnalyticalIntent.CLEANING:
+            cleaning_step_id = step_counter
+            steps.append(
                 PlanStep(
-                    step_id=idx + 1,
-                    name=s.purpose or s.tool_name,
-                    agent_class_name=s.agent_name or "AnalysisAgent",
-                    action=s.tool_name,
-                    parameters=s.inputs,
-                    dependencies=[int(d.replace("step_", "")) for d in s.dependencies if d.startswith("step_") and d.replace("step_", "").isdigit()],
-                    status=s.status,
+                    step_id=cleaning_step_id,
+                    name="Data Sanitization and Imputation",
+                    agent_class_name="CleaningAgent",
+                    action="clean",
+                    parameters={"strategy": "auto_impute"},
+                    dependencies=[],
                 )
             )
+            step_counter += 1
+
+        primary_deps = [cleaning_step_id] if cleaning_step_id else []
+        main_step_id = step_counter
+
+        if intent_res.primary_intent == AnalyticalIntent.PREDICTION:
+            target = intent_res.target_column or knowledge.get_primary_metric()
+            steps.append(
+                PlanStep(
+                    step_id=main_step_id,
+                    name=f"Intelligent ML Model Selection & Benchmarking for '{target}'",
+                    agent_class_name="ModelSelectionAgent",
+                    action="model_selection",
+                    parameters={"target": target, "features": intent_res.feature_columns},
+                    dependencies=primary_deps,
+                )
+            )
+            step_counter += 1
+        elif intent_res.primary_intent == AnalyticalIntent.FORECASTING:
+            target = intent_res.target_column or knowledge.get_primary_metric()
+            periods = intent_res.time_horizon or 5
+            steps.append(
+                PlanStep(
+                    step_id=main_step_id,
+                    name=f"Time Series Forecast for '{target}' ({periods} periods)",
+                    agent_class_name="ForecastAgent",
+                    action="forecast",
+                    parameters={"target": target, "periods": periods},
+                    dependencies=primary_deps,
+                )
+            )
+            step_counter += 1
+        else:
+            target = intent_res.target_column or knowledge.get_primary_metric()
+            steps.append(
+                PlanStep(
+                    step_id=main_step_id,
+                    name=f"Exploratory Data Analysis on '{target or 'dataset'}'",
+                    agent_class_name="AnalysisAgent",
+                    action="summary",
+                    parameters={"request": "summary"},
+                    dependencies=primary_deps,
+                )
+            )
+            step_counter += 1
+
+        if intent_res.needs_explanation or intent_res.primary_intent == AnalyticalIntent.EXPLANATION:
+            exp_deps = [main_step_id] if main_step_id else primary_deps
+            top_k = intent_res.top_k or 3
+            target = intent_res.target_column or knowledge.get_primary_metric()
+            steps.append(
+                PlanStep(
+                    step_id=step_counter,
+                    name=f"Extract Top-{top_k} Influential Drivers for '{target}'",
+                    agent_class_name="InsightAgent",
+                    action="explain_drivers",
+                    parameters={"type": "smart", "target": target, "top_k": top_k},
+                    dependencies=exp_deps,
+                )
+            )
+            step_counter += 1
+
+        all_prior_step_ids = [s.step_id for s in steps]
+        steps.append(
+            PlanStep(
+                step_id=step_counter,
+                name="Synthesize Executive Insights & Final Narrative Report",
+                agent_class_name="ReportAgent",
+                action="report",
+                parameters={"request": "pipeline"},
+                dependencies=all_prior_step_ids,
+            )
+        )
 
         return TaskPlan(
-            plan_id=exec_plan.plan_id,
+            plan_id=f"plan_{uuid.uuid4().hex[:8]}",
             query=query,
             intent=intent_res,
-            steps=legacy_steps,
-            dataset_validation={},
+            steps=steps,
+            dataset_validation=dataset_val,
         )
+
+    def _validate_dataset_requirements(
+        self,
+        dataframe: pd.DataFrame,
+        intent: IntentClassificationResult,
+        knowledge: DatasetKnowledge,
+    ) -> Dict[str, Any]:
+        """Validate if the dataset satisfies requirements for the detected intent."""
+        validation = {
+            "is_valid": True,
+            "row_count": len(dataframe),
+            "column_count": len(dataframe.columns),
+            "issues": [],
+        }
+
+        if len(dataframe) < 5:
+            validation["is_valid"] = False
+            validation["issues"].append("Dataset contains fewer than 5 rows, insufficient for reliable modeling.")
+
+        if intent.primary_intent == AnalyticalIntent.FORECASTING:
+            if not knowledge.date_columns and not any(pd.api.types.is_datetime64_any_dtype(dataframe[c]) for c in dataframe.columns):
+                validation["is_valid"] = False
+                validation["issues"].append("Forecasting requested but no date or timestamp column detected.")
+
+        if intent.primary_intent in (AnalyticalIntent.PREDICTION, AnalyticalIntent.DEEP_LEARNING):
+            if intent.target_column and intent.target_column not in dataframe.columns:
+                validation["is_valid"] = False
+                validation["issues"].append(f"Target column '{intent.target_column}' does not exist in dataset.")
+
+        return validation
