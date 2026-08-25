@@ -1,4 +1,5 @@
 import { buildApiUrl, authedFetch, parseApiError } from './api';
+import type { ChatSessionApiResponse } from '../types';
 
 export type ChatResponse = {
   message: string;
@@ -65,4 +66,37 @@ export async function executeCommand(file?: File | null, command: string = '', d
   });
   if (!res.ok) return parseApiError(res);
   return await res.json();
+}
+
+export async function sendConversationalMessage(
+  message: string,
+  sessionId: string = 'default_session',
+  dataset?: Array<Record<string, unknown>>,
+  datasetName?: string,
+): Promise<ChatSessionApiResponse> {
+  const res = await authedFetch(buildApiUrl('/api/v1/chat/session'), {
+    method: 'POST',
+    body: JSON.stringify({
+      message,
+      session_id: sessionId,
+      dataset: dataset || null,
+      dataset_name: datasetName || 'dataset',
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Conversational analyst request failed');
+  }
+
+  return res.json();
+}
+
+export async function getConversationalSession(sessionId: string): Promise<Record<string, unknown>> {
+  const res = await authedFetch(buildApiUrl(`/api/v1/chat/session/${encodeURIComponent(sessionId)}`));
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to retrieve session');
+  }
+  return res.json();
 }

@@ -129,10 +129,56 @@ export type ModelMetadata = {
   feature_importances?: Record<string, number>;
 };
 
-export type InferenceResponse = {
-  model_id: string;
-  predictions: Array<number | string>;
-  probabilities?: Array<number[] | Record<string, number>>;
-  duration_ms?: number;
-  batch_size?: number;
+// ==========================================
+// Phase 4: Conversational AI Analyst Types
+// ==========================================
+export type ChatRole = 'user' | 'assistant' | 'system';
+
+export type EvidenceItem = {
+  dataset_id?: string;
+  dataset_name?: string;
+  columns?: string[];
+  operation?: string;
+  calculation?: string;
+  source_reference?: string;
+  result?: unknown;
+  confidence?: number;
+  claim_type?: string;
+  claim?: string;
+  raw_value?: unknown;
+  metadata?: Record<string, unknown>;
 };
+
+export type ChatMessage = {
+  id: string;
+  role: ChatRole;
+  content: string;
+  evidence?: EvidenceItem[];
+  metadata?: Record<string, unknown>;
+  timestamp: string;
+};
+
+export type AnalystSession = {
+  session_id: string;
+  dataset_name?: string;
+  created_at: string;
+  updated_at: string;
+  messages: ChatMessage[];
+};
+
+export type ChatSessionApiResponse = {
+  session_id: string;
+  message: string;
+  response: string;
+  evidence: EvidenceItem[];
+  dataset_context?: {
+    dataset_name?: string;
+    row_count?: number;
+    column_count?: number;
+    numeric_columns?: string[];
+    categorical_columns?: string[];
+  };
+  metadata?: Record<string, unknown>;
+  created_at: string;
+};
+
