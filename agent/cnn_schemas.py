@@ -138,3 +138,4 @@ def auto_select_cnn_architecture(
         random_seed=random_seed,
         task_type=task_type,
     )
+

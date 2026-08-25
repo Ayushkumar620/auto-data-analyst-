@@ -362,3 +362,4 @@ def test_cnn_side_by_side_comparison_with_baseline(temp_registry, synthetic_bina
     assert len(result.candidates) == 2
     assert len(result.ranking) == 2
     assert result.best_model is not None
+
