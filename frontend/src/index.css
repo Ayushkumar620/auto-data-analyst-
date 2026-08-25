@@ -1,3 +1,4 @@
+@import url('./components/layout/shell.css');
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap');
 
 :root {
@@ -28,6 +29,11 @@
   --alert: #ef4444;
   --alert-bg: #fef2f2;
   --warning: #f59e0b;
+  --warning-bg: #fffbeb;
+
+  --surface: #ffffff;
+  --surface-elevated: rgba(255, 255, 255, 0.96);
+  --border: rgba(226, 232, 240, 0.9);
 
   --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
   --shadow-md: 0 10px 25px -5px rgba(15, 23, 42, 0.06), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
