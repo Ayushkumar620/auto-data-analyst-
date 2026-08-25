@@ -2,7 +2,7 @@
 
 **Audit Date:** August 25, 2026  
 **Auditor:** Lead AI Architect & Senior Full-Stack Engineer  
-**Repository State:** 403 Unit & Integration Tests Passing (100% Pass Rate) | Clean Git Working Tree  
+**Repository State:** 421 Unit & Integration Tests Passing (100% Pass Rate) | Clean Git Working Tree  
 **Remote Repository:** `https://github.com/Ayushkumar620/auto-data-analyst-.git`
 
 ---
@@ -12,10 +12,10 @@
 The **Auto Data Analyst** project is a **command-driven, multi-agent autonomous data intelligence platform** built for high-performance computing, mathematical evidence grounding, multi-modal ingestion, and enterprise compliance.
 
 ### 🎯 Core Operational Invariants
-- **User Experience**: The user provides a natural language command (e.g. *"Analyze sales data and find drivers of churn"*, *"Why did profit fall last quarter?"*, *"Find unusual transactions and explain them"*). The user is **never** forced to manually choose between EDA, ML, forecasting, clustering, or deep learning.
+- **User Experience**: The user provides a natural language command (e.g. *"Analyze sales data and find drivers of churn"*, *"Why did profit fall last quarter?"*, *"Find unusual transactions and explain them"*, *"Check data drift and model health for CustomerChurnPredictor"*). The user is **never** forced to manually configure mathematical tests or choose algorithms.
 - **Computation vs. Reasoning Separation**:
   - **LLM / Intelligent Agents**: Determine user intent, build dynamic DAG execution plans, select specialized analytical tools, and compose structured narrative explanations.
-  - **Deterministic Python / ML Engines**: Execute all mathematical computations, aggregations, statistical modeling, machine learning training, forecasting, and anomaly detection in pandas, numpy, duckdb, polars, and scikit-learn. **Zero numerical hallucinations are permitted.**
+  - **Deterministic Python / ML Engines**: Execute all mathematical computations, aggregations, statistical modeling, machine learning training, hypothesis testing (KS test, Chi-square, PSI), and performance benchmarking in pandas, numpy, scipy, duckdb, polars, and scikit-learn. **Zero numerical hallucinations are permitted.**
 
 ---
 
@@ -69,7 +69,7 @@ The **Auto Data Analyst** project is a **command-driven, multi-agent autonomous 
 
 ---
 
-## 4. Milestone 4 — Unified Intelligent Model Orchestration 🎯🔀🏛️
+## 4. Milestone 4 — Unified Orchestration & Monitoring Intelligence 🎯🔀🏛️📊
 
 | Component | Status | Details |
 | :--- | :---: | :--- |
@@ -78,8 +78,11 @@ The **Auto Data Analyst** project is a **command-driven, multi-agent autonomous 
 | **Multi-Family Engine Adapters** | **COMPLETED** | Concrete adapters: `TraditionalMLEngine`, `ANNEngineAdapter`, `CNNEngineAdapter`. |
 | **`UnifiedModelOrchestrator`** | **COMPLETED** | High-level orchestrator executing candidate validation, parallel/sequential cross-validation, failure isolation, deterministic metric ranking, and `ModelRegistry` deployment as `production_candidate`. |
 | **Unified Prediction Routing** | **COMPLETED** | Universal inference gateway (`orchestrator.predict(model_id, data)`) supporting DataFrames, single dicts, and list of dicts with feature completeness checks and order enforcement. |
-| **`ModelOrchestratorAgent` & Tool Integration** | **COMPLETED** | Autonomous `BaseAgent` exposing `model_orchestrator` capability in `ToolRegistry` and integrating with `DynamicTaskPlanner`. |
-| **Milestone 4 Tests** | **COMPLETED** | 17 dedicated unit test cases in `test_milestone4_task1_model_orchestrator.py` fully passing. |
+| **`ModelMonitoringEngine` & Schemas** | **COMPLETED** | Rigorous statistical drift engine (`agent/model_monitoring_schemas.py`, `agent/model_monitoring_engine.py`) for numeric drift (KS test & PSI), categorical drift (Chi-Square & novel categories), missing-value drift, and schema consistency. |
+| **Model Performance Monitoring** | **COMPLETED** | Evaluates ground-truth metric degradation vs reference baseline (MAE, RMSE, R², Accuracy, Precision, Recall, F1) with graceful no-label handling. |
+| **Monitoring History Logging** | **COMPLETED** | Persistent JSON tracking of monitoring assessments in `ModelRegistry` for historical drift analysis. |
+| **`ModelMonitorAgent` & Tool Integration** | **COMPLETED** | Autonomous `BaseAgent` exposing `model_monitor` capability in `ToolRegistry` and integrating with `DynamicTaskPlanner`. |
+| **Milestone 4 Tests** | **COMPLETED** | 35 dedicated unit test cases across Task 1 (17/17) and Task 2 (18/18) fully passing. |
 
 ---
 
@@ -99,6 +102,7 @@ The **Auto Data Analyst** project is a **command-driven, multi-agent autonomous 
 | **ANN Engine & Agent** | `agent/ann_agent.py`, `agent/ann_schemas.py`, `backend/app/ml/ann_engine.py` | 100% | Deep MLP architecture auto-selection, early stopping, loss curve diagnostics, schema validation, and prediction. |
 | **CNN Engine & Agent** | `agent/cnn_agent.py`, `agent/cnn_schemas.py`, `backend/app/ml/cnn_engine.py` | 100% | Spatial convolution filters, MaxPool pooling, spectrogram transformation, spatial inductive bias gain, and prediction. |
 | **Unified Model Orchestrator** | `agent/model_orchestrator.py` | 100% | Multi-family candidate routing, capability validation, parallel cross-validation, winner selection, and universal prediction. |
+| **Model Monitoring & Drift Engine** | `agent/model_monitoring_engine.py`, `agent/model_monitor_agent.py` | 100% | Statistical KS test, Chi-Square test, PSI, schema drift, prediction shift, performance degradation, and history tracking. |
 | **Planner Agent** | `agent/planner.py` | 100% | Master coordinator connecting intent, knowledge, planner, and execution engine. |
 | **Command Orchestrator** | `agent/command_orchestrator.py` | 100% | End-to-end 6-stage autonomous lifecycle with execution graphs and timing breakdowns. |
 
