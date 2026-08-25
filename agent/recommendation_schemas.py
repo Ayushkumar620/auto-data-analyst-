@@ -35,29 +35,13 @@ class RecommendationObjective(str, Enum):
     IMPROVE_OPERATIONAL_EFFICIENCY = "improve_operational_efficiency"
     UNSPECIFIED = "unspecified"
 
-    ALIASES = {
-        "revenue": MAXIMIZE_REVENUE, "grow revenue": MAXIMIZE_REVENUE,
-        "increase revenue": MAXIMIZE_REVENUE, "maximize revenue": MAXIMIZE_REVENUE,
-        "sales": MAXIMIZE_REVENUE, "increase sales": MAXIMIZE_REVENUE,
-        "cost": REDUCE_COST, "reduce cost": REDUCE_COST, "cut cost": REDUCE_COST,
-        "retention": IMPROVE_RETENTION, "improve retention": IMPROVE_RETENTION,
-        "keep customers": IMPROVE_RETENTION,
-        "risk": REDUCE_RISK, "reduce risk": REDUCE_RISK, "safer": REDUCE_RISK, "safest": REDUCE_RISK,
-        "conversion": IMPROVE_CONVERSION, "improve conversion": IMPROVE_CONVERSION,
-        "profit": INCREASE_PROFIT, "profitability": INCREASE_PROFIT,
-        "increase profit": INCREASE_PROFIT, "improve profitability": INCREASE_PROFIT,
-        "efficiency": IMPROVE_OPERATIONAL_EFFICIENCY,
-        "operational efficiency": IMPROVE_OPERATIONAL_EFFICIENCY,
-        "efficient": IMPROVE_OPERATIONAL_EFFICIENCY,
-    }
-
     @classmethod
     def from_text(cls, text: Optional[str]) -> Optional["RecommendationObjective"]:
         """Resolve a natural-language objective phrase. Returns None when no match."""
         if not text:
             return None
         lowered = " ".join(str(text).lower().split())
-        for phrase, obj in cls.ALIASES.items():
+        for phrase, obj in OBJECTIVE_ALIASES.items():
             if phrase in lowered:
                 return obj
         return None
@@ -69,7 +53,7 @@ class RecommendationObjective(str, Enum):
             return []
         lowered = " ".join(str(text).lower().split())
         found: List["RecommendationObjective"] = []
-        for phrase, obj in cls.ALIASES.items():
+        for phrase, obj in OBJECTIVE_ALIASES.items():
             if phrase in lowered and obj not in found:
                 found.append(obj)
         order = {o: i for i, o in enumerate(cls)}
@@ -115,6 +99,38 @@ class RecommendationObjective(str, Enum):
             cls.IMPROVE_OPERATIONAL_EFFICIENCY: "Operational efficiency",
             cls.UNSPECIFIED: "Not specified",
         }[objective]
+
+
+
+# Natural-language -> objective alias map (module scope so the enum stays clean).
+OBJECTIVE_ALIASES: Dict[str, "RecommendationObjective"] = {
+    "revenue": RecommendationObjective.MAXIMIZE_REVENUE,
+    "grow revenue": RecommendationObjective.MAXIMIZE_REVENUE,
+    "increase revenue": RecommendationObjective.MAXIMIZE_REVENUE,
+    "maximize revenue": RecommendationObjective.MAXIMIZE_REVENUE,
+    "sales": RecommendationObjective.MAXIMIZE_REVENUE,
+    "increase sales": RecommendationObjective.MAXIMIZE_REVENUE,
+    "cost": RecommendationObjective.REDUCE_COST,
+    "reduce cost": RecommendationObjective.REDUCE_COST,
+    "cut cost": RecommendationObjective.REDUCE_COST,
+    "retention": RecommendationObjective.IMPROVE_RETENTION,
+    "improve retention": RecommendationObjective.IMPROVE_RETENTION,
+    "keep customers": RecommendationObjective.IMPROVE_RETENTION,
+    "risk": RecommendationObjective.REDUCE_RISK,
+    "reduce risk": RecommendationObjective.REDUCE_RISK,
+    "safer": RecommendationObjective.REDUCE_RISK,
+    "safest": RecommendationObjective.REDUCE_RISK,
+    "conversion": RecommendationObjective.IMPROVE_CONVERSION,
+    "improve conversion": RecommendationObjective.IMPROVE_CONVERSION,
+    "profit": RecommendationObjective.INCREASE_PROFIT,
+    "profitability": RecommendationObjective.INCREASE_PROFIT,
+    "increase profit": RecommendationObjective.INCREASE_PROFIT,
+    "improve profitability": RecommendationObjective.INCREASE_PROFIT,
+    "efficiency": RecommendationObjective.IMPROVE_OPERATIONAL_EFFICIENCY,
+    "operational efficiency": RecommendationObjective.IMPROVE_OPERATIONAL_EFFICIENCY,
+    "efficient": RecommendationObjective.IMPROVE_OPERATIONAL_EFFICIENCY,
+}
+
 
 
 class ActionType(str, Enum):
