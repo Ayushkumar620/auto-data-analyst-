@@ -24,6 +24,10 @@ import AnalysesPage from './pages/AnalysesPage';
 import AnalysisDetailPage from './pages/AnalysisDetailPage';
 import WorkspacesPage from './pages/WorkspacesPage';
 
+// Phase 3 Live Pages
+import ModelRegistryPage from './pages/ModelRegistryPage';
+import ModelDetailPage from './pages/ModelDetailPage';
+
 // Future Phase Placeholders
 import ComingSoonPage from './pages/ComingSoonPage';
 
@@ -73,17 +77,11 @@ export default function App() {
         <Route path="/analyses/:analysisId" element={<AnalysisDetailPage />} />
         <Route path="/workspaces" element={<WorkspacesPage />} />
 
-        {/* Coming soon stubs (Phase 3–8) */}
-        <Route
-          path="/models"
-          element={
-            <ComingSoonPage
-              title="Model Registry"
-              phase="Phase 3"
-              description="Browse trained models, view metrics and loss curves, and run live inference."
-            />
-          }
-        />
+        {/* Phase 3: Model Registry & Leaderboard */}
+        <Route path="/models" element={<ModelRegistryPage />} />
+        <Route path="/models/:modelId" element={<ModelDetailPage />} />
+
+        {/* Coming soon stubs (Phase 5–8) */}
         <Route
           path="/forecasts"
           element={
