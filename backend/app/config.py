@@ -17,13 +17,36 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     openai_api_key: str = os.environ.get("OPENAI_API_KEY", "")
     openai_base_url: str = "https://api.openai.com/v1"
-    openai_model: str = "gpt-4o-mini"
     jwt_secret: str = "dev-secret-please-change-in-production-use-a-long-random-string"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24  # 24 hours
     cors_origins: list[str] = ["*"]
 
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
+    # LLM settings
+    llm_api_key: str = ""
+    llm_provider: str = "openai"
+    llm_base_url: str = "https://api.openai.com/v1"
+    llm_model: str = "gpt-4o-mini"
+
+    # SMTP email settings
+    smtp_server: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
+    smtp_from_email: str = ""
+    smtp_from_name: str = "Auto Data Analyst Agent"
+
+    # Phone / SMS settings
+    sms_provider: str = "auto"
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    twilio_phone_number: str = ""
+    sms_gateway_url: str = ""
+    sms_api_key: str = ""
+
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
 
 
 settings = Settings()
