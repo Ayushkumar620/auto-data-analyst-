@@ -282,7 +282,7 @@ class DecisionContextBuilder:
         first, last = vals[0], vals[-1]
         change = ((last - first) / first * 100.0) if first else 0.0
         direction = "up" if change > 2.0 else ("down" if change < -2.0 else "stable")
-                metric = target or "target"
+        metric = target or "target"
         statement = (f"{metric} is forecast to {direction} approximately "
                      f"{abs(change):.1f}% over the forecast horizon.")
         return Prediction(
@@ -1028,14 +1028,14 @@ class RecommendationScorer:
 class RecommendationEngine:
     """Orchestrates the full evidence-backed recommendation pipeline."""
 
-    def __init__(self) -> None:
+        def __init__(self) -> None:
         self.builder = DecisionContextBuilder()
         self.risk_engine = RiskEngine()
         self.opportunity_engine = OpportunityEngine()
         self.action_generator = ActionGenerator()
         self.scorer = RecommendationScorer()
 
-        def generate(self, request: RecommendationRequest) -> RecommendationResult:
+    def generate(self, request: RecommendationRequest) -> RecommendationResult:
         start = time.perf_counter()
         objectives = RecommendationObjective.normalize(request.optimization_objective)
         # Only parse the user intent for an objective when the user actually
