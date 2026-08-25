@@ -379,6 +379,30 @@ def _ensure_prediction_evidence(evidence: List[Evidence], first: float, last: fl
 
 
 
+
+
+def _ensure_monitoring_evidence(mon, signal_key):
+    """Ensure a monitoring-driven candidate/risk always carries evidence.
+
+    The monitoring result's own drift/degradation signal is deterministic and
+    therefore legitimate evidence -- this is NOT invented. When the monitoring
+    result already carries an explicit evidence list, it is preserved as-is.
+    """
+    existing = mon.get("evidence") if isinstance(mon, dict) else None
+    if existing:
+        return _to_evidence_list(existing)
+    detail = mon.get(signal_key) if isinstance(mon, dict) else None
+    return [Evidence(
+        source="recommendation_engine.monitoring",
+        method=f"model_monitoring.{signal_key}",
+        data_ref={"model_id": mon.get("model_id"), "signal": signal_key,
+                  "detail": detail},
+        result={"model_id": mon.get("model_id"), "signal": signal_key,
+                "detail": detail},
+        confidence=0.85,
+        claim_type=ClaimType.INFERENCE,
+    )]
+
 class RiskEngine:
     """Deterministic, evidence-backed risk assessment. Only creates risks that
     are supported by evidence. Never assigns CRITICAL simply because something
@@ -468,57 +492,57 @@ class RiskEngine:
         return risks
 
     def _monitoring_risks(self, mon: Dict[str, Any]) -> List[RiskAssessment]:
-    out: List[RiskAssessment] = []
-    ev = mon.get("evidence") or []
-    dd = mon.get("data_drift")
-    if isinstance(dd, dict):
-        sev_raw = dd.get("severity")
-        sev_key = str(sev_raw).upper() if sev_raw else ("HIGH" if dd.get("overall_drift") else "NONE")
-        if sev_key in ("HIGH", "CRITICAL") or dd.get("overall_drift"):
-            sev = RiskSeverity.CRITICAL if sev_key == "CRITICAL" else RiskSeverity.HIGH
-            mon_ev = _ensure_monitoring_evidence(mon, "data_drift")
+        out: List[RiskAssessment] = []
+        ev = mon.get("evidence") or []
+        dd = mon.get("data_drift")
+        if isinstance(dd, dict):
+            sev_raw = dd.get("severity")
+            sev_key = str(sev_raw).upper() if sev_raw else ("HIGH" if dd.get("overall_drift") else "NONE")
+            if sev_key in ("HIGH", "CRITICAL") or dd.get("overall_drift"):
+                sev = RiskSeverity.CRITICAL if sev_key == "CRITICAL" else RiskSeverity.HIGH
+                mon_ev = _ensure_monitoring_evidence(mon, "data_drift")
+                out.append(RiskAssessment(
+                    risk=("Data drift detected: incoming data distribution differs "
+                          "significantly from the reference, so model predictions may "
+                          "no longer be reliable."),
+                    severity=sev,
+                    probability=0.7,
+                    impact="Predictions may degrade under distribution change.",
+                    evidence=mon_ev,
+                    evidence_ids=[_evidence_id(e) for e in mon_ev],
+                    mitigation=("Validate incoming data and investigate the source of "
+                                "distribution changes before relying on predictions."),
+                    confidence=0.85,
+                ))
+        pd = mon.get("performance_drift")
+        if isinstance(pd, dict) and pd.get("degradation_detected"):
+            mon_ev = _ensure_monitoring_evidence(mon, "performance_drift")
             out.append(RiskAssessment(
-                risk=("Data drift detected: incoming data distribution differs "
-                      "significantly from the reference, so model predictions may "
-                      "no longer be reliable."),
-                severity=sev,
+                risk=("Model performance degradation detected against the reference "
+                      "baseline metric."),
+                severity=RiskSeverity.HIGH,
                 probability=0.7,
-                impact="Predictions may degrade under distribution change.",
+                impact="Model quality below acceptable level for production decisions.",
                 evidence=mon_ev,
                 evidence_ids=[_evidence_id(e) for e in mon_ev],
-                mitigation=("Validate incoming data and investigate the source of "
-                            "distribution changes before relying on predictions."),
+                mitigation=("Evaluate model recalibration or retraining after "
+                            "investigating the cause."),
                 confidence=0.85,
             ))
-    pd = mon.get("performance_drift")
-    if isinstance(pd, dict) and pd.get("degradation_detected"):
-        mon_ev = _ensure_monitoring_evidence(mon, "performance_drift")
-        out.append(RiskAssessment(
-            risk=("Model performance degradation detected against the reference "
-                  "baseline metric."),
-            severity=RiskSeverity.HIGH,
-            probability=0.7,
-            impact="Model quality below acceptable level for production decisions.",
-            evidence=mon_ev,
-            evidence_ids=[_evidence_id(e) for e in mon_ev],
-            mitigation=("Evaluate model recalibration or retraining after "
-                        "investigating the cause."),
-            confidence=0.85,
-        ))
-    pdrift = mon.get("prediction_drift")
-    if isinstance(pdrift, dict) and pdrift.get("prediction_drift_detected"):
-        out.append(RiskAssessment(
-            risk=("Prediction drift detected: the distribution of model outputs "
-                  "has shifted."),
-            severity=RiskSeverity.MEDIUM,
-            probability=0.6,
-            impact="Model outputs may be miscalibrated.",
-            evidence=ev,
-            evidence_ids=[_evidence_id(e) for e in ev],
-            mitigation="Investigate input changes and monitor output calibration.",
-            confidence=0.8,
-        ))
-    return out
+        pdrift = mon.get("prediction_drift")
+        if isinstance(pdrift, dict) and pdrift.get("prediction_drift_detected"):
+            out.append(RiskAssessment(
+                risk=("Prediction drift detected: the distribution of model outputs "
+                      "has shifted."),
+                severity=RiskSeverity.MEDIUM,
+                probability=0.6,
+                impact="Model outputs may be miscalibrated.",
+                evidence=ev,
+                evidence_ids=[_evidence_id(e) for e in ev],
+                mitigation="Investigate input changes and monitor output calibration.",
+                confidence=0.8,
+            ))
+        return out
 
 class OpportunityEngine:
     """Evidence-backed opportunity detection. Never labels something an
