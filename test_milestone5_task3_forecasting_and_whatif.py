@@ -171,7 +171,7 @@ def test_candidate_models_and_backtest_ranking(monthly_sales_df):
 
     assert result.model_family in ("exponential_smoothing", "autoregressive_ml", "seasonal_naive", "naive_last", "moving_average")
     assert len(result.evidence) > 0
-    assert result.evidence[0].claim_type == ClaimType.HYPOTHESIS
+    assert result.evidence[0].claim_type == ClaimType.INFERENCE
 
 
 # ==============================================================================
@@ -301,3 +301,71 @@ def test_autonomous_forecaster_agent_run(monthly_sales_df):
     assert result.status == AgentStatus.COMPLETED
     assert "predictions" in result.data
     assert len(result.evidence) > 0
+
+
+def test_irregular_timeseries_interval_detection():
+    """26. Test detecting irregular intervals and raising warnings."""
+    dates = pd.to_datetime(["2024-01-01", "2024-01-05", "2024-01-22", "2024-02-18", "2024-03-01", "2024-04-10", "2024-05-02"])
+    df = pd.DataFrame({"date": dates, "val": np.linspace(10, 50, len(dates))})
+    detector = TimeSeriesDetector()
+    res = detector.assess_suitability(df)
+
+    assert res.suitable is True
+    assert res.detected_frequency == "IRREGULAR"
+    assert any("Irregular" in w for w in res.warnings)
+
+
+def test_confidence_level_intervals_width(monthly_sales_df):
+    """27. Test that 95% confidence interval is wider than 50% confidence interval."""
+    engine = AutonomousForecastEngine()
+    req_95 = ForecastRequest(dataset=monthly_sales_df, forecast_horizon=4, confidence_level=0.95)
+    req_50 = ForecastRequest(dataset=monthly_sales_df, forecast_horizon=4, confidence_level=0.50)
+
+    res_95 = engine.run_forecast(req_95)
+    res_50 = engine.run_forecast(req_50)
+
+    width_95 = res_95.predictions[0].upper_bound - res_95.predictions[0].lower_bound
+    width_50 = res_50.predictions[0].upper_bound - res_50.predictions[0].lower_bound
+
+    assert width_95 > width_50
+
+
+def test_zero_target_wape_and_mape_handling():
+    """28. Test that WAPE is calculated and MAPE is safely omitted if zeroes are present."""
+    dates = pd.date_range("2024-01-01", periods=12, freq="MS")
+    vals = [10.0, 0.0, 5.0, 0.0, 15.0, 20.0, 0.0, 30.0, 25.0, 10.0, 5.0, 12.0]
+    df = pd.DataFrame({"date": dates, "val": vals})
+
+    engine = AutonomousForecastEngine()
+    req = ForecastRequest(dataset=df, forecast_horizon=3)
+    res = engine.run_forecast(req)
+
+    assert res.status == "SUCCESS"
+    assert "WAPE" in res.validation_metrics
+
+
+def test_custom_horizon_and_frequency_overrides(monthly_sales_df):
+    """29. Test overriding horizon and frequency in ForecastRequest."""
+    engine = AutonomousForecastEngine()
+    req = ForecastRequest(dataset=monthly_sales_df, forecast_horizon=12, frequency="Q")
+    res = engine.run_forecast(req)
+
+    assert len(res.predictions) == 12
+    assert res.forecast_horizon == 12
+    assert res.frequency == "Q"
+
+
+def test_what_if_lever_elasticity_simulation(monthly_sales_df):
+    """30. Test variable elasticity when a lever feature is modified."""
+    engine = WhatIfScenarioEngine()
+    req = WhatIfRequest(
+        dataset=monthly_sales_df,
+        target="revenue",
+        scenario_name="Units Demand Shock +15%",
+        changed_variables={"units": 0.15},
+    )
+    res = engine.simulate_scenario(req)
+
+    assert res.scenario_value != res.baseline_value
+    assert any("elasticity" in a.lower() for a in res.assumptions)
+

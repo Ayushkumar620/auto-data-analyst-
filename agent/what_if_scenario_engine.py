@@ -54,14 +54,8 @@ class WhatIfScenarioEngine:
 
         changed_vars = request.changed_variables or {}
 
-        # 1. Direct Target Percentage Shift (e.g. {"pct": 0.10} or {"target_pct": 0.10})
-        if "pct" in changed_vars:
-            pct = float(changed_vars["pct"])
-            scenario_val = baseline_val * (1.0 + pct)
-            assumptions.append(f"Target metric '{target_col}' adjusted by {pct * 100:+.1f}%.")
-
-        # 2. Segment-Specific Shock (e.g. {"segment": "North", "pct": 0.15, "dimension": "region"})
-        elif "segment" in changed_vars and "pct" in changed_vars.get("segment", {}) or "segment" in changed_vars:
+        # 1. Segment-Specific Shock (e.g. {"segment": "North", "pct": 0.15, "dimension": "region"})
+        if "segment" in changed_vars:
             seg_name = changed_vars.get("segment")
             pct = float(changed_vars.get("pct", 0.0))
             dim_col = changed_vars.get("dimension")
@@ -81,6 +75,12 @@ class WhatIfScenarioEngine:
             else:
                 scenario_val = baseline_val * (1.0 + pct)
                 assumptions.append(f"Global adjustment of {pct * 100:+.1f}% applied across segments.")
+
+        # 2. Direct Target Percentage Shift (e.g. {"pct": 0.10} or {"target_pct": 0.10})
+        elif "pct" in changed_vars:
+            pct = float(changed_vars["pct"])
+            scenario_val = baseline_val * (1.0 + pct)
+            assumptions.append(f"Target metric '{target_col}' adjusted by {pct * 100:+.1f}%.")
 
         # 3. Variable Elasticity / Co-movement (e.g. {"price": 0.10})
         elif changed_vars:
@@ -118,7 +118,7 @@ class WhatIfScenarioEngine:
             source="WhatIfScenarioEngine.simulation",
             method="counterfactual_elasticity_simulation",
             confidence=0.90,
-            claim_type=ClaimType.HYPOTHESIS,
+            claim_type=ClaimType.INFERENCE,
             computation_details={
                 "scenario_name": request.scenario_name,
                 "baseline_value": baseline_val,
@@ -144,18 +144,24 @@ class WhatIfScenarioEngine:
     def compare_scenarios(
         self,
         df: pd.DataFrame,
-        target: str,
+        target: Optional[str],
         scenarios_spec: Dict[str, Dict[str, Any]],
     ) -> ScenarioComparison:
         """Run and rank multiple What-If scenarios (e.g. Optimistic, Expected, Pessimistic)."""
         results: List[ScenarioResult] = []
         all_evidence: List[Evidence] = []
-        baseline_val = float(df[target].sum()) if target in df.columns else 100.0
+        
+        target_col = target
+        if not target_col or target_col not in df.columns:
+            num_cols = df.select_dtypes(include=[np.number]).columns
+            target_col = num_cols[0] if len(num_cols) > 0 else "target"
+
+        baseline_val = float(df[target_col].sum()) if target_col in df.columns else 100.0
 
         for name, params in scenarios_spec.items():
             req = WhatIfRequest(
                 dataset=df,
-                target=target,
+                target=target_col,
                 scenario_name=name,
                 changed_variables=params,
             )
