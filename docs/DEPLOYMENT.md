@@ -141,3 +141,4 @@ CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "
 | `401 Unauthorized` | Expired or missing token | User is automatically logged out; re-authenticate via `/login`. |
 | `Dataset records required` | No dataset selected | Upload a dataset or select an active dataset from `/datasets`. |
 | `PDF Compilation Error` | Missing ReportLab dependency | Ensure `reportlab` is installed in the Python environment. |
+
