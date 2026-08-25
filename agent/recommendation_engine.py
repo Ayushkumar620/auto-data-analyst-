@@ -753,3 +753,107 @@ class ActionGenerator:
                             confidence=float(ins.get("confidence", 0.7)),
                         ))
 
+            elif cat == "trend":
+                growth = calc.get("overall_growth_pct")
+                if isinstance(growth, (int, float)):
+                    key = ("trend", metric, "up" if growth >= 0 else "down")
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        if growth > 5.0:
+                            candidates.append(ActionCandidate(
+                                action=(f"Continue investing in rising '{metric}' and scale the "
+                                        f"strongest-performing segments."),
+                                action_type=ActionType.EXPAND,
+                                objective=self._pick_objective(objectives, [RecommendationObjective.MAXIMIZE_REVENUE]),
+                                affected_metric=metric,
+                                affected_segment=segment,
+                                rationale=f"'{metric}' grew {growth:.0f}%, so expansion builds on momentum.",
+                                evidence=ev,
+                                evidence_ids=[_evidence_id(e) for e in ev],
+                                assumptions=["Historical trend continues (a projection, not a guarantee)."],
+                                risks=["Trend may not persist."],
+                                confidence=float(ins.get("confidence", 0.8)),
+                            ))
+                        elif growth < -5.0:
+                            candidates.append(ActionCandidate(
+                                action=(f"Investigate drivers of declining '{metric}' before "
+                                        f"adjusting investment."),
+                                action_type=ActionType.INVESTIGATE,
+                                objective=self._pick_objective(objectives, [RecommendationObjective.REDUCE_RISK, RecommendationObjective.MAXIMIZE_REVENUE]),
+                                affected_metric=metric,
+                                affected_segment=segment,
+                                rationale=f"'{metric}' declined {abs(growth):.0f}%; diagnose before acting.",
+                                evidence=ev,
+                                evidence_ids=[_evidence_id(e) for e in ev],
+                                assumptions=[],
+                                risks=["Decline could accelerate if unaddressed."],
+                                confidence=float(ins.get("confidence", 0.8)),
+                            ))
+
+        # ---- 2. Forecast-driven actions ----
+        for pred in context.predictions:
+            if pred.direction == "down":
+                candidates.append(ActionCandidate(
+                    action="Review demand drivers and consider reducing inventory exposure.",
+                    action_type=ActionType.REVIEW,
+                    objective=self._pick_objective(objectives, [RecommendationObjective.REDUCE_RISK, RecommendationObjective.REDUCE_COST]),
+                    affected_metric=pred.metric,
+                    affected_segment=None,
+                    rationale=(f"Forecast expects '{pred.metric}' to decline "
+                               f"({pred.change_percent:+.1f}%)."),
+                    evidence=pred.evidence,
+                    evidence_ids=[_evidence_id(e) for e in pred.evidence],
+                    assumptions=["Forecast assumptions hold (a projection, not a certainty)."],
+                    risks=["Forecast uncertainty."],
+                    confidence=0.8,
+                ))
+            elif pred.direction == "up":
+                candidates.append(ActionCandidate(
+                    action=(f"Monitor '{pred.metric}' upside and be ready to capture "
+                            f"the projected {pred.change_percent:+.1f}% growth."),
+                    action_type=ActionType.MONITOR,
+                    objective=self._pick_objective(objectives, [RecommendationObjective.MAXIMIZE_REVENUE]),
+                    affected_metric=pred.metric,
+                    affected_segment=None,
+                    rationale=f"Forecast projects '{pred.metric}' growth ({pred.change_percent:+.1f}%).",
+                    evidence=pred.evidence,
+                    evidence_ids=[_evidence_id(e) for e in pred.evidence],
+                    assumptions=["Forecast assumptions hold (a projection, not a certainty)."],
+                    risks=["Forecast uncertainty."],
+                    confidence=0.8,
+                ))
+
+        # ---- 3. Monitoring-driven actions ----
+        for mon in (monitoring or []):
+            dd = mon.get("data_drift")
+            if isinstance(dd, dict) and (dd.get("overall_drift") or
+                                         str(dd.get("severity", "")).upper() in ("HIGH", "CRITICAL")):
+                candidates.append(ActionCandidate(
+                    action="Validate incoming data and investigate the source of distribution changes before relying on predictions.",
+                    action_type=ActionType.INVESTIGATE,
+                    objective=self._pick_objective(objectives, [RecommendationObjective.REDUCE_RISK]),
+                    affected_metric=None,
+                    affected_segment=None,
+                    rationale="Model monitoring detected significant data drift.",
+                    evidence=mon.get("evidence") or [],
+                    evidence_ids=[_evidence_id(e) for e in (mon.get("evidence") or [])],
+                    assumptions=[],
+                    risks=["Data drift reduces prediction reliability."],
+                    confidence=0.85,
+                ))
+            pd = mon.get("performance_drift")
+            if isinstance(pd, dict) and pd.get("degradation_detected"):
+                candidates.append(ActionCandidate(
+                    action="Evaluate model recalibration or retraining after investigating the cause.",
+                    action_type=ActionType.REVIEW,
+                    objective=self._pick_objective(objectives, [RecommendationObjective.REDUCE_RISK]),
+                    affected_metric=None,
+                    affected_segment=None,
+                    rationale="Model performance degradation was detected by monitoring.",
+                    evidence=mon.get("evidence") or [],
+                    evidence_ids=[_evidence_id(e) for e in (mon.get("evidence") or [])],
+                    assumptions=["Cause must be understood before retraining."],
+                    risks=["Retraining without root-cause could mask drift."],
+                    confidence=0.85,
+                ))
+
