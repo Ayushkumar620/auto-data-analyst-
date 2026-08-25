@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
-from typing import Any
-
+from typing import Any, Dict, List, Optional
+import uuid
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.app.api.v1.context import link_uploaded_dataset, resolve_context
 from backend.app.config import UPLOAD_DIR
@@ -35,7 +36,147 @@ def _json_default(value: Any) -> Any:
             pass
     raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
+
 _REPORTS: dict[str, dict[str, Any]] = {}
+_JSON_REPORTS: dict[str, dict[str, Any]] = {}
+
+
+class CreateReportRequest(BaseModel):
+    title: str = Field(..., description="Report title")
+    dataset_name: Optional[str] = "Dataset"
+    report_type: str = "comprehensive"  # "comprehensive", "forecast", "model", "monitoring", "analysis"
+    executive_summary: str = Field(..., description="Executive findings summary")
+    dataset_overview: Dict[str, Any] = Field(default_factory=dict)
+    data_quality: Dict[str, Any] = Field(default_factory=dict)
+    kpis: List[Dict[str, Any]] = Field(default_factory=list)
+    charts: List[Dict[str, Any]] = Field(default_factory=list)
+    insights: List[Dict[str, Any]] = Field(default_factory=list)
+    evidence: List[Dict[str, Any]] = Field(default_factory=list)
+    recommendations: List[str] = Field(default_factory=list)
+    forecast: Dict[str, Any] = Field(default_factory=dict)
+    model_results: Dict[str, Any] = Field(default_factory=dict)
+    monitoring: Dict[str, Any] = Field(default_factory=dict)
+
+
+@router.get("")
+def list_reports() -> List[Dict[str, Any]]:
+    """List all generated analytical reports."""
+    report_list = []
+    
+    # Add structured JSON reports
+    for rid, rep in _JSON_REPORTS.items():
+        report_list.append({
+            "report_id": rid,
+            "title": rep.get("title", "Untitled Report"),
+            "dataset_name": rep.get("dataset_name", "Dataset"),
+            "report_type": rep.get("report_type", "comprehensive"),
+            "created_at": rep.get("created_at", datetime.now(timezone.utc).isoformat()),
+            "status": rep.get("status", "ready"),
+            "executive_summary": rep.get("executive_summary", "")[:180] + ("..." if len(rep.get("executive_summary", "")) > 180 else ""),
+            "kpi_count": len(rep.get("kpis", [])),
+            "insight_count": len(rep.get("insights", [])),
+            "recommendation_count": len(rep.get("recommendations", [])),
+            "has_forecast": bool(rep.get("forecast")),
+            "has_model": bool(rep.get("model_results")),
+            "has_monitoring": bool(rep.get("monitoring")),
+        })
+
+    # Add any file-generated reports
+    for rid, rep in _REPORTS.items():
+        if rid not in _JSON_REPORTS:
+            report_list.append({
+                "report_id": rid,
+                "title": rep.get("title", "Generated Report"),
+                "dataset_name": "Uploaded Dataset",
+                "report_type": "file_export",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "status": "ready",
+                "executive_summary": "Auto-generated analytical export package.",
+                "kpi_count": 0,
+                "insight_count": 0,
+                "recommendation_count": 0,
+                "has_forecast": False,
+                "has_model": False,
+                "has_monitoring": False,
+            })
+
+    return json.loads(json.dumps(report_list, default=_json_default))
+
+
+@router.post("/create")
+def create_report(req: CreateReportRequest) -> Dict[str, Any]:
+    """Create a structured analytical report deliverable."""
+    report_id = f"rep_{uuid.uuid4().hex[:8]}"
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    report_payload = {
+        "report_id": report_id,
+        "title": req.title,
+        "dataset_name": req.dataset_name,
+        "report_type": req.report_type,
+        "created_at": now_iso,
+        "status": "ready",
+        "executive_summary": req.executive_summary,
+        "dataset_overview": req.dataset_overview,
+        "data_quality": req.data_quality,
+        "kpis": req.kpis,
+        "charts": req.charts,
+        "insights": req.insights,
+        "evidence": req.evidence,
+        "recommendations": req.recommendations,
+        "forecast": req.forecast,
+        "model_results": req.model_results,
+        "monitoring": req.monitoring,
+    }
+
+    _JSON_REPORTS[report_id] = report_payload
+    return json.loads(json.dumps(report_payload, default=_json_default))
+
+
+@router.get("/detail/{report_id}")
+def get_report_detail(report_id: str) -> Dict[str, Any]:
+    """Get full structured content for a specific report."""
+    rep = _JSON_REPORTS.get(report_id)
+    if rep:
+        return json.loads(json.dumps(rep, default=_json_default))
+
+    # Check if exists in file-based engine
+    stored = _REPORTS.get(report_id)
+    if stored:
+        return {
+            "report_id": report_id,
+            "title": stored.get("title", "Exported Report"),
+            "dataset_name": "Uploaded Dataset",
+            "report_type": "file_export",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "status": "ready",
+            "executive_summary": "Auto-generated analytical deliverable package.",
+            "kpis": [],
+            "insights": [],
+            "charts": [],
+            "recommendations": [],
+            "evidence": [],
+            "download_url": f"/api/v1/reports/{report_id}",
+        }
+
+    raise HTTPException(status_code=404, detail="Report not found.")
+
+
+@router.delete("/{report_id}")
+def delete_report(report_id: str) -> Dict[str, Any]:
+    """Delete a report."""
+    deleted = False
+    if report_id in _JSON_REPORTS:
+        del _JSON_REPORTS[report_id]
+        deleted = True
+    if report_id in _REPORTS:
+        del _REPORTS[report_id]
+        deleted = True
+
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Report not found.")
+
+    return {"status": "deleted", "report_id": report_id}
 
 
 @router.post("/generate")
@@ -67,6 +208,23 @@ def generate_report(
             "format": output_format,
             "title": report.title,
         }
+        # Also store into _JSON_REPORTS for unified viewing
+        _JSON_REPORTS[report.report_id] = {
+            "report_id": report.report_id,
+            "title": report.title,
+            "dataset_name": uploaded["dataset"]["name"],
+            "report_type": "eda_comprehensive",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "status": "ready",
+            "executive_summary": report.executive_summary,
+            "dataset_overview": report.dataset_overview,
+            "data_quality": report.data_quality,
+            "kpis": report.kpis,
+            "charts": report.charts,
+            "insights": report.insights,
+            "recommendations": report.recommendations,
+            "forecast": report.forecast,
+        }
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -88,9 +246,9 @@ def generate_report(
 def download_report(report_id: str) -> Response:
     stored = _REPORTS.get(report_id)
     if stored is None:
-        raise HTTPException(status_code=404, detail="Report not found.")
+        raise HTTPException(status_code=404, detail="Report download content not found.")
 
-    extension = {"pdf": "pdf", "excel": "xlsx", "powerpoint": "pptx"}[stored["format"]]
+    extension = {"pdf": "pdf", "excel": "xlsx", "powerpoint": "pptx"}.get(stored["format"], "pdf")
     headers = {"Content-Disposition": f'attachment; filename="{report_id}.{extension}"'}
     return Response(content=stored["content"], media_type=stored["content_type"], headers=headers)
 

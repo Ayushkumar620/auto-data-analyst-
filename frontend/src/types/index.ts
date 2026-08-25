@@ -325,3 +325,59 @@ export type MonitoringOverviewData = {
   last_run_timestamp?: string | null;
 };
 
+// ==========================================
+// Phase 7: Reports & Decision Deliverables
+// ==========================================
+export type ReportKPI = {
+  name: string;
+  value: number | string;
+  unit?: string;
+  change?: number;
+  formatted?: string;
+};
+
+export type ReportInsightItem = {
+  title: string;
+  narrative: string;
+  metric?: string;
+  evidence?: string;
+  impact?: string;
+};
+
+export type ReportSummary = {
+  report_id: string;
+  title: string;
+  dataset_name: string;
+  report_type: string;
+  created_at: string;
+  status: string;
+  executive_summary: string;
+  kpi_count: number;
+  insight_count: number;
+  recommendation_count: number;
+  has_forecast: boolean;
+  has_model: boolean;
+  has_monitoring: boolean;
+};
+
+export type ReportDetail = {
+  report_id: string;
+  title: string;
+  dataset_name: string;
+  report_type: string;
+  created_at: string;
+  status: string;
+  executive_summary: string;
+  dataset_overview?: Record<string, unknown>;
+  data_quality?: Record<string, unknown>;
+  kpis?: ReportKPI[];
+  charts?: Array<{ id: string; type: string; title: string; data: unknown }>;
+  insights?: ReportInsightItem[];
+  evidence?: EvidenceItem[];
+  recommendations?: string[];
+  forecast?: Record<string, unknown>;
+  model_results?: Record<string, unknown>;
+  monitoring?: Record<string, unknown>;
+  download_url?: string;
+};
+
