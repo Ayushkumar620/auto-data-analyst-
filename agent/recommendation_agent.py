@@ -111,3 +111,121 @@ class RecommendationAgent(BaseAgent):
         if q == "highest_impact":
             return self._respond_rank(result, by="impact")
         return self._respond_recommend(result)
+    # ------------------------------------------------------------------
+    # Response composers
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _respond_recommend(result: RecommendationResult) -> Dict[str, Any]:
+        lines = ["Decision support results:"]
+        if result.needs_objective_clarification:
+            lines.append(result.executive_summary)
+        for r in result.recommendations:
+            lines.append(f"- [{r.priority.value}] {r.action} (confidence {r.confidence:.0%})")
+        return {"response": "\n".join(lines), "result": result.to_dict(),
+                "query_type": "recommend"}
+
+    @staticmethod
+    def _respond_risks(result: RecommendationResult) -> Dict[str, Any]:
+        lines = ["Assessed risks (evidence-backed):"]
+        if not result.risks:
+            lines.append("No material risks identified from current evidence.")
+        for risk in result.risks:
+            lines.append(f"- [{risk.severity.value}] {risk.risk} "
+                         f"(confidence {risk.confidence:.0%})")
+        return {"response": "\n".join(lines),
+                "risks": [r.to_dict() for r in result.risks], "query_type": "risks"}
+
+    @staticmethod
+    def _respond_explain(result: RecommendationResult) -> Dict[str, Any]:
+        lines = ["Recommendation explanations (WHAT / WHY / EVIDENCE / IMPACT / RISKS / CONFIDENCE):"]
+        for r in result.recommendations:
+            lines.append(f"WHAT: {r.action}")
+            lines.append(f"WHY: {r.why}")
+            ev = "; ".join(r.evidence_ids) if r.evidence_ids else "none"
+            lines.append(f"EVIDENCE: {len(r.evidence)} item(s) {ev}")
+            imp = (f"{r.expected_impact.estimated_impact:+,.2f}" if
+                   r.expected_impact and r.expected_impact.availability == ImpactAvailability.AVAILABLE
+                   else "unavailable")
+            lines.append(f"EXPECTED IMPACT: {imp}")
+            lines.append(f"RISKS: {', '.join(r.risks) if r.risks else 'none'}")
+            lines.append(f"CONFIDENCE: {r.confidence:.0%}")
+            lines.append("---")
+        return {"response": "\n".join(lines), "query_type": "explain",
+                "result": result.to_dict()}
+
+    @staticmethod
+    def _respond_rank(result: RecommendationResult, by: str) -> Dict[str, Any]:
+        recs = list(result.recommendations)
+        if by == "risk":
+            recs.sort(key=lambda r: r.scoring.risk_penalty)
+            label = "lowest risk"
+        else:
+            def imp(r):
+                if r.expected_impact and r.expected_impact.estimated_impact is not None:
+                    return r.expected_impact.estimated_impact
+                return -1e18
+            recs.sort(key=imp, reverse=True)
+            label = "highest expected impact"
+        lines = [f"Ranked by {label}:"]
+        for r in recs:
+            v = (f"{r.expected_impact.estimated_impact:+,.2f}" if
+                 r.expected_impact and r.expected_impact.estimated_impact is not None
+                 else "unavailable")
+            lines.append(f"- {r.action} | impact: {v} | risk penalty: {r.scoring.risk_penalty:.2f}")
+        return {"response": "\n".join(lines), "query_type": "rank",
+                "result": result.to_dict(), "ranked_by": by}
+
+    # ------------------------------------------------------------------
+    # Standardized BaseAgent run()
+    # ------------------------------------------------------------------
+    def run(self, task: Union[str, Dict[str, Any]]) -> AgentResult:
+        self._start()
+        try:
+            if isinstance(task, str):
+                task = {"command": task}
+            task = dict(task or {})
+            mode = task.get("mode", task.get("query_type", "recommend"))
+            command = task.get("command") or task.get("user_intent") or task.get("query") or ""
+
+            data_map: Dict[str, Any] = {
+                "user_intent": command or None,
+                "insights": task.get("insights") or [],
+                "forecasts": task.get("forecasts") or [],
+                "scenarios": task.get("scenarios") or [],
+                "monitoring_results": task.get("monitoring_results") or [],
+                "business_constraints": task.get("business_constraints") or [],
+                "optimization_objective": task.get("objective") or task.get("optimization_objective"),
+                "dataset_context": (task.get("dataset_context") or
+                                    task.get("dataset_knowledge") or task.get("knowledge")),
+                "max_recommendations": int(task.get("max_recommendations", 5)),
+                "risk_tolerance": task.get("risk_tolerance"),
+            }
+
+            if mode in ("explain", "risks", "safest", "highest_impact", "rank") and command:
+                resp = self.handle_query(command, data_map)
+                conf = float(resp.get("result", {}).get("confidence", 0.8)) if isinstance(resp.get("result"), dict) else 0.8
+                return self._finish(
+                    resp,
+                    message="RecommendationAgent processed conversational decision query.",
+                    evidence=[],
+                    confidence=conf,
+                    metadata={"query_type": resp.get("query_type", mode)},
+                )
+
+            result = self.generate_from_data(**data_map)
+            return self._finish(
+                result.to_dict(),
+                message=(f"{self.name} generated {len(result.recommendations)} evidence-backed "
+                         f"recommendation(s). Status: {result.status}."),
+                evidence=result.evidence,
+                confidence=result.confidence,
+                metadata={"status": result.status,
+                          "needs_objective": result.needs_objective_clarification},
+            )
+        except Exception as exc:
+            return self._error(
+                f"Recommendation generation failed: {str(exc).splitlines()[-1]}",
+                suggested_fix=("Ensure insights/forecasts/scenarios are in the "
+                               "expected format."),
+            )
+
