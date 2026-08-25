@@ -857,3 +857,142 @@ class ActionGenerator:
                     confidence=0.85,
                 ))
 
+        # ---- 4. Opportunity-driven actions (only when evidence-backed) ----
+        opp_engine = OpportunityEngine()
+        for opp in opp_engine.detect(context, scenarios):
+            if opp.affected_metric and opp.confidence >= 0.6 and opp.opportunity:
+                key = ("opp_action", opp.affected_segment or opp.opportunity[:40])
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    candidates.append(ActionCandidate(
+                        action=(f"Prioritize '{opp.affected_segment or 'the opportunity'}' "
+                                f"to capture the identified opportunity in {opp.affected_metric}."),
+                        action_type=ActionType.PRIORITIZE,
+                        objective=self._pick_objective(objectives, [RecommendationObjective.MAXIMIZE_REVENUE]),
+                        affected_metric=opp.affected_metric,
+                        affected_segment=opp.affected_segment,
+                        rationale=opp.opportunity,
+                        evidence=opp.evidence,
+                        evidence_ids=opp.evidence_ids,
+                        assumptions=opp.assumptions,
+                        risks=opp.risks,
+                        confidence=opp.confidence,
+                    ))
+
+        # ---- 5. Constraint validation & impact estimation ----
+        accepted: List[ActionCandidate] = []
+        for cand in candidates:
+            ok, satisfied = self.validator.validate(cand, context.constraints)
+            if not ok:
+                continue
+            cand.constraints = satisfied
+            cand.expected_impact = self.impact.estimate(cand, scenarios)
+            accepted.append(cand)
+        return accepted
+
+    @staticmethod
+    def _pick_objective(requested: List[RecommendationObjective],
+                        preferred: List[RecommendationObjective]) -> RecommendationObjective:
+        """Choose the candidate's driving objective: use a requested objective when
+        one matches the preferred set, otherwise the most impactful preferred one,
+        otherwise UNSPECIFIED (never invent an objective)."""
+        if not requested:
+            return preferred[0] if preferred else RecommendationObjective.UNSPECIFIED
+        for p in preferred:
+            if p in requested:
+                return p
+        return preferred[0] if preferred else RecommendationObjective.UNSPECIFIED
+
+class RecommendationScorer:
+    """Transparent, documented recommendation scoring.
+
+    Formulas (normalized to ~[0,1] before aggregation unless stated):
+      relevance          = 1.0 if objective matched, 0.3-0.4 otherwise,
+                           0.5 (neutral) when no objective was supplied.
+      evidence_strength  = 0.4 + 0.12 * min(len(evidence), 5) (+0.1 confidence bonus).
+      expected_impact    = 0.5 + clamp(pct_change / 20%, -0.5, 0.5); 0.5 when unavailable.
+      feasibility        = 1.0 for constraint-satisfying actions.
+      risk_penalty       = sum of severity weights of associated context risks (capped).
+      urgency            = max severity weight of associated context risks.
+    final_score = evidence_strength + expected_impact + relevance + feasibility - risk_penalty
+    """
+
+    @staticmethod
+    def _clamp(v: float, lo: float = 0.0, hi: float = 1.0) -> float:
+        return max(lo, min(hi, v))
+
+    def score(self, candidate: ActionCandidate, context: DecisionContext,
+              objectives: List[RecommendationObjective],
+              risk_tolerance: Optional[str] = None) -> Tuple[ScoringFactors, float]:
+        # relevance
+        if not objectives:
+            relevance = 0.5
+        elif candidate.objective in objectives:
+            relevance = 1.0
+        elif candidate.objective == RecommendationObjective.UNSPECIFIED:
+            relevance = 0.4
+        else:
+            relevance = 0.3
+
+        # evidence_strength
+        n_ev = len(candidate.evidence)
+        evidence_strength = self._clamp(0.4 + 0.12 * min(n_ev, 5) + 0.1 * float(candidate.confidence))
+
+        # expected_impact
+        impact = candidate.expected_impact
+        if impact is None or impact.availability != ImpactAvailability.AVAILABLE:
+            expected_impact = 0.5
+        elif impact.estimated_impact_pct is not None:
+            expected_impact = self._clamp(0.5 + float(impact.estimated_impact_pct) / 20.0)
+        elif impact.estimated_impact is not None and impact.baseline:
+            pct = float(impact.estimated_impact) / float(impact.baseline) * 100.0
+            expected_impact = self._clamp(0.5 + pct / 20.0)
+        else:
+            expected_impact = 0.5
+
+        feasibility = 1.0
+
+        # associated risk penalty / urgency
+        associated = self._associated_risks(candidate, context.risks)
+        penalty = sum(RiskEngine.SEVERITY_WEIGHT[r.severity] for r in associated)
+        penalty = min(penalty, 1.0)
+        urgency = max([RiskEngine.SEVERITY_WEIGHT[r.severity] for r in associated], default=0.0)
+
+        # risk tolerance filter adjusts penalty up when user is low-tolerance
+        if risk_tolerance and str(risk_tolerance).upper() == "LOW":
+            penalty = self._clamp(penalty * 1.5, 0.0, 1.0)
+
+        factors = ScoringFactors(
+            evidence_strength=round(evidence_strength, 4),
+            expected_impact=round(expected_impact, 4),
+            relevance=round(relevance, 4),
+            feasibility=round(feasibility, 4),
+            risk_penalty=round(penalty, 4),
+            urgency=round(urgency, 4),
+        )
+        final = (evidence_strength + expected_impact + relevance + feasibility - penalty)
+        factors.final_score = round(final, 4)
+        return factors, final
+
+    @staticmethod
+    def _associated_risks(candidate: ActionCandidate,
+                          risks: List[RiskAssessment]) -> List[RiskAssessment]:
+        cand_ev_ids = set(candidate.evidence_ids)
+        seg = str(candidate.affected_segment or "").lower()
+        out = []
+        for r in risks:
+            r_ids = set(r.evidence_ids)
+            if cand_ev_ids & r_ids:
+                out.append(r)
+            elif seg and r.risk and seg in r.risk.lower():
+                out.append(r)
+        return out
+
+    @staticmethod
+    def priority_for(score: float) -> PriorityLevel:
+        if score >= 3.0:
+            return PriorityLevel.HIGH
+        if score >= 2.0:
+            return PriorityLevel.MEDIUM
+        return PriorityLevel.LOW
+
