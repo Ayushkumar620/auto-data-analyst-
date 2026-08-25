@@ -20,6 +20,12 @@ import smtplib
 import time
 from typing import Any, Dict, Optional, Tuple
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
+
 logger = logging.getLogger("EmailService")
 
 
@@ -49,6 +55,16 @@ class EmailService:
         self.otp_ttl_seconds = otp_ttl_seconds
         # In-memory storage: email -> {"otp": str, "expires_at": float, "attempts": int}
         self._cache: Dict[str, Dict[str, Any]] = {}
+
+    def reload_config(self) -> SmtpConfig:
+        """Refresh configuration directly from environment variables."""
+        try:
+            from dotenv import load_dotenv
+            load_dotenv(override=True)
+        except Exception:
+            pass
+        self.config = SmtpConfig()
+        return self.config
 
     def generate_otp(self, length: int = 6) -> str:
         """Generate a cryptographically secure numeric OTP."""
