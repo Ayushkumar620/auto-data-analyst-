@@ -108,7 +108,7 @@ class ToolRegistry:
                 capabilities=["dataset_profiling", "data_validation", "schema_profiling"],
                 input_schema={"data": "pd.DataFrame"},
                 output_schema={"profile": "dict", "quality_score": "float"},
-                execution_fn=lambda data, **kw: DataValidationAgent().execute({"data": data, **kw}),
+                execution_fn=lambda data, **kw: DataValidationAgent().run({"data": data, **kw}),
                 validation_requirements=["quality_score >= 0"],
             )
         )
@@ -121,7 +121,7 @@ class ToolRegistry:
                 capabilities=["data_cleaning", "duplicate_handling", "imputation", "sanitization"],
                 input_schema={"data": "pd.DataFrame", "strategy": "str"},
                 output_schema={"cleaned_data": "pd.DataFrame", "report": "dict"},
-                execution_fn=lambda data, **kw: CleaningAgent().execute({"data": data, **kw}),
+                execution_fn=lambda data, **kw: CleaningAgent().run({"data": data, **kw}),
                 validation_requirements=["cleaned_data is not empty"],
             )
         )
@@ -134,7 +134,7 @@ class ToolRegistry:
                 capabilities=["eda", "statistics", "descriptive_stats", "summary"],
                 input_schema={"data": "pd.DataFrame", "request": "str"},
                 output_schema={"summary": "dict", "statistics": "dict"},
-                execution_fn=lambda data, **kw: AnalysisAgent().execute({"data": data, "request": kw.get("request", "summary")}),
+                execution_fn=lambda data, **kw: AnalysisAgent().run({"data": data, "request": kw.get("request", "summary")}),
                 validation_requirements=["summary is not empty"],
             )
         )
@@ -147,7 +147,7 @@ class ToolRegistry:
                 capabilities=["aggregation", "group_by", "ranking", "regional_analysis", "segmentation"],
                 input_schema={"data": "pd.DataFrame", "metric": "str", "dimension": "str", "agg_func": "str"},
                 output_schema={"aggregated_data": "dict", "ranking": "list"},
-                execution_fn=lambda data, **kw: AnalysisAgent().execute({"data": data, "request": "summary", **kw}),
+                execution_fn=lambda data, **kw: AnalysisAgent().run({"data": data, "request": "summary", **kw}),
                 validation_requirements=["aggregated_data is not empty"],
             )
         )
@@ -160,7 +160,7 @@ class ToolRegistry:
                 capabilities=["correlation_analysis", "feature_relationships", "relationship_analysis"],
                 input_schema={"data": "pd.DataFrame"},
                 output_schema={"correlation_matrix": "dict"},
-                execution_fn=lambda data, **kw: AnalysisAgent().execute({"data": data, "request": "correlation", **kw}),
+                execution_fn=lambda data, **kw: AnalysisAgent().run({"data": data, "request": "correlation", **kw}),
                 validation_requirements=["correlation_matrix is not empty"],
             )
         )
@@ -173,7 +173,7 @@ class ToolRegistry:
                 capabilities=["anomaly_detection", "outliers", "spike_detection"],
                 input_schema={"data": "pd.DataFrame", "column": "str"},
                 output_schema={"anomalies": "list", "anomaly_count": "int"},
-                execution_fn=lambda data, **kw: InsightAgent().execute({"data": data, "type": "anomalies", **kw}),
+                execution_fn=lambda data, **kw: InsightAgent().run({"data": data, "type": "anomalies", **kw}),
                 validation_requirements=["anomaly_count >= 0"],
             )
         )
@@ -186,7 +186,7 @@ class ToolRegistry:
                 capabilities=["root_cause_analysis", "explanation", "feature_drivers", "trend_analysis"],
                 input_schema={"data": "pd.DataFrame", "target": "str", "top_k": "int"},
                 output_schema={"drivers": "list", "explanations": "list"},
-                execution_fn=lambda data, **kw: InsightAgent().execute({"data": data, "type": "smart", **kw}),
+                execution_fn=lambda data, **kw: InsightAgent().run({"data": data, "type": "smart", **kw}),
                 validation_requirements=["drivers is not empty"],
             )
         )
@@ -199,7 +199,7 @@ class ToolRegistry:
                 capabilities=["forecasting", "time_series", "future_projection"],
                 input_schema={"data": "pd.DataFrame", "target": "str", "periods": "int"},
                 output_schema={"forecast": "list", "metrics": "dict"},
-                execution_fn=lambda data, **kw: ForecastAgent().execute({"data": data, **kw}),
+                execution_fn=lambda data, **kw: ForecastAgent().run({"data": data, **kw}),
                 validation_requirements=["forecast length matches periods"],
             )
         )
@@ -212,7 +212,7 @@ class ToolRegistry:
                 capabilities=["prediction", "classification", "regression", "model_training", "feature_engineering"],
                 input_schema={"data": "pd.DataFrame", "target": "str", "features": "list"},
                 output_schema={"model_metrics": "dict", "predictions": "list"},
-                execution_fn=lambda data, **kw: PredictionAgent().execute({"data": data, **kw}),
+                execution_fn=lambda data, **kw: PredictionAgent().run({"data": data, **kw}),
                 validation_requirements=["model_metrics has score >= 0"],
             )
         )
@@ -225,7 +225,7 @@ class ToolRegistry:
                 capabilities=["visualization", "chart", "plotting"],
                 input_schema={"data": "pd.DataFrame", "chart_type": "str", "x": "str", "y": "str"},
                 output_schema={"chart_spec": "dict", "chart_type": "str"},
-                execution_fn=lambda data, **kw: VisualizationAgent().execute({"data": data, **kw}),
+                execution_fn=lambda data, **kw: VisualizationAgent().run({"data": data, **kw}),
                 validation_requirements=["chart_spec is valid JSON"],
             )
         )
@@ -238,7 +238,7 @@ class ToolRegistry:
                 capabilities=["reporting", "synthesis", "executive_summary"],
                 input_schema={"agent_outputs": "list"},
                 output_schema={"report_markdown": "str", "sections": "list"},
-                execution_fn=lambda **kw: ReportAgent().execute({"request": "pipeline", **kw}),
+                execution_fn=lambda **kw: ReportAgent().run({"request": "pipeline", **kw}),
                 validation_requirements=["report_markdown is not empty"],
             )
         )

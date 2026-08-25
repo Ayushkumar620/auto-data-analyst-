@@ -498,8 +498,25 @@ class DynamicTaskPlanner(BaseAgent):
             )
             step_idx += 1
 
+        elif primary_intent_val == "aggregation" or "aggregation" in req_caps or "regional_analysis" in req_caps:
+            metric_target = user_intent.metrics[0] if user_intent.metrics else (knowledge.get_primary_metric() if knowledge else "revenue")
+            dim_target = user_intent.dimensions[0] if user_intent.dimensions else (knowledge.get_primary_dimension() if knowledge else "country")
+            agg_step = f"step_{step_idx}"
+            steps.append(
+                ExecutionStep(
+                    step_id=agg_step,
+                    tool_name="aggregation",
+                    agent_name="AnalysisAgent",
+                    purpose=f"Aggregate '{metric_target}' by '{dim_target}'.",
+                    inputs={"metric": metric_target, "dimension": dim_target, "request": "summary"},
+                    required_capabilities=["aggregation"],
+                    dependencies=upstream_dep,
+                )
+            )
+            step_idx += 1
+
         else:
-            # Default EDA / Aggregation / Ranking
+            # Default EDA / General Summary
             metric_target = user_intent.metrics[0] if user_intent.metrics else (knowledge.get_primary_metric() if knowledge else None)
             eda_step = f"step_{step_idx}"
             steps.append(
@@ -563,7 +580,11 @@ class DynamicTaskPlanner(BaseAgent):
         plan: Union[ExecutionPlan, TaskPlan],
         dataframe: pd.DataFrame,
     ) -> AgentResult:
-        """Execute plan via ExecutionEngine."""
+        """Execute plan via ExecutionEngine with upfront validation."""
+        if isinstance(plan, ExecutionPlan):
+            val_errors = ExecutionGraph.validate_plan(plan, self.tool_registry)
+            if val_errors:
+                raise ValueError(f"Plan validation failed: {'; '.join(val_errors)}")
         return self.execution_engine.execute_plan(plan, dataframe)
 
     # ------------------------------------------------------------------
