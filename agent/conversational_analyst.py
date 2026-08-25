@@ -202,6 +202,7 @@ class ConversationalAnalystAgent(BaseAgent):
             resp = "No active dataset found in this session. Please provide or upload a dataset to begin analysis."
             return resp, [], {"error": "no_data"}
 
+        # Create structured intent for autonomous analysis
         target_metric = session.dataset_context.primary_metric if session.dataset_context else None
         target_dim = session.dataset_context.primary_dimension if session.dataset_context else None
 

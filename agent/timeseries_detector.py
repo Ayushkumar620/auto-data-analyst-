@@ -219,3 +219,4 @@ class TimeSeriesDetector:
             warnings=warnings,
             limitations=limitations,
         )
+

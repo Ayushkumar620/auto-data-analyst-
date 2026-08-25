@@ -159,3 +159,4 @@ class AutonomousForecasterAgent(BaseAgent):
 
         except Exception as exc:
             return self._error(f"Autonomous forecasting failed: {str(exc)}", category=ErrorCategory.COMPUTATION)
+

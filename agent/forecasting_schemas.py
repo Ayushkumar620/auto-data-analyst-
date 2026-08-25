@@ -213,3 +213,4 @@ class ScenarioComparison(BaseModel):
             "summary": self.summary,
             "evidence": [e.to_dict() for e in self.evidence],
         }
+
