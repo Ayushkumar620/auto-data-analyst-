@@ -103,7 +103,10 @@ The **Auto Data Analyst** project is a **command-driven, multi-agent autonomous 
 | **`AutonomousForecastEngine`** | **COMPLETED** | Multi-candidate model benchmarking (Naive, Seasonal Naive, Moving Average, Holt Exponential Smoothing, Autoregressive ML), chronological backtesting, and probabilistic prediction intervals (`agent/autonomous_forecast_engine.py`). |
 | **`WhatIfScenarioEngine`** | **COMPLETED** | Counterfactual What-If scenario simulations (percentage adjustments, segment shocks, variable elasticity) and multi-scenario matrices (Optimistic, Expected, Pessimistic) with non-causal attribution safeguards (`agent/what_if_scenario_engine.py`). |
 | **`AutonomousForecasterAgent` & Tool Integration** | **COMPLETED** | Master forecast & scenario agent subclassing `BaseAgent`, registered as `forecast_engine` and `scenario_engine` in `ToolRegistry`. |
-| **Milestone 5 Tests** | **COMPLETED** | 58 dedicated unit test cases across Task 1 (19/19), Task 2 (20/20), and Task 3 (19/19) fully passing. |
+| **`RecommendationEngine` & Schemas** | **COMPLETED** | Pydantic v2 contracts (`agent/recommendation_schemas.py`): `RecommendationRequest`, `DecisionContext`, `ActionCandidate`, `RiskAssessment`, `OpportunityAssessment`, `DecisionConstraint`, and `RecommendationResult` with strict Fact/Prediction/Recommendation/Assumption separation. |
+| **Action Discovery, Risk & Opportunity Engines** | **COMPLETED** | Deterministic generators (`agent/recommendation_engine.py`): `ActionDiscoveryEngine`, `RiskEngine`, `OpportunityEngine`, and `RecommendationScorer` calculating explainable scores ($s = \text{evidence} + \text{impact} + \text{relevance} + \text{feasibility} - \text{risk}$). |
+| **`RecommendationAgent` & Tool Integration** | **COMPLETED** | Autonomous `BaseAgent` exposing `decision_engine` in `ToolRegistry` and `recommendation_engine` in `DynamicTaskPlanner`, conversational decision support with multi-objective trade-offs, and human-approval boundaries. |
+| **Milestone 5 Tests** | **COMPLETED** | 82 dedicated unit test cases across Task 1 (19/19), Task 2 (20/20), Task 3 (19/19), and Task 4 (24/24) fully passing (100% pass rate). |
 
 ---
 
