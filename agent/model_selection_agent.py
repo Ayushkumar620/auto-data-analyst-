@@ -739,7 +739,7 @@ class ModelSelectionAgent(BaseAgent):
             output_payload["leakage_warnings"] = leakage
 
         return self._finish(
-            output=output_payload,
+            result=output_payload,
             evidence=evidence_list,
             confidence=0.95 if best else 0.5,
             message=f"Evaluated {len(report.candidate_evaluations)} candidate models. Best: {best.model_name if best else 'None'} ({best.primary_metric_name}={best.primary_metric_value:.4f})",
