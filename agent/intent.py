@@ -446,7 +446,7 @@ class CommandIntelligenceAgent(BaseAgent):
         elif intent_candidates:
             intent_candidates.sort(key=lambda x: x[1], reverse=True)
             primary = intent_candidates[0][0]
-        elif any(w in text for w in ("analyze", "analysis", "explore", "inspect", "dataset")):
+        elif any(w in text for w in ("analyze", "analysis", "explore", "inspect", "dataset", "data", "summary", "stats", "tell me", "what is", "how is", "show", "give", "overview", "distribution", "breakdown", "performance", "patterns", "numbers", "insights", "metrics")):
             primary = IntentType.DATASET_ANALYSIS
             capabilities.append("exploratory_analysis")
         else:
@@ -487,34 +487,40 @@ class CommandIntelligenceAgent(BaseAgent):
         return cleaned.title()
 
     def _extract_comparison(self, text: str) -> Optional[Dict[str, Any]]:
-        # Match "between X and Y"
-        between_match = re.search(r"\bbetween\s+([a-zA-Z0-9_\s]+?)\s+and\s+([a-zA-Z0-9_\s]+?)(?:\s+in|\s+by|\s+for|$|\.)", text, flags=re.IGNORECASE)
-        if between_match:
-            left = self._clean_entity_name(between_match.group(1))
-            right = self._clean_entity_name(between_match.group(2))
-            return {"type": "between_entities", "entities": [left, right]}
-        if "vs" in text or "versus" in text:
-            parts = re.split(r"\b(?:vs|versus)\b", text, flags=re.IGNORECASE)
-            if len(parts) >= 2:
-                left = self._clean_entity_name(parts[0])
-                right = self._clean_entity_name(parts[1])
-                return {"type": "between_entities", "entities": [left, right]}
+        # Match "X vs Y" or "X versus Y"
+        vs_match = re.search(r"\b([\w\s]+?)\s+(?:vs|versus)\s+([\w\s]+?)(?:\s+(?:in|for|by)|\?|$)", text)
+        if vs_match:
+            entity_a = vs_match.group(1).strip()
+            entity_b = vs_match.group(2).strip()
+            return {"entity_a": entity_a, "entity_b": entity_b}
         return None
 
     def _extract_filters(self, text: str, comparison: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        filters: Dict[str, Any] = {}
-        if comparison and comparison.get("type") == "between_entities":
-            entities = comparison.get("entities", [])
-            filters["entities"] = entities
+        filters = {}
+        # Comparison entities become filters if not already captured
+        if comparison:
+            filters["comparison_targets"] = [comparison["entity_a"], comparison["entity_b"]]
+
+        # Status / active filter
+        if "active" in text and "inactive" not in text:
+            filters["status"] = "Active"
+        elif "inactive" in text:
+            filters["status"] = "Inactive"
+
+        # Explicit equality or region matching (e.g. region == North or in North)
+        reg_match = re.search(r"\b(?:in|region\s*==?)\s+(north|south|east|west|central|apac|emea|latam)\b", text)
+        if reg_match:
+            filters["region"] = reg_match.group(1).capitalize()
+
         return filters
 
     # ------------------------------------------------------------------
-    # Semantic Matching & Ambiguity Resolution
+    # Entity Extraction & DatasetKnowledge Grounding
     # ------------------------------------------------------------------
     def _match_entities_with_dataset(
         self,
         text: str,
-        dk: Optional[DatasetKnowledge] = None,
+        dk: Optional[DatasetKnowledge],
     ) -> Tuple[List[str], List[str], List[str], bool]:
         """
         Cross-reference user mentions against DatasetKnowledge.
@@ -527,17 +533,30 @@ class CommandIntelligenceAgent(BaseAgent):
 
         if dk is not None:
             col_names = [c if isinstance(c, str) else c.column_name for c in dk.columns]
+            num_cols = [c if isinstance(c, str) else c.column_name for c in getattr(dk, "numeric_columns", [])]
+            cat_cols = [c if isinstance(c, str) else c.column_name for c in getattr(dk, "categorical_columns", [])]
 
-            # 1. Search for potential metric references
-            metric_candidates = ("revenue", "sales", "profit", "cost", "quantity", "units", "price", "discount", "margin", "salary")
+            # 1. Direct column matching for all dataset columns
+            norm_text = " " + re.sub(r"[^\w\s]", " ", text) + " "
+            for col in col_names:
+                col_clean = col.lower()
+                col_spaced = col_clean.replace("_", " ").replace("-", " ")
+                if col_clean in text or f" {col_spaced} " in norm_text:
+                    if col in num_cols or not cat_cols or col not in cat_cols:
+                        metrics.append(col)
+                    else:
+                        dimensions.append(col)
+
+            # 2. Search for potential metric references with synonyms
+            metric_candidates = ("revenue", "sales", "profit", "cost", "quantity", "units", "price", "discount", "margin", "salary", "amount", "spend", "charges", "value", "balance", "score")
             for term in metric_candidates:
                 if term in text:
                     exact_match = [c for c in col_names if c.lower() == term]
                     sub_matches = [c for c in col_names if term in c.lower()]
 
-                    if exact_match:
+                    if exact_match and exact_match[0] not in metrics:
                         metrics.append(exact_match[0])
-                    elif len(sub_matches) == 1:
+                    elif len(sub_matches) == 1 and sub_matches[0] not in metrics:
                         metrics.append(sub_matches[0])
                     elif len(sub_matches) > 1:
                         needs_clarification = True
@@ -545,15 +564,15 @@ class CommandIntelligenceAgent(BaseAgent):
                         ambiguities.append(ambiguity_msg)
                         metrics.extend(sub_matches)
 
-            # 2. Search for potential dimension references
-            dim_candidates = ("country", "region", "city", "customer", "customer_id", "product", "category", "segment", "status")
+            # 3. Search for potential dimension references
+            dim_candidates = ("country", "region", "city", "customer", "customer_id", "product", "category", "segment", "status", "type", "gender", "tier", "channel")
             for term in dim_candidates:
                 if term in text:
                     matches = [c for c in col_names if term in c.lower()]
-                    if matches:
+                    if matches and matches[0] not in dimensions:
                         dimensions.append(matches[0])
 
-            # 3. Country / Region inference from comparison entities (e.g. India vs US)
+            # 4. Country / Region inference from comparison entities (e.g. India vs US)
             country_indicators = ("india", "us", "usa", "uk", "germany", "france", "canada", "australia", "china", "japan")
             if any(cnt in text for cnt in country_indicators):
                 for col in ("country", "region", "geo", "location", "territory"):
@@ -562,12 +581,12 @@ class CommandIntelligenceAgent(BaseAgent):
 
         else:
             # Fallback when DatasetKnowledge is not yet attached
-            metric_terms = ("revenue", "profit", "sales", "cost", "quantity", "units", "price", "churn", "salary")
+            metric_terms = ("revenue", "profit", "sales", "cost", "quantity", "units", "price", "churn", "salary", "amount", "spend", "charges")
             for m in metric_terms:
                 if m in text and m not in metrics:
                     metrics.append(m)
 
-            dim_terms = ("region", "country", "city", "customer", "category", "product", "segment")
+            dim_terms = ("region", "country", "city", "customer", "category", "product", "segment", "status", "tier")
             for d in dim_terms:
                 if d in text and d not in dimensions:
                     dimensions.append(d)

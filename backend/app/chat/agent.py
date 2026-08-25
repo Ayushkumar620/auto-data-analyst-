@@ -23,7 +23,17 @@ class ChatAgent:
             evidence = self.tools.execute("get_dataset_schema", dataframe)
             return ChatResponse(f"This dataset has {evidence['rows']} rows and these columns: {', '.join(evidence['columns'])}.", "schema", "success", evidence, suggested_questions=self._metric_questions(dataframe))
         if not metric:
-            return ChatResponse("I can't determine that from the current dataset because I couldn't identify the required metric column.", "unsupported", "unsupported", suggested_questions=self._metric_questions(dataframe))
+            # Fallback for purely non-numeric datasets or general overview requests
+            evidence = self.tools.execute("get_dataset_schema", dataframe)
+            cat_cols = [c for c in dataframe.columns if not pd.api.types.is_numeric_dtype(dataframe[c])]
+            cat_summary = f" Categorical fields: {', '.join(cat_cols[:5])}." if cat_cols else ""
+            return ChatResponse(
+                f"I analyzed this dataset ({evidence['rows']:,} rows, {len(columns)} columns).{cat_summary} You can ask me to analyze distributions, count categories, inspect values, or compare groups.",
+                "schema",
+                "success",
+                evidence,
+                suggested_questions=self._metric_questions(dataframe),
+            )
         if any(word in text for word in ("forecast", "predict", "projection", "next quarter")):
             date = self._date_column(dataframe)
             if not date:
@@ -94,13 +104,55 @@ class ChatAgent:
         return ChatResponse(f"{metric} ranges from {self._format(evidence['min'])} to {self._format(evidence['max'])}, with an average of {self._format(evidence['mean'])}.", "statistics", "success", evidence, suggested_questions=self._metric_questions(dataframe))
 
     @staticmethod
-    def _columns(text: str, columns: list[str]) -> list[str]: return [c for c in columns if c.casefold() in text]
+    def _columns(text: str, columns: list[str]) -> list[str]:
+        matched = []
+        normalized_text = " " + re.sub(r"[^\w\s]", " ", text.casefold()) + " "
+        synonyms = {
+            "revenue": ["sales", "turnover", "income", "amount", "spend", "earning", "earnings", "price", "val", "value", "charges"],
+            "profit": ["margin", "gain", "net", "earnings"],
+            "cost": ["expense", "expenditure", "charges", "fee", "fees"],
+            "user": ["customer", "client", "buyer", "account", "member"],
+            "date": ["time", "period", "timestamp", "year", "month", "day"],
+            "quantity": ["units", "volume", "count", "items", "number"],
+        }
+        for c in columns:
+            c_low = c.casefold()
+            c_spaced = c_low.replace("_", " ").replace("-", " ")
+            if c_low in text or f" {c_spaced} " in normalized_text or f" {c_low} " in normalized_text:
+                matched.append(c)
+                continue
+            parts = [p for p in c_low.split("_") if len(p) > 2]
+            if parts and any(f" {p} " in normalized_text for p in parts):
+                matched.append(c)
+                continue
+            for k, syn_list in synonyms.items():
+                if k in c_low and any(f" {s} " in normalized_text for s in syn_list):
+                    matched.append(c)
+                    break
+                elif any(s in c_low for s in syn_list) and f" {k} " in normalized_text:
+                    matched.append(c)
+                    break
+        return list(dict.fromkeys(matched))
+
     def _metric(self, mentioned: list[str], dataframe: pd.DataFrame, context: dict[str, Any]) -> str | None:
         numeric = [c for c in mentioned if pd.api.types.is_numeric_dtype(dataframe[c])]
-        return numeric[0] if numeric else context.get("metric") if context.get("metric") in dataframe.columns else None
+        if numeric:
+            return numeric[0]
+        ctx_m = context.get("metric")
+        if ctx_m and ctx_m in dataframe.columns and pd.api.types.is_numeric_dtype(dataframe[ctx_m]):
+            return ctx_m
+        # Fallback to first numeric column in dataframe if present
+        all_numeric = self._numeric_columns(dataframe)
+        return all_numeric[0] if all_numeric else None
+
     def _group(self, mentioned: list[str], dataframe: pd.DataFrame, context: dict[str, Any]) -> str | None:
         groups = [c for c in mentioned if not pd.api.types.is_numeric_dtype(dataframe[c])]
-        return groups[0] if groups else context.get("group_by") if context.get("group_by") in dataframe.columns else None
+        if groups:
+            return groups[0]
+        ctx_g = context.get("group_by")
+        if ctx_g and ctx_g in dataframe.columns:
+            return ctx_g
+        return None
     @staticmethod
     def _operation(text: str) -> str:
         if any(w in text for w in ("average", "mean")): return "mean"
