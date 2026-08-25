@@ -56,6 +56,10 @@ class ToolRegistry:
         """Look up tool by name."""
         return self._tools.get(name)
 
+    def get(self, name: str) -> Optional[ToolDefinition]:
+        """Alias for get_tool."""
+        return self._tools.get(name)
+
     def has_tool(self, name: str) -> bool:
         """Check if tool exists."""
         return name in self._tools
@@ -229,6 +233,19 @@ class ToolRegistry:
                 output_schema={"best_model": "dict", "ranking": "list", "candidates": "list"},
                 execution_fn=lambda data, **kw: ModelTrainingAgent().run({"data": data, **kw}),
                 validation_requirements=["best_model is not None"],
+            )
+        )
+
+        # 11. Artificial Neural Network (ANN) Engine (Milestone 3, Task 3)
+        self.register(
+            ToolDefinition(
+                name="ann_trainer",
+                description="Trains, tunes, and evaluates deep Multi-Layer Perceptrons on tabular data with loss curve tracking and early stopping.",
+                capabilities=["ann_training", "tabular_regression", "tabular_binary_classification", "tabular_multiclass_classification", "deep_learning"],
+                input_schema={"data": "pd.DataFrame", "target": "str", "epochs": "int", "layers": "list"},
+                output_schema={"best_model": "dict", "metrics": "dict", "loss_curve": "list"},
+                execution_fn=lambda data, **kw: ANNAgent().run({"data": data, **kw}),
+                validation_requirements=["metrics is not empty"],
             )
         )
 
