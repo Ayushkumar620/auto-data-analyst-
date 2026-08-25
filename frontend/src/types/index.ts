@@ -242,3 +242,86 @@ export type ScenarioComparison = {
   evidence: EvidenceItem[];
 };
 
+// ==========================================
+// Phase 6: Model Monitoring & Drift Types
+// ==========================================
+export type DriftSeverityLevel = 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'WARNING' | 'HEALTHY';
+
+export type FeatureDriftResult = {
+  feature_name: string;
+  drift_detected: boolean;
+  drift_score: number;
+  statistical_test: string;
+  p_value?: number | null;
+  reference_statistics?: Record<string, unknown>;
+  current_statistics?: Record<string, unknown>;
+  threshold: number;
+  severity: DriftSeverityLevel;
+  confidence?: number;
+};
+
+export type DatasetDriftReport = {
+  dataset_id: string;
+  reference_dataset_id: string;
+  features_checked: string[];
+  drifted_features: string[];
+  drift_percentage: number;
+  overall_drift: boolean;
+  schema_drift_detected: boolean;
+  schema_changes?: Record<string, unknown>;
+  data_quality_changes?: Record<string, unknown>;
+  feature_results: Record<string, FeatureDriftResult>;
+  severity: DriftSeverityLevel;
+  warnings?: string[];
+  confidence?: number;
+};
+
+export type ModelPerformanceReport = {
+  model_id: string;
+  reference_metrics: Record<string, number>;
+  current_metrics: Record<string, number>;
+  metric_changes: Record<string, number>;
+  degradation_detected: boolean;
+  target_monitoring_status: string;
+  evaluation_dataset_rows: number;
+  confidence?: number;
+};
+
+export type PredictionDriftReport = {
+  model_id: string;
+  prediction_drift_detected: boolean;
+  statistical_test: string;
+  drift_score: number;
+  p_value?: number | null;
+  reference_prediction_stats?: Record<string, unknown>;
+  current_prediction_stats?: Record<string, unknown>;
+  confidence?: number;
+};
+
+export type MonitoringResult = {
+  run_id?: string;
+  model_id: string;
+  status: string;
+  overall_severity: DriftSeverityLevel;
+  data_drift?: DatasetDriftReport;
+  prediction_drift?: PredictionDriftReport;
+  performance_drift?: ModelPerformanceReport;
+  data_quality?: Record<string, unknown>;
+  recommendations: string[];
+  warnings: string[];
+  evidence?: EvidenceItem[];
+  confidence?: number;
+  timestamp?: string;
+  executed_at?: string;
+};
+
+export type MonitoringOverviewData = {
+  total_models: number;
+  monitored_models: number;
+  healthy_models: number;
+  warning_models: number;
+  critical_models: number;
+  total_runs: number;
+  last_run_timestamp?: string | null;
+};
+
