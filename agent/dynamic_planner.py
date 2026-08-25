@@ -463,6 +463,22 @@ class DynamicTaskPlanner(BaseAgent):
             )
             step_idx += 1
 
+        elif primary_intent_val in ("model_orchestration", "multi_model_training", "model_comparison") or "model_orchestration" in req_caps:
+            metric_target = user_intent.metrics[0] if user_intent.metrics else (knowledge.get_primary_metric() if knowledge else "target")
+            orch_step = f"step_{step_idx}"
+            steps.append(
+                ExecutionStep(
+                    step_id=orch_step,
+                    tool_name="model_orchestrator",
+                    agent_name="ModelOrchestratorAgent",
+                    purpose=f"Orchestrate multi-family model selection, cross-validation, and registry persistence for '{metric_target}'.",
+                    inputs={"target": metric_target, "features": user_intent.dimensions},
+                    required_capabilities=["model_orchestration"],
+                    dependencies=upstream_dep,
+                )
+            )
+            step_idx += 1
+
         elif primary_intent_val in ("prediction", "classification", "regression") or "prediction" in req_caps:
             metric_target = user_intent.metrics[0] if user_intent.metrics else (knowledge.get_primary_metric() if knowledge else "target")
             pred_step = f"step_{step_idx}"

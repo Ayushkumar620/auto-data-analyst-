@@ -14,6 +14,7 @@ from .insights import InsightsEngine
 from .cleaner import DataCleaner
 from .model_selection_agent import ModelSelectionAgent
 from .model_training_engine import ModelTrainingAgent
+from .model_orchestrator import ModelOrchestratorAgent
 from .ann_agent import ANNAgent
 from .cnn_agent import CNNAgent
 from .registry_agent import ModelRegistryAgent

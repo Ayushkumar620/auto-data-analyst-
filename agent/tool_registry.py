@@ -99,6 +99,7 @@ class ToolRegistry:
             DataValidationAgent,
             ForecastAgent,
             InsightAgent,
+            ModelOrchestratorAgent,
             ModelRegistryAgent,
             ModelSelectionAgent,
             ModelTrainingAgent,
@@ -260,6 +261,19 @@ class ToolRegistry:
                 output_schema={"best_model": "dict", "metrics": "dict", "spatial_gain": "float"},
                 execution_fn=lambda data, **kw: CNNAgent().run({"data": data, **kw}),
                 validation_requirements=["metrics is not empty"],
+            )
+        )
+
+        # 13. Unified Intelligent Model Orchestrator (Milestone 4, Task 1)
+        self.register(
+            ToolDefinition(
+                name="model_orchestrator",
+                description="Coordinates end-to-end model selection, capability validation, parallel/sequential cross-validation, and winner registration across Traditional ML, ANN, and CNN.",
+                capabilities=["model_orchestration", "multi_model_training", "model_comparison", "prediction_routing", "model_registry_deployment"],
+                input_schema={"data": "pd.DataFrame", "target": "str", "task_type": "str", "modality": "str", "candidates": "list"},
+                output_schema={"best_model": "dict", "ranking": "list", "selection_reason": "str"},
+                execution_fn=lambda data, **kw: ModelOrchestratorAgent().run({"data": data, **kw}),
+                validation_requirements=["best_model is not empty"],
             )
         )
 
