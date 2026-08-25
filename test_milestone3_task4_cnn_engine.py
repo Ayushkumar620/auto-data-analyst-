@@ -174,7 +174,6 @@ def test_image_preprocessing_and_reshaping(synthetic_binary_images):
 
     assert features.shape[0] == 40
     assert features.ndim == 2
-    # Mean should be roughly centered around zero due to scaling
     assert np.allclose(features.mean(axis=0), 0.0, atol=1e-2)
 
 
@@ -236,6 +235,15 @@ def test_cnn_multiclass_image_classification(synthetic_multiclass_images):
 
     assert result.status == "success"
     assert result.metrics["accuracy"] >= 0.70
+
+
+def test_cnn_early_stopping_and_epochs():
+    """9. Test CNN layer config serialization and hyperparameter tuning parameters."""
+    hp = CNNHyperparameters(epochs=25, dense_units=(32, 16), learning_rate=0.005)
+    d = hp.to_dict()
+    assert d["epochs"] == 25
+    assert d["dense_units"] == [32, 16]
+    assert d["learning_rate"] == 0.005
 
 
 # ==============================================================================

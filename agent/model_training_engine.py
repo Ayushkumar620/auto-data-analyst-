@@ -637,7 +637,11 @@ class ModelTrainingEngine:
                 y_val_t = preprocessor.transform_target(y_val_fold)
 
                 # Clone and fit
-                model_fold = clone(estimator)
+                try:
+                    model_fold = clone(estimator)
+                except Exception:
+                    import copy
+                    model_fold = copy.deepcopy(estimator)
                 model_fold.fit(X_train_t, y_train_t)
 
                 # Train predictions
