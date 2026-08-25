@@ -320,3 +320,176 @@ class DecisionContextBuilder:
         except Exception:
             return []
 
+# ==============================================================================
+# Normalization helpers
+# ==============================================================================
+
+def _monitoring_to_dict(m: Any) -> Optional[Dict[str, Any]]:
+    """Normalize a MonitoringResult (object or dict) into a dict."""
+    if m is None:
+        return None
+    if isinstance(m, dict):
+        return m
+    try:
+        dd = getattr(m, "data_drift", None)
+        dd = dd.to_dict() if dd is not None and hasattr(dd, "to_dict") else dd
+        pdd = getattr(m, "prediction_drift", None)
+        pdd = pdd.to_dict() if pdd is not None and hasattr(pdd, "to_dict") else pdd
+        pd = getattr(m, "performance_drift", None)
+        pd = pd.to_dict() if pd is not None and hasattr(pd, "to_dict") else pd
+        return {
+            "model_id": getattr(m, "model_id", None),
+            "overall_severity": getattr(m, "overall_severity", None),
+            "data_drift": dd,
+            "prediction_drift": pdd,
+            "performance_drift": pd,
+            "evidence": _to_evidence_list(getattr(m, "evidence", None)),
+            "recommendations": list(getattr(m, "recommendations", []) or []),
+        }
+    except Exception:
+        return None
+
+
+def _metric_label(metric: Optional[str]) -> str:
+    return metric or "the metric"
+
+
+class RiskEngine:
+    """Deterministic, evidence-backed risk assessment. Only creates risks that
+    are supported by evidence. Never assigns CRITICAL simply because something
+    looks unusual."""
+
+    SEVERITY_WEIGHT = {
+        RiskSeverity.LOW: 0.10,
+        RiskSeverity.MEDIUM: 0.25,
+        RiskSeverity.HIGH: 0.50,
+        RiskSeverity.CRITICAL: 0.80,
+    }
+
+    @staticmethod
+    def _severity_for_share(share: float) -> RiskSeverity:
+        if share >= 90.0:
+            return RiskSeverity.CRITICAL
+        if share >= 75.0:
+            return RiskSeverity.HIGH
+        if share >= 55.0:
+            return RiskSeverity.MEDIUM
+        return RiskSeverity.LOW
+
+    def assess(self, context: DecisionContext,
+               monitoring: Optional[List[Dict[str, Any]]] = None) -> List[RiskAssessment]:
+        risks: List[RiskAssessment] = []
+
+        # ---- Concentration risks ----
+        for ins in context.insights:
+            calc = ins.get("calculation") or {}
+            ev = _to_evidence_list(ins.get("evidence"))
+            cat = str(ins.get("category", "")).lower()
+            if cat == "concentration":
+                top20 = calc.get("top_20_percent_share")
+                top3 = calc.get("top_3_entities_share")
+                share = float(top20) if isinstance(top20, (int, float)) else (
+                    float(top3) if isinstance(top3, (int, float)) else 0.0)
+                if share > 0:
+                    risks.append(RiskAssessment(
+                        risk=(f"Customer/revenue concentration: {calc.get('dimension') or 'entities'} "
+                              f"shows high concentration (top ~{share:.0f}% of "
+                              f"{_metric_label(calc.get('metric'))})."),
+                        severity=self._severity_for_share(share),
+                        probability=round(min(1.0, share / 100.0 + 0.15), 3),
+                        impact="Revenue dependency on a small set of entities.",
+                        evidence=ev,
+                        evidence_ids=[_evidence_id(e) for e in ev],
+                        mitigation="Review retention plans and diversify the customer base.",
+                        confidence=max(float(ins.get("confidence", 0.9)), 0.7),
+                    ))
+            elif cat == "performance":
+                share = calc.get("top_share_pct")
+                if isinstance(share, (int, float)) and share >= 55.0 and (calc.get("segment_count") or 1) >= 3:
+                    risks.append(RiskAssessment(
+                        risk=(f"Segment concentration: '{calc.get('top_segment')}' contributes "
+                              f"{share:.0f}% of {calc.get('metric')}, creating dependency."),
+                        severity=self._severity_for_share(share),
+                        probability=round(min(1.0, share / 100.0), 3),
+                        impact="Over-reliance on a single segment.",
+                        evidence=ev,
+                        evidence_ids=[_evidence_id(e) for e in ev],
+                        mitigation="Diversify across segments and monitor the dominant segment.",
+                        confidence=float(ins.get("confidence", 0.9)),
+                    ))
+
+
+        # ---- Forecast uncertainty ----
+        if context.predictions:
+            pred = context.predictions[0]
+            ev_pred = pred.evidence or [Evidence(
+                source="recommendation_engine.forecast", method="forecast_uncertainty",
+                confidence=0.8, claim_type=ClaimType.INFERENCE)]
+            risks.append(RiskAssessment(
+                risk=(f"Forecast uncertainty: the forward estimate for '{pred.metric}' "
+                      f"({pred.direction}) is a projection, not a certainty."),
+                severity=RiskSeverity.MEDIUM if pred.direction != "stable" else RiskSeverity.LOW,
+                probability=0.6,
+                impact="Decisions based on the forecast may miss the actual outcome.",
+                evidence=ev_pred,
+                evidence_ids=[_evidence_id(e) for e in ev_pred],
+                mitigation="Treat forecast ranges as guidance and revisit assumptions.",
+                confidence=0.8,
+            ))
+
+        # ---- Model monitoring (drift / degradation) ----
+        for mon in (monitoring or []):
+            risks.extend(self._monitoring_risks(mon))
+        return risks
+
+    def _monitoring_risks(self, mon: Dict[str, Any]) -> List[RiskAssessment]:
+        out: List[RiskAssessment] = []
+        ev = mon.get("evidence") or []
+        dd = mon.get("data_drift")
+        if isinstance(dd, dict):
+            sev_raw = dd.get("severity")
+            sev_key = str(sev_raw).upper() if sev_raw else ("HIGH" if dd.get("overall_drift") else "NONE")
+            if sev_key in ("HIGH", "CRITICAL") or dd.get("overall_drift"):
+                sev = RiskSeverity.CRITICAL if sev_key == "CRITICAL" else RiskSeverity.HIGH
+                out.append(RiskAssessment(
+                    risk=("Data drift detected: incoming data distribution differs "
+                          "significantly from the reference, so model predictions may "
+                          "no longer be reliable."),
+                    severity=sev,
+                    probability=0.7,
+                    impact="Predictions may degrade under distribution change.",
+                    evidence=ev,
+                    evidence_ids=[_evidence_id(e) for e in ev],
+                    mitigation=("Validate incoming data and investigate the source of "
+                                "distribution changes before relying on predictions."),
+                    confidence=0.85,
+                ))
+        pd = mon.get("performance_drift")
+        if isinstance(pd, dict) and pd.get("degradation_detected"):
+            out.append(RiskAssessment(
+                risk=("Model performance degradation detected against the reference "
+                      "baseline metric."),
+                severity=RiskSeverity.HIGH,
+                probability=0.7,
+                impact="Model quality below acceptable level for production decisions.",
+                evidence=ev,
+                evidence_ids=[_evidence_id(e) for e in ev],
+                mitigation=("Evaluate model recalibration or retraining after "
+                            "investigating the cause."),
+                confidence=0.85,
+            ))
+        pdrift = mon.get("prediction_drift")
+        if isinstance(pdrift, dict) and pdrift.get("prediction_drift_detected"):
+            out.append(RiskAssessment(
+                risk=("Prediction drift detected: the distribution of model outputs "
+                      "has shifted."),
+                severity=RiskSeverity.MEDIUM,
+                probability=0.6,
+                impact="Model outputs may be miscalibrated.",
+                evidence=ev,
+                evidence_ids=[_evidence_id(e) for e in ev],
+                mitigation="Investigate input changes and monitor output calibration.",
+                confidence=0.8,
+            ))
+        return out
+
