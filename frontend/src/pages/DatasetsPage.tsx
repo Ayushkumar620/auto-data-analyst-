@@ -9,12 +9,15 @@ import { IconDatabase, IconUpload } from '../components/ui/Icons';
 import { listDatasets, deleteDataset } from '../services/datasetService';
 import type { DatasetItem } from '../types';
 
+import DatabaseConnectorsModal from '../components/connectors/DatabaseConnectorsModal';
+
 export default function DatasetsPage() {
   const [datasets, setDatasets] = useState<DatasetItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'name' | 'rows'>('recent');
+  const [showConnectorsModal, setShowConnectorsModal] = useState(false);
   const navigate = useNavigate();
 
   const loadData = async () => {
@@ -71,15 +74,31 @@ export default function DatasetsPage() {
       <PageHeader
         eyebrow="Data Workspace"
         title="Datasets"
-        subtitle="Manage the data powering your analyses."
+        subtitle="Manage file uploads and query live enterprise databases (PostgreSQL, Snowflake, MySQL)."
         actions={
           <div className="page-header-action-row">
+            <button
+              type="button"
+              onClick={() => setShowConnectorsModal(true)}
+              className="action-btn"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              🔌 Connect Live DB
+            </button>
             <Link to="/upload" className="primary-btn" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <IconUpload size={16} aria-hidden />
               Upload Dataset
             </Link>
           </div>
         }
+      />
+
+      <DatabaseConnectorsModal
+        isOpen={showConnectorsModal}
+        onClose={() => {
+          setShowConnectorsModal(false);
+          loadData();
+        }}
       />
 
       {/* Filter / Search Bar */}

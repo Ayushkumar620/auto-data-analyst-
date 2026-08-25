@@ -13,6 +13,7 @@ import { useDataset } from '../context/DatasetContext';
 import { useNotification } from '../context/NotificationContext';
 import type { DatasetItem, DatasetProfile } from '../types';
 import { IconDatabase, IconChevronRight } from '../components/ui/Icons';
+import PIIGuardBanner from '../components/governance/PIIGuardBanner';
 
 type TabKey = 'overview' | 'schema' | 'preview' | 'quality';
 
@@ -124,6 +125,9 @@ export default function DatasetWorkspacePage() {
           <DatasetActions profile={profile} fileName={dataset.name} />
         </div>
       </div>
+
+      {/* Enterprise PII Guard Banner */}
+      <PIIGuardBanner dataRows={profile.preview || []} />
 
       {/* Tabs */}
       <div

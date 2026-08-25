@@ -13,6 +13,7 @@ import {
   runModelInference,
 } from '../services/modelService';
 import { useNotification } from '../context/NotificationContext';
+import { deployModelEndpoint } from '../services/enterpriseService';
 import type { InferenceResponse, ModelMetadata, ModelStatus } from '../types';
 import { IconChevronRight, IconBrain, IconCheck, IconAlertTriangle } from '../components/ui/Icons';
 
@@ -176,6 +177,22 @@ export default function ModelDetailPage() {
 
           {/* Status actions */}
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="primary-btn"
+              onClick={async () => {
+                try {
+                  const dep = await deployModelEndpoint(model.model_id, `${model.name}_endpoint`);
+                  notify(`Model live REST endpoint active at ${dep.endpoint_path}!`, 'success');
+                } catch (e: any) {
+                  notify(e.message || 'Deployment failed', 'error');
+                }
+              }}
+              style={{ padding: '0.4rem 0.85rem', fontSize: '0.82rem', background: '#4f46e5' }}
+            >
+              🚀 Deploy Live REST Endpoint
+            </button>
+
             <select
               value={model.status.toLowerCase()}
               onChange={(e) => handleStatusChange(e.target.value as ModelStatus)}
