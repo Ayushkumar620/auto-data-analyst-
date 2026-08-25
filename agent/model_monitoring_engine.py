@@ -84,6 +84,8 @@ class ModelMonitoringEngine:
             if pd.api.types.is_numeric_dtype(s):
                 valid_vals = s.dropna().to_numpy(dtype=float)
                 if len(valid_vals) > 0:
+                    sample_size = min(len(valid_vals), 500)
+                    sampled = np.random.RandomState(42).choice(valid_vals, size=sample_size, replace=False)
                     profile["features"][col] = {
                         "type": "numeric",
                         "mean": float(np.mean(valid_vals)),
@@ -93,6 +95,7 @@ class ModelMonitoringEngine:
                         "median": float(np.median(valid_vals)),
                         "p75": float(np.percentile(valid_vals, 75)),
                         "max": float(np.max(valid_vals)),
+                        "sample_values": sampled.tolist(),
                         "sample_quantiles": np.percentile(valid_vals, np.linspace(0, 100, 11)).tolist(),
                     }
                 else:
@@ -138,9 +141,16 @@ class ModelMonitoringEngine:
         if len(ref_vals) == 0 or len(curr_vals) == 0:
             return 0.0
 
+        # Adaptive binning for PSI based on available sample size
+        n_min = min(len(ref_vals), len(curr_vals))
+        adaptive_bins = min(10, max(4, int(n_min / 10))) if n_min < 100 else 10
+
         # Create quantile-based bins from reference
-        quantiles = np.linspace(0, 100, num_bins + 1)
+        quantiles = np.linspace(0, 100, adaptive_bins + 1)
         bins = np.percentile(ref_vals, quantiles)
+        bins = np.unique(bins)
+        if len(bins) < 2:
+            return 0.0
         bins[0] = -np.inf
         bins[-1] = np.inf
 
@@ -148,8 +158,8 @@ class ModelMonitoringEngine:
         curr_counts, _ = np.histogram(curr_vals, bins=bins)
 
         eps = 1e-4
-        ref_dist = (ref_counts + eps) / (len(ref_vals) + eps * num_bins)
-        curr_dist = (curr_counts + eps) / (len(curr_vals) + eps * num_bins)
+        ref_dist = (ref_counts + eps) / (len(ref_vals) + eps * len(ref_counts))
+        curr_dist = (curr_counts + eps) / (len(curr_vals) + eps * len(curr_counts))
 
         psi = np.sum((curr_dist - ref_dist) * np.log(curr_dist / ref_dist))
         return float(max(0.0, psi))
@@ -201,7 +211,12 @@ class ModelMonitoringEngine:
 
         p_thresh = threshold_config.numeric_p_value_threshold
         psi_thresh = threshold_config.numeric_psi_threshold
-        drift_detected = (p_val < p_thresh) or (psi_score >= psi_thresh)
+
+        # Small sample size awareness: if N < 100, KS test significance is the primary evidence
+        if min(len(ref_vals), len(curr_vals)) < 100:
+            drift_detected = (p_val < p_thresh) or (psi_score >= max(0.25, psi_thresh))
+        else:
+            drift_detected = (p_val < p_thresh) or (psi_score >= psi_thresh)
 
         # Determine severity
         if not drift_detected:
@@ -487,7 +502,12 @@ class ModelMonitoringEngine:
                 ref_vals = (
                     ref_df[col].dropna().to_numpy(dtype=float)
                     if ref_df is not None and col in ref_df.columns
-                    else np.array(ref_profile.get("features", {}).get(col, {}).get("sample_quantiles", []))
+                    else np.array(
+                        ref_profile.get("features", {}).get(col, {}).get(
+                            "sample_values",
+                            ref_profile.get("features", {}).get(col, {}).get("sample_quantiles", [])
+                        )
+                    )
                 )
                 res = self.evaluate_numeric_feature_drift(col, ref_vals, curr_vals, thresh_cfg)
             else:
