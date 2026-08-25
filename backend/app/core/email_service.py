@@ -263,3 +263,4 @@ class EmailService:
 
 # Global singleton instance
 global_email_service = EmailService()
+

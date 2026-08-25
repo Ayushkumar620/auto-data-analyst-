@@ -103,3 +103,4 @@ def test_flask_otp_endpoints():
         v_data = verify_resp.json
         assert "access_token" in v_data
         assert v_data["user"]["email"] == "flask_user@domain.com"
+
