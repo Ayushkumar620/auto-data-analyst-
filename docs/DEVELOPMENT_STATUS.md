@@ -2,7 +2,7 @@
 
 **Audit Date:** August 25, 2026  
 **Auditor:** Lead AI Architect & Senior Full-Stack Engineer  
-**Repository State:** 295 Unit & Integration Tests Passing (100% Pass Rate) | Clean Git Working Tree  
+**Repository State:** 310 Unit & Integration Tests Passing (100% Pass Rate) | Clean Git Working Tree  
 **Remote Repository:** `https://github.com/Ayushkumar620/auto-data-analyst-.git`
 
 ---
@@ -31,17 +31,31 @@ The **Auto Data Analyst** project is a **command-driven, multi-agent autonomous 
 | **`SemanticSchemaAgent`** | **COMPLETED** | Autonomous schema intelligence agent classifying columns into `METRIC`, `DIMENSION`, `IDENTIFIER`, `DATE`, `BOOLEAN`, `TEXT`, and `TARGET` with confidence scoring, evidence generation, and DatasetProfiler integration. |
 | **Semantic Column Classification** | **COMPLETED** | Contextual heuristics + business concepts matching (`revenue`, `cost`, `profit`, `churn`, `units`, `price`, etc.) and uncertainty marking for ambiguous nomimal columns. |
 | **Dataset Quality Integration** | **COMPLETED** | Detects missing values, duplicate rows, invalid items, and generates health quality score. |
-| **Task 1 & Task 2 Tests** | **COMPLETED** | 20 dedicated unit test cases across `test_milestone1_task1_schemas_and_base_agent.py` (10/10) and `test_milestone1_task2_dataset_knowledge_and_semantic_agent.py` (10/10) fully passing. |
+| **Milestone 1 Tests** | **COMPLETED** | 20 dedicated unit test cases across `test_milestone1_task1_schemas_and_base_agent.py` (10/10) and `test_milestone1_task2_dataset_knowledge_and_semantic_agent.py` (10/10) fully passing. |
 
 ---
 
-## 2. Complete Module Inventory & Health Matrix 📦
+## 2. Milestone 2, Task 1 — Command Intelligence & Intent Agent 🧠
+
+| Component | Status | Details |
+| :--- | :---: | :--- |
+| **`UserIntent` Model** | **COMPLETED** | Pydantic model capturing `intent_type`, `objective`, `entities`, `metrics`, `dimensions`, `filters`, `time_range`, `comparison`, `ranking`, `requested_output`, `required_capabilities`, `constraints`, `confidence`, `ambiguities`, `needs_clarification`, and `original_command`. |
+| **`CommandIntelligenceAgent`** | **COMPLETED** | Autonomous intent understanding agent subclassing `BaseAgent`. Generates traceable intent classifications, extracts entities, and cross-references them against `DatasetKnowledge`. |
+| **Temporal Understanding Engine** | **COMPLETED** | Non-synthetic date parsing for relative & absolute time structures (`today`, `yesterday`, `this/last quarter`, `Q1-Q4`, `this/last year`, `2025`, `January 2026`, `MoM`, `YoY`). |
+| **Semantic Cross-Referencing & Ambiguity Resolution** | **COMPLETED** | Cross-references terms with `DatasetKnowledge`. Detects multiple competing column candidates (e.g. `gross_sales` vs `net_sales`), prompts clarification (`needs_clarification=True`), and sets appropriate confidence. |
+| **Multi-Step Capabilities Extraction** | **COMPLETED** | Resolves compound multi-operation queries into ordered pipeline capabilities (`data_cleaning`, `duplicate_handling`, `aggregation`, `regional_analysis`, `forecasting`). |
+| **Milestone 2 Task 1 Tests** | **COMPLETED** | 15 dedicated unit test cases in `test_milestone2_task1_command_intelligence_agent.py` covering all 15 required scenarios (15/15 passed). |
+
+---
+
+## 3. Complete Module Inventory & Health Matrix 📦
 
 | Module | Location | Status | Capabilities & Verified Operations |
 | :--- | :--- | :---: | :--- |
 | **Agent Schemas & Base Agent** | `agent/schemas.py`, `agent/base.py` | 100% | Standardized Pydantic contracts for `AgentResult`, `AgentError`, `Evidence`, and `BaseAgent`. |
 | **Dataset Knowledge Engine** | `agent/dataset_knowledge.py`, `backend/app/core/dataset_knowledge.py` | 100% | Pydantic models for `DatasetKnowledge`, `ColumnKnowledge`, `DataQuality`, and `SemanticType`. |
 | **Semantic Schema Agent** | `agent/semantic_schema_agent.py`, `backend/app/core/semantic.py` | 100% | Semantic classification, role discovery, confidence scoring, and profiler pipeline. |
+| **Command Intelligence Agent** | `agent/intent.py` | 100% | Natural language command parsing, `UserIntent` generation, temporal parsing, ambiguity handling, and LLM fallback. |
 | **Command Orchestrator** | `agent/command_orchestrator.py` | 100% | End-to-end 6-stage autonomous lifecycle with execution graphs and timing breakdowns. |
 
 ```
