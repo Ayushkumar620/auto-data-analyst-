@@ -369,3 +369,4 @@ def test_user_intent_integration(sample_sales_df):
     assert isinstance(plan, ExecutionPlan)
     assert "forecasting" in plan.required_tools
     assert plan.confidence == pytest.approx(0.96, 0.01)
+
