@@ -612,3 +612,60 @@ class ExpectedImpactEstimator:
             uncertainties=list(best.get("limitations", []) or []),
         )
 
+class ConstraintValidator:
+    """Rejects recommendations that violate explicit user constraints.
+
+    Deterministic policy:
+      - spending_limit / budget_limit: reject actions that imply increased spend
+        (INCREASE, EXPAND, REALLOCATE).
+      - region_filter / segment_filter: reject actions whose affected segment is
+        outside the allowed set.
+      - retention_min: reject actions that could lower retention (DECREASE).
+    """
+
+    @staticmethod
+    def _allowed_regions(constraint: DecisionConstraint) -> Optional[List[str]]:
+        v = constraint.value
+        if v is None:
+            return None
+        if isinstance(v, str):
+            return [v]
+        if isinstance(v, (list, tuple, set)):
+            return [str(x) for x in v]
+        if isinstance(v, dict):
+            regions = v.get("regions") or v.get("allowed") or v.get("segment")
+            if isinstance(regions, str):
+                return [regions]
+            if isinstance(regions, (list, tuple, set)):
+                return [str(x) for x in regions]
+            if v.get("region"):
+                return [str(v["region"])]
+        return None
+
+    def validate(self, candidate: ActionCandidate,
+                 constraints: List[DecisionConstraint]) -> Tuple[bool, List[DecisionConstraint]]:
+        passed = True
+        satisfied: List[DecisionConstraint] = []
+        for c in constraints:
+            ctype = str(c.type).lower()
+            allowed = True
+            if ctype in ("spending_limit", "budget_limit", "spending", "budget", "do not increase spending"):
+                if candidate.action_type in (ActionType.INCREASE, ActionType.EXPAND, ActionType.REALLOCATE):
+                    allowed = False
+            elif ctype in ("region_filter", "region", "only_focus_on", "segment_filter", "segment"):
+                regions = self._allowed_regions(c)
+                if regions and candidate.affected_segment:
+                    seg_norm = str(candidate.affected_segment).lower()
+                    if not any(str(r).lower() in seg_norm or seg_norm in str(r).lower() for r in regions):
+                        allowed = False
+            elif ctype in ("retention_min", "retention", "keep_retention"):
+                if candidate.action_type == ActionType.DECREASE or "reduce retention" in candidate.action.lower():
+                    allowed = False
+            if not allowed:
+                passed = False
+                c.validation_status = "rejected"
+            else:
+                satisfied.append(c)
+                c.validation_status = "satisfied"
+        return passed, satisfied
+
