@@ -86,7 +86,7 @@ The **Auto Data Analyst** project is a **command-driven, multi-agent autonomous 
 
 ---
 
-## 5. Milestone 5 — Autonomous Data Analysis, Conversational Analyst & Report Generation 🧭💡📊
+## 5. Milestone 5 — Autonomous Data Analysis, Conversational Analyst, Forecasting & What-If Engine 🧭💡📊🔮
 
 | Component | Status | Details |
 | :--- | :---: | :--- |
@@ -99,7 +99,11 @@ The **Auto Data Analyst** project is a **command-driven, multi-agent autonomous 
 | **`ContextResolver` & Anaphora Engine** | **COMPLETED** | Disambiguates natural language queries, resolves pronouns/temporal markers ("it", "that", "those", "last year"), and requests clarification when ambiguous without guessing (`agent/context_resolver.py`). |
 | **`EvidenceReportGenerator`** | **COMPLETED** | Multi-type report synthesis (`quick_summary`, `analyst_report`, `executive_report`, `technical_report`) with verifiable EV audit trail, recommendation separation, and data-grounded limitations (`agent/evidence_report_generator.py`). |
 | **`ConversationalAnalystAgent`** | **COMPLETED** | Stateful master conversational agent subclassing `BaseAgent`, managing session isolation, memory limits, and registered as `conversational_analyst` in `ToolRegistry`. |
-| **Milestone 5 Tests** | **COMPLETED** | 39 dedicated unit test cases across Task 1 (19/19) and Task 2 (20/20) fully passing. |
+| **`TimeSeriesDetector` & Suitability** | **COMPLETED** | Chronological interval detection, frequency inference ("D", "W", "M", "Q", "Y"), regularity checks, trend slope analysis, and suitability scoring (`agent/timeseries_detector.py`). |
+| **`AutonomousForecastEngine`** | **COMPLETED** | Multi-candidate model benchmarking (Naive, Seasonal Naive, Moving Average, Holt Exponential Smoothing, Autoregressive ML), chronological backtesting, and probabilistic prediction intervals (`agent/autonomous_forecast_engine.py`). |
+| **`WhatIfScenarioEngine`** | **COMPLETED** | Counterfactual What-If scenario simulations (percentage adjustments, segment shocks, variable elasticity) and multi-scenario matrices (Optimistic, Expected, Pessimistic) with non-causal attribution safeguards (`agent/what_if_scenario_engine.py`). |
+| **`AutonomousForecasterAgent` & Tool Integration** | **COMPLETED** | Master forecast & scenario agent subclassing `BaseAgent`, registered as `forecast_engine` and `scenario_engine` in `ToolRegistry`. |
+| **Milestone 5 Tests** | **COMPLETED** | 58 dedicated unit test cases across Task 1 (19/19), Task 2 (20/20), and Task 3 (19/19) fully passing. |
 
 ---
 
@@ -221,7 +225,7 @@ Final Structured Answer + Evidence + Charts + PDF Report
 
 ## 3. Architecture Status 🏆
 
-All core, analytical, machine learning, multi-modal, security, and governance modules across the system are **100% Complete, Fully Integrated, and Verified with 460 Pytest Suites across 65 Test Files**.
+All core, analytical, machine learning, multi-modal, security, and governance modules across the system are **100% Complete, Fully Integrated, and Verified with 479 Pytest Suites across 66 Test Files**.
 
 ---
 
