@@ -52,7 +52,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'Insights', to: '/upload', Icon: IconLightbulb },
       { label: 'Models', to: '/models', Icon: IconBrain },
       { label: 'Forecasts', to: '/forecasts', Icon: IconTrendUp },
-      { label: 'Monitoring', to: '/monitoring', Icon: IconActivity, comingSoon: true },
+      { label: 'Monitoring', to: '/monitoring', Icon: IconActivity },
     ],
   },
   {

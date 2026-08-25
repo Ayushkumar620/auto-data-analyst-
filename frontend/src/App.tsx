@@ -31,6 +31,10 @@ import ModelDetailPage from './pages/ModelDetailPage';
 // Phase 5 Live Pages
 import ForecastsPage from './pages/ForecastsPage';
 
+// Phase 6 Live Pages
+import MonitoringPage from './pages/MonitoringPage';
+import MonitoringDetailPage from './pages/MonitoringDetailPage';
+
 // Future Phase Placeholders
 import ComingSoonPage from './pages/ComingSoonPage';
 
@@ -87,17 +91,11 @@ export default function App() {
         {/* Phase 5: Autonomous Forecasting & What-If */}
         <Route path="/forecasts" element={<ForecastsPage />} />
 
-        {/* Coming soon stubs (Phase 6–8) */}
-        <Route
-          path="/monitoring"
-          element={
-            <ComingSoonPage
-              title="Monitoring"
-              phase="Phase 6"
-              description="Data drift detection and model performance degradation monitoring."
-            />
-          }
-        />
+        {/* Phase 6: Model Monitoring & Data Drift */}
+        <Route path="/monitoring" element={<MonitoringPage />} />
+        <Route path="/monitoring/:modelId" element={<MonitoringDetailPage />} />
+
+        {/* Coming soon stubs (Phase 7–8) */}
         <Route
           path="/reports"
           element={
