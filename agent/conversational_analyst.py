@@ -256,7 +256,13 @@ class ConversationalAnalystAgent(BaseAgent):
                 result=fc_data,
             )
             session.turns.append(turn)
-            return final_response, fc_agent_res.evidence, {"result": fc_data, "intent": intent.value}
+            return final_response, fc_agent_res.evidence, {
+                "result": fc_data,
+                "intent": intent.value,
+                "resolved_command": resolved_cmd,
+                "session_id": session_id,
+                "turn_id": turn.turn_id,
+            }
 
         # Create structured intent for autonomous analysis
 
