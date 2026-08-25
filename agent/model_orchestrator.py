@@ -747,6 +747,8 @@ class ModelOrchestratorAgent(BaseAgent):
             target = num_cols[-1] if len(num_cols) > 0 else df_target.columns[-1]
 
         features = task.get("features")
+        if features is None:
+            features = [c for c in df_target.columns if c != target]
         task_type = task.get("task_type", "regression")
         modality = task.get("modality", "tabular")
         candidates = task.get("candidates")

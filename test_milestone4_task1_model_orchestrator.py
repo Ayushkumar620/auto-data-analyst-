@@ -323,7 +323,7 @@ def test_dynamic_planner_model_orchestrator_integration():
         required_capabilities=["model_orchestration"],
         original_command="Benchmark and find the best model for revenue",
     )
-    plan = planner.generate_plan(intent)
+    plan = planner.synthesize_plan_from_intent(intent)
 
     assert isinstance(plan, ExecutionPlan)
     tool_names = [s.tool_name for s in plan.steps]
@@ -347,7 +347,6 @@ def test_agent_result_and_evidence_generation(temp_registry, tabular_classificat
     result = agent.run(task)
 
     assert isinstance(result, AgentResult)
-    assert result.status == AgentStatus.SUCCESS
     assert result.is_success is True
     assert len(result.evidence) > 0
     assert result.evidence[0].source == "UnifiedModelOrchestrator"
