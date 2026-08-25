@@ -195,7 +195,7 @@ class RecommendationAgent(BaseAgent):
                 "scenarios": task.get("scenarios") or [],
                 "monitoring_results": task.get("monitoring_results") or [],
                 "business_constraints": task.get("business_constraints") or [],
-                "optimization_objective": task.get("objective") or task.get("optimization_objective"),
+                "objective": task.get("objective") or task.get("optimization_objective"),
                 "dataset_context": (task.get("dataset_context") or
                                     task.get("dataset_knowledge") or task.get("knowledge")),
                 "max_recommendations": int(task.get("max_recommendations", 5)),
