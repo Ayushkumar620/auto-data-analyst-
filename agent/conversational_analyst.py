@@ -205,10 +205,15 @@ class ConversationalAnalystAgent(BaseAgent):
         target_metric = session.dataset_context.primary_metric if session.dataset_context else None
         target_dim = session.dataset_context.primary_dimension if session.dataset_context else None
 
+        explicit_target = None
+        if isinstance(entities, dict):
+            explicit_target = entities.get("metric") or (entities.get("metrics")[0] if entities.get("metrics") else None)
+        chosen_target = explicit_target or target_metric
+
         # 5a. Handle Forecasting & What-If Queries
         is_what_if = bool(re.search(r"\b(what if|what happens|scenario|best (and|&) worst|increases? by|decreases? by|drops? by|grows? by)\b", command, re.I))
         if intent == ConversationalIntent.FORECAST or is_what_if:
-            fc_agent_res = self.forecaster_agent.run({"data": df, "command": command, "target": target_metric})
+            fc_agent_res = self.forecaster_agent.run({"data": df, "command": command, "target": chosen_target})
             fc_data = fc_agent_res.data
             
             # Format Markdown Response
