@@ -58,3 +58,4 @@ def undeploy_model_endpoint(deployment_id: str):
     if not deleted:
         raise HTTPException(status_code=404, detail="Deployment ID not found")
     return {"success": True, "undeployed_id": deployment_id}
+

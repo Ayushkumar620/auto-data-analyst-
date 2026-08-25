@@ -80,3 +80,4 @@ def dispatch_test_alert(req: TestAlertRequest):
 def get_alert_dispatch_history(limit: int = Query(50, ge=1, le=200)):
     """Retrieve historical alert deliveries and statuses."""
     return GLOBAL_ALERT_ENGINE.list_history(limit=limit)
+

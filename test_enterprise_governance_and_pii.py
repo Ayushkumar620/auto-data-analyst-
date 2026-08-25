@@ -56,3 +56,4 @@ def test_immutable_audit_logger_integrity():
     valid, status = logger.verify_integrity()
     assert valid is True
     assert "100% tamper-evident" in status
+

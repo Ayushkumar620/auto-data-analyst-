@@ -53,3 +53,4 @@ def test_ingest_to_dataframe():
     df = manager.ingest_to_dataframe("conn_demo_sqlite", "SELECT * FROM customer_transactions")
     assert len(df) >= 5
     assert "customer_id" in df.columns
+
