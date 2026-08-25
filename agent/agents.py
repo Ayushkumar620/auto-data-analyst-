@@ -469,7 +469,7 @@ class ReportAgent(BaseAgent):
             report = self._build_report(agent_outputs, request)
             evidence = self._report_evidence(agent_outputs)
             completed_count = sum(
-                1 for out in agent_outputs if out.get("status") == "completed"
+                1 for out in agent_outputs if str(out.get("status", "")).lower() in ("completed", "success")
             )
             return self._finish(
                 {"report": report},
@@ -486,14 +486,14 @@ class ReportAgent(BaseAgent):
         evidence = []
         for out in outputs:
             agent_id = getattr(out, "agent_id", None) or out.get("agent_id")
-            status = out.get("status")
+            status = str(out.get("status", "")).lower()
             evidence.append(self.make_evidence(
                 method="report.compose",
                 data_ref={"upstream_agent": out.get("agent"),
                           "upstream_agent_id": agent_id,
                           "upstream_status": status,
                           "upstream_confidence": getattr(out, "confidence", None) or out.get("confidence")},
-                confidence=0.9 if status == "completed" else 0.4,
+                confidence=0.9 if status in ("completed", "success") else 0.4,
                 claim_type=ClaimType.INFERENCE,
             ))
         return evidence
@@ -508,7 +508,8 @@ class ReportAgent(BaseAgent):
         lines.append("")
 
         for out in outputs:
-            if out.get("status") == "error":
+            st = str(out.get("status", "")).lower()
+            if st in ("error", "failed"):
                 lines.append(f"- ❌ **{out.get('agent')}**: {out.get('output', {}).get('error', 'failed')}")
                 continue
             lines.append(f"- ✅ **{out.get('agent')}** completed in {out.get('duration_ms', 0)}ms")
@@ -517,7 +518,8 @@ class ReportAgent(BaseAgent):
         lines.append("## Findings")
         lines.append("")
         for out in outputs:
-            if out.get("status") != "completed":
+            st = str(out.get("status", "")).lower()
+            if st not in ("completed", "success"):
                 continue
             output = out.get("output", {})
             agent_name = out.get("agent", "")
