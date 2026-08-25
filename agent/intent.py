@@ -65,6 +65,7 @@ class IntentType(str, Enum):
     DATA_QUESTION = "data_question"
     MODEL_TRAINING = "model_training"
     MULTI_STAGE_PIPELINE = "multi_stage_pipeline"
+    RECOMMENDATION = "recommendation"
     UNKNOWN = "unknown"
 
 
