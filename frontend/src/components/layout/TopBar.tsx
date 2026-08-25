@@ -1,14 +1,13 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/authContext';
-import { useDataset } from '../../context/DatasetContext';
 import {
   IconMenu,
   IconUser,
   IconChevronRight,
-  IconDatabase,
   IconBell,
 } from '../ui/Icons';
+import DatasetContextBar from './DatasetContextBar';
 
 const ROUTE_LABELS: Record<string, string> = {
   '/overview': 'Overview',
@@ -35,7 +34,6 @@ type TopBarProps = {
 
 export default function TopBar({ onMenuClick }: TopBarProps) {
   const { user, logout } = useAuth();
-  const { profile, fileName } = useDataset();
   const location = useLocation();
   const navigate = useNavigate();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -84,17 +82,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
       </div>
 
       {/* Centre — active dataset indicator */}
-      {profile && (
-        <div className="topbar-dataset-bar" aria-label="Active dataset">
-          <IconDatabase size={14} className="topbar-dataset-icon" aria-hidden />
-          <span className="topbar-dataset-name">
-            {fileName ?? profile.dataset_name}
-          </span>
-          <span className="topbar-dataset-meta">
-            {profile.rows.toLocaleString()} rows · {profile.columns} cols
-          </span>
-        </div>
-      )}
+      <DatasetContextBar />
 
       {/* Right — notifications + user menu */}
       <div className="topbar-right">
