@@ -669,3 +669,87 @@ class ConstraintValidator:
                 c.validation_status = "satisfied"
         return passed, satisfied
 
+class ActionGenerator:
+    """Discovers evidence-tied ActionCandidates from insights, forecasts,
+    monitoring results, and opportunities. Generates actions only from evidence."""
+
+    def __init__(self) -> None:
+        self.validator = ConstraintValidator()
+        self.impact = ExpectedImpactEstimator()
+
+    def generate(self, context: DecisionContext,
+                 objectives: List[RecommendationObjective],
+                 scenarios: Optional[List[Dict[str, Any]]],
+                 monitoring: Optional[List[Dict[str, Any]]],
+                 risk_tolerance: Optional[str] = None) -> List[ActionCandidate]:
+        candidates: List[ActionCandidate] = []
+        seen_keys = set()
+
+        # ---- 1. Insight-driven actions ----
+        for ins in context.insights:
+            calc = ins.get("calculation") or {}
+            ev = _to_evidence_list(ins.get("evidence"))
+            cat = str(ins.get("category", "")).lower()
+            metric = calc.get("metric") or None
+            segment = calc.get("top_segment") or None
+
+            if cat == "concentration":
+                key = ("concentration", metric)
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    candidates.append(ActionCandidate(
+                        action="Review retention plans for high-value customers and assess dependency risk.",
+                        action_type=ActionType.REVIEW,
+                        objective=self._pick_objective(objectives, [RecommendationObjective.REDUCE_RISK, RecommendationObjective.IMPROVE_RETENTION]),
+                        affected_metric=metric,
+                        affected_segment=calc.get("dimension"),
+                        rationale=("Customer concentration is high; a small number of entities "
+                                   "drive a large share of revenue."),
+                        evidence=ev,
+                        evidence_ids=[_evidence_id(e) for e in ev],
+                        assumptions=["Current customer mix persists without intervention."],
+                        risks=["Revenue concentration creates dependency risk."],
+                        confidence=float(ins.get("confidence", 0.85)),
+                    ))
+            elif cat == "performance":
+                share = calc.get("top_share_pct")
+                if isinstance(share, (int, float)) and share >= 40.0:
+                    key = ("retain", calc.get("top_segment"))
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        candidates.append(ActionCandidate(
+                            action=(f"Prioritize retention and expansion of high-value "
+                                    f"'{calc.get('top_segment')}' {calc.get('dimension')} customers."),
+                            action_type=ActionType.RETAIN,
+                            objective=self._pick_objective(objectives, [RecommendationObjective.MAXIMIZE_REVENUE, RecommendationObjective.IMPROVE_RETENTION]),
+                            affected_metric=metric,
+                            affected_segment=calc.get("top_segment"),
+                            rationale=(f"{calc.get('top_segment')} contributes {share:.0f}% of "
+                                       f"{metric}, so protecting it protects revenue."),
+                            evidence=ev,
+                            evidence_ids=[_evidence_id(e) for e in ev],
+                            assumptions=["High-value segment remains serviceable."],
+                            risks=["High segment concentration creates dependency risk."],
+                            confidence=float(ins.get("confidence", 0.85)),
+                        ))
+                bottom = calc.get("bottom_segment")
+                if bottom and isinstance(share, (int, float)) and share >= 40.0:
+                    key = ("inv", bottom)
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        candidates.append(ActionCandidate(
+                            action=(f"Investigate '{bottom}' {calc.get('dimension')} conversion "
+                                    f"and product mix before increasing investment."),
+                            action_type=ActionType.INVESTIGATE,
+                            objective=self._pick_objective(objectives, [RecommendationObjective.MAXIMIZE_REVENUE, RecommendationObjective.IMPROVE_CONVERSION]),
+                            affected_metric=metric,
+                            affected_segment=bottom,
+                            rationale=(f"'{bottom}' lags the top segment in {metric}; understand "
+                                       f"why before committing spend."),
+                            evidence=ev,
+                            evidence_ids=[_evidence_id(e) for e in ev],
+                            assumptions=["The gap is addressable with the available levers."],
+                            risks=[],
+                            confidence=float(ins.get("confidence", 0.7)),
+                        ))
+
