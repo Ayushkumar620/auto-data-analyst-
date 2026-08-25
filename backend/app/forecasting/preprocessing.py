@@ -3,7 +3,12 @@ import pandas as pd
 
 class TimeSeriesPreprocessor:
     def prepare(self, dataframe: pd.DataFrame, date_column: str, target: str) -> tuple[pd.DataFrame, str, str]:
-        data = pd.DataFrame({date_column: pd.to_datetime(dataframe[date_column], errors="coerce"), target: pd.to_numeric(dataframe[target], errors="coerce")}).dropna()
+        series_date = dataframe[date_column]
+        if pd.api.types.is_numeric_dtype(series_date) and series_date.dropna().between(1800, 2150).all():
+            converted_date = pd.to_datetime(series_date.astype(str) + "-01-01", errors="coerce")
+        else:
+            converted_date = pd.to_datetime(series_date, errors="coerce")
+        data = pd.DataFrame({date_column: converted_date, target: pd.to_numeric(dataframe[target], errors="coerce")}).dropna()
         data = data.groupby(date_column, as_index=False)[target].sum().sort_values(date_column)
         inferred = pd.infer_freq(data[date_column]) if len(data) >= 3 else None
         delta = data[date_column].diff().dropna().median()

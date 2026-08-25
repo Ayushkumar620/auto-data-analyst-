@@ -9,7 +9,9 @@ class ReportBuilder:
     def build(self, dataset_id: str, analysis: dict[str, Any]) -> Report:
         frame: pd.DataFrame = analysis["dataframe"]; eda = analysis.get("eda", {}); summary = eda.get("summary", {})
         cleaning = analysis.get("cleaning", {}); insights = analysis.get("insights", []); forecast = analysis.get("forecast", {})
-        numeric = list(frame.select_dtypes(include="number").columns)
+        numeric = summary.get("numeric_columns") or [c for c in frame.select_dtypes(include="number").columns if not any(t in c.lower() for t in ("year", "quarter", "month", "id", "key"))]
+        if not numeric:
+            numeric = list(frame.select_dtypes(include="number").columns)
         kpis = [{"name": column, "value": self._number(frame[column].sum()), "operation": "sum"} for column in numeric[:4]]
         quality = {"missing_values": summary.get("missing_values", int(frame.isna().sum().sum())), "duplicate_rows": summary.get("duplicate_rows", int(frame.duplicated().sum())), "outliers": cleaning.get("outliers_detected", 0), "quality_before": cleaning.get("quality_before"), "quality_after": cleaning.get("quality_after"), "actions": cleaning.get("cleaning_report", [])}
         dates = self._period(frame)
@@ -23,8 +25,13 @@ class ReportBuilder:
     def _period(frame: pd.DataFrame) -> str | None:
         for column in frame.columns:
             if any(word in column.casefold() for word in ("date", "time", "month", "year")):
-                dates = pd.to_datetime(frame[column], errors="coerce").dropna()
-                if not dates.empty: return f"{dates.min():%b %Y} – {dates.max():%b %Y}"
+                series = frame[column].dropna()
+                if not series.empty:
+                    if pd.api.types.is_numeric_dtype(frame[column]) and series.between(1800, 2150).all():
+                        dates = pd.to_datetime(series.astype(str) + "-01-01", errors="coerce").dropna()
+                    else:
+                        dates = pd.to_datetime(series, errors="coerce").dropna()
+                    if not dates.empty: return f"{dates.min():%b %Y} – {dates.max():%b %Y}"
         return None
     @staticmethod
     def _summary(kpis: list[dict[str, Any]], insights: list[dict[str, Any]], forecast: dict[str, Any]) -> str:

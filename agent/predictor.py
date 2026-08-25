@@ -1,6 +1,7 @@
 """
 Data Predictor - Builds simple ML models using scikit-learn.
 """
+import re
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import LinearRegression, LogisticRegression
@@ -145,9 +146,13 @@ class DataPredictor:
 
         return {
             "target": target,
+            "target_column": target,
             "date_col": date_col,
+            "time_column": date_col,
             "history_points": int(len(y)),
             "forecast_periods": periods,
+            "forecast_horizon": periods,
+            "forecast_values": [r["forecast"] for r in forecast_records],
             "slope": round(slope, 4),
             "trend": trend,
             "last_value": round(last_value, 4),
