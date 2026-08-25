@@ -58,7 +58,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     group: 'OUTPUT',
     items: [
-      { label: 'Reports', to: '/reports', Icon: IconFileText, comingSoon: true },
+      { label: 'Reports', to: '/reports', Icon: IconFileText },
     ],
   },
   {

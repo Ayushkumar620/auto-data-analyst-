@@ -49,7 +49,7 @@ export default function ReportEvidence({ evidence }: ReportEvidenceProps) {
             </div>
 
             <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: 'var(--ink)', fontWeight: 500 }}>
-              {ev.statement}
+              {ev.claim || (ev as any).statement || 'Verified finding'}
             </p>
 
             {ev.columns && ev.columns.length > 0 && (

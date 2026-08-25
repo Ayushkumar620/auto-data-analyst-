@@ -35,6 +35,10 @@ import ForecastsPage from './pages/ForecastsPage';
 import MonitoringPage from './pages/MonitoringPage';
 import MonitoringDetailPage from './pages/MonitoringDetailPage';
 
+// Phase 7 Live Pages
+import ReportsPage from './pages/ReportsPage';
+import ReportDetailPage from './pages/ReportDetailPage';
+
 // Future Phase Placeholders
 import ComingSoonPage from './pages/ComingSoonPage';
 
@@ -95,17 +99,11 @@ export default function App() {
         <Route path="/monitoring" element={<MonitoringPage />} />
         <Route path="/monitoring/:modelId" element={<MonitoringDetailPage />} />
 
-        {/* Coming soon stubs (Phase 7–8) */}
-        <Route
-          path="/reports"
-          element={
-            <ComingSoonPage
-              title="Reports"
-              phase="Phase 7"
-              description="Generate executive PDF and slide deck reports from your analyses."
-            />
-          }
-        />
+        {/* Phase 7: Reports & Decision Outputs */}
+        <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/reports/:reportId" element={<ReportDetailPage />} />
+
+        {/* Coming soon stubs (Phase 8) */}
         <Route
           path="/settings"
           element={
