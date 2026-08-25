@@ -49,3 +49,4 @@ export async function getMonitoringOverview(): Promise<MonitoringOverviewData> {
 
   return res.json();
 }
+

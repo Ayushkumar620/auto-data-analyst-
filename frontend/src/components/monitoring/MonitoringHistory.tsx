@@ -75,3 +75,4 @@ export default function MonitoringHistory({ history, onSelectRun }: MonitoringHi
     </div>
   );
 }
+

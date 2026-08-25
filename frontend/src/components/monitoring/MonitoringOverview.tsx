@@ -62,3 +62,4 @@ export default function MonitoringOverview({ data, loading }: MonitoringOverview
     </div>
   );
 }
+

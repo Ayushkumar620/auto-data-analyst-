@@ -62,3 +62,4 @@ export default function MonitoringStatusBadge({ status, className }: MonitoringS
     </span>
   );
 }
+
