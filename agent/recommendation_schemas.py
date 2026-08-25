@@ -35,7 +35,7 @@ class RecommendationObjective(str, Enum):
     IMPROVE_OPERATIONAL_EFFICIENCY = "improve_operational_efficiency"
     UNSPECIFIED = "unspecified"
 
-    _ALIASES = {
+    ALIASES = {
         "revenue": MAXIMIZE_REVENUE, "grow revenue": MAXIMIZE_REVENUE,
         "increase revenue": MAXIMIZE_REVENUE, "maximize revenue": MAXIMIZE_REVENUE,
         "sales": MAXIMIZE_REVENUE, "increase sales": MAXIMIZE_REVENUE,
@@ -57,7 +57,7 @@ class RecommendationObjective(str, Enum):
         if not text:
             return None
         lowered = " ".join(str(text).lower().split())
-        for phrase, obj in cls._ALIASES.items():
+        for phrase, obj in cls.ALIASES.items():
             if phrase in lowered:
                 return obj
         return None
@@ -69,7 +69,7 @@ class RecommendationObjective(str, Enum):
             return []
         lowered = " ".join(str(text).lower().split())
         found: List["RecommendationObjective"] = []
-        for phrase, obj in cls._ALIASES.items():
+        for phrase, obj in cls.ALIASES.items():
             if phrase in lowered and obj not in found:
                 found.append(obj)
         order = {o: i for i, o in enumerate(cls)}
