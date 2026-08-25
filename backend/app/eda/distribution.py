@@ -9,7 +9,7 @@ class DistributionAnalyzer:
     def analyze(self, dataframe: pd.DataFrame) -> List[Dict[str, Any]]:
         findings: List[Dict[str, Any]] = []
         for column in dataframe.select_dtypes(include=["number"]).columns:
-            series = dataframe[column]
+            series = dataframe[column].dropna()
             if series.empty:
                 continue
             skewness = float(series.skew()) if not pd.isna(series.skew()) else None
@@ -33,7 +33,8 @@ class DistributionAnalyzer:
         return "left-skewed"
 
     def _value_concentration(self, series: pd.Series) -> str:
-        top_share = series.value_counts(normalize=True).head(1).iloc[0] if not series.empty else 0
+        vc = series.dropna().value_counts(normalize=True)
+        top_share = float(vc.iloc[0]) if not vc.empty else 0.0
         if top_share > 0.5:
             return "high concentration"
         if top_share > 0.2:
