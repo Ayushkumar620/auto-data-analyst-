@@ -292,11 +292,12 @@ class CommandIntelligenceAgent(BaseAgent):
     # ------------------------------------------------------------------
     def _extract_time_range(self, text: str) -> Optional[Dict[str, Any]]:
         """Extract structured time constraints without synthesizing fake dates."""
-        # 1. Year matching (e.g. 2024, 2025, 2026)
-        year_match = re.search(r"\b(19\d\d|20\d\d)\b", text)
-        if year_match:
-            y = int(year_match.group(1))
-            return {"type": "year", "year": y, "raw": year_match.group(0)}
+        # 1. Quarters (e.g. "Q1", "Q2", "Q3", "Q4", "Q3 2024", "last quarter", "this quarter")
+        q_match = re.search(r"\b(q[1-4])\b(?:\s+(\d{4}))?", text)
+        if q_match:
+            q_name = q_match.group(1).upper()
+            y_val = int(q_match.group(2)) if q_match.group(2) else None
+            return {"type": "quarter", "quarter": q_name, "year": y_val, "raw": q_match.group(0)}
 
         # 2. Month + Year or Month name (e.g. "january 2026", "next month", "last month")
         month_match = re.search(
@@ -304,18 +305,11 @@ class CommandIntelligenceAgent(BaseAgent):
             text,
         )
         if month_match:
-            m_name = month_match.group(1)
+            m_name = month_match.group(1).lower()
             y_val = int(month_match.group(2)) if month_match.group(2) else None
             return {"type": "month", "month": m_name, "year": y_val, "raw": month_match.group(0)}
 
-        # 3. Quarters (e.g. "Q1", "Q2", "Q3", "Q4", "last quarter", "this quarter")
-        q_match = re.search(r"\b(q[1-4])\b(?:\s+(\d{4}))?", text)
-        if q_match:
-            q_name = q_match.group(1).upper()
-            y_val = int(q_match.group(2)) if q_match.group(2) else None
-            return {"type": "quarter", "quarter": q_name, "year": y_val, "raw": q_match.group(0)}
-
-        # 4. Relative offsets
+        # 3. Relative offsets
         relative_patterns = {
             "last quarter": {"type": "relative_quarter", "period": "last_quarter", "raw": "last quarter"},
             "this quarter": {"type": "relative_quarter", "period": "this_quarter", "raw": "this quarter"},
@@ -333,6 +327,12 @@ class CommandIntelligenceAgent(BaseAgent):
         for pat, struct in relative_patterns.items():
             if pat in text:
                 return struct
+
+        # 4. Standalone Year matching (e.g. 2024, 2025, 2026)
+        year_match = re.search(r"\b(19\d\d|20\d\d)\b", text)
+        if year_match:
+            y = int(year_match.group(1))
+            return {"type": "year", "year": y, "raw": year_match.group(0)}
 
         return None
 
@@ -406,7 +406,6 @@ class CommandIntelligenceAgent(BaseAgent):
         if len(capabilities) >= 3:
             primary = IntentType.MULTI_STAGE_PIPELINE if len(intent_candidates) > 1 else intent_candidates[0][0]
         elif intent_candidates:
-            # Sort by priority score
             intent_candidates.sort(key=lambda x: x[1], reverse=True)
             primary = intent_candidates[0][0]
         elif any(w in text for w in ("analyze", "analysis", "explore", "inspect", "dataset")):
@@ -415,7 +414,7 @@ class CommandIntelligenceAgent(BaseAgent):
         else:
             primary = IntentType.UNKNOWN
 
-        return capabilities, primary, requested_out
+        return capabilities, primary, requested_output
 
     # ------------------------------------------------------------------
     # Operations (Aggregation, Ranking, Comparison)
@@ -443,17 +442,25 @@ class CommandIntelligenceAgent(BaseAgent):
             return {"type": "bottom", "limit": int(bot_match.group(2)), "order": "asc"}
         return None
 
+    def _clean_entity_name(self, raw_entity: str) -> str:
+        cleaned = re.sub(r"^(?:the|an|a)\s+", "", raw_entity.strip(), flags=re.IGNORECASE).strip()
+        if cleaned.lower() in ("us", "usa", "uk", "uae"):
+            return cleaned.upper()
+        return cleaned.title()
+
     def _extract_comparison(self, text: str) -> Optional[Dict[str, Any]]:
         # Match "between X and Y"
-        between_match = re.search(r"\bbetween\s+([a-zA-Z0-9_\s]+?)\s+and\s+([a-zA-Z0-9_\s]+?)(?:\s+in|\s+by|\s+for|$|\.)", text)
+        between_match = re.search(r"\bbetween\s+([a-zA-Z0-9_\s]+?)\s+and\s+([a-zA-Z0-9_\s]+?)(?:\s+in|\s+by|\s+for|$|\.)", text, flags=re.IGNORECASE)
         if between_match:
-            left = between_match.group(1).strip()
-            right = between_match.group(2).strip()
+            left = self._clean_entity_name(between_match.group(1))
+            right = self._clean_entity_name(between_match.group(2))
             return {"type": "between_entities", "entities": [left, right]}
         if "vs" in text or "versus" in text:
-            parts = re.split(r"\b(?:vs|versus)\b", text)
+            parts = re.split(r"\b(?:vs|versus)\b", text, flags=re.IGNORECASE)
             if len(parts) >= 2:
-                return {"type": "comparison", "raw": text}
+                left = self._clean_entity_name(parts[0])
+                right = self._clean_entity_name(parts[1])
+                return {"type": "between_entities", "entities": [left, right]}
         return None
 
     def _extract_filters(self, text: str, comparison: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -481,14 +488,12 @@ class CommandIntelligenceAgent(BaseAgent):
         needs_clarification = False
 
         if dk is not None:
-            # Check against physical column names
             col_names = [c if isinstance(c, str) else c.column_name for c in dk.columns]
 
             # 1. Search for potential metric references
             metric_candidates = ("revenue", "sales", "profit", "cost", "quantity", "units", "price", "discount", "margin", "salary")
             for term in metric_candidates:
                 if term in text:
-                    # Find matching columns in dataset
                     exact_match = [c for c in col_names if c.lower() == term]
                     sub_matches = [c for c in col_names if term in c.lower()]
 
@@ -497,19 +502,25 @@ class CommandIntelligenceAgent(BaseAgent):
                     elif len(sub_matches) == 1:
                         metrics.append(sub_matches[0])
                     elif len(sub_matches) > 1:
-                        # Ambiguity detected! (e.g. gross_sales and net_sales)
                         needs_clarification = True
                         ambiguity_msg = f"I found multiple matching columns for '{term}' ({', '.join([repr(c) for c in sub_matches])}). Which should I analyze?"
                         ambiguities.append(ambiguity_msg)
                         metrics.extend(sub_matches)
 
             # 2. Search for potential dimension references
-            dim_candidates = ("region", "country", "city", "customer", "customer_id", "product", "category", "segment", "status")
+            dim_candidates = ("country", "region", "city", "customer", "customer_id", "product", "category", "segment", "status")
             for term in dim_candidates:
                 if term in text:
                     matches = [c for c in col_names if term in c.lower()]
                     if matches:
                         dimensions.append(matches[0])
+
+            # 3. Country / Region inference from comparison entities (e.g. India vs US)
+            country_indicators = ("india", "us", "usa", "uk", "germany", "france", "canada", "australia", "china", "japan")
+            if any(cnt in text for cnt in country_indicators):
+                for col in ("country", "region", "geo", "location", "territory"):
+                    if col in col_names and col not in dimensions:
+                        dimensions.append(col)
 
         else:
             # Fallback when DatasetKnowledge is not yet attached
