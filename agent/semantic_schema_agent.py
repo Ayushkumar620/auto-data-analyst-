@@ -231,15 +231,15 @@ class SemanticSchemaAgent(BaseAgent):
         rationale: List[str] = []
         aliases: List[str] = []
 
-        # 1. Check Date / Datetime
+        # 1. Check Date / Datetime / Temporal (including integer Year / Quarter)
         if is_dt or self._is_potential_date(series, norm_name):
             sem_type = SemanticType.DATETIME if is_dt or "time" in norm_name else SemanticType.DATE
             role = "date"
-            concept = "timestamp"
+            concept = "year" if any(t in norm_name for t in ("year", "fy", "cy", "yr")) else "quarter" if any(t in norm_name for t in ("quarter", "qtr")) else "timestamp"
             category = "temporal"
-            confidence = 0.95 if is_dt else 0.88
-            rationale.append(f"Column '{col_name}' detected as date/temporal structure.")
-            aliases = ["date", "datetime", "timestamp"]
+            confidence = 0.95 if is_dt else 0.90
+            rationale.append(f"Column '{col_name}' detected as temporal/chronological dimension.")
+            aliases = ["date", "datetime", "timestamp", "year", "quarter", "period"]
 
         # 2. Check Identifier
         elif self._is_identifier(col_name, series, n_rows, unique_ratio, is_num):
@@ -261,7 +261,7 @@ class SemanticSchemaAgent(BaseAgent):
             rationale.append(f"Column '{col_name}' contains binary/boolean indicator values.")
             aliases = ["flag", "indicator"]
 
-        # 4. Check Business Concepts Dictionary (e.g. revenue, profit, cost, churn, rating)
+        # 4. Check Business Concepts Dictionary (e.g. revenue, profit, cost, budget, actual, churn, rating)
         else:
             matched_concept, b_conf, b_cat = self._match_business_concept(col_name, series)
             if matched_concept:
@@ -269,11 +269,17 @@ class SemanticSchemaAgent(BaseAgent):
                 category = b_cat
                 confidence = b_conf
                 aliases = list(BUSINESS_CONCEPTS[matched_concept].get("aliases", []))
-                
-                if BUSINESS_CONCEPTS[matched_concept].get("expected_type") in ("numeric", "volume", "pricing") or is_num:
+                exp_type = BUSINESS_CONCEPTS[matched_concept].get("expected_type", "general")
+
+                if exp_type in ("numeric", "volume", "pricing") or (is_num and exp_type != "temporal"):
                     sem_type = SemanticType.METRIC
                     role = "metric"
                     rationale.append(f"Column '{col_name}' matches financial/numerical business concept '{matched_concept}'.")
+                elif exp_type in ("temporal", "datetime"):
+                    sem_type = SemanticType.DATE
+                    role = "date"
+                    category = "temporal"
+                    rationale.append(f"Column '{col_name}' matches temporal concept '{matched_concept}'.")
                 elif matched_concept == "churn":
                     sem_type = SemanticType.TARGET
                     role = "target_candidate"

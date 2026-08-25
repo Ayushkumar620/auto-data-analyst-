@@ -148,6 +148,63 @@ BUSINESS_CONCEPTS: Dict[str, Dict[str, Any]] = {
         "description": "Geographic or spatial dimension.",
         "expected_type": "dimension",
     },
+    "actual": {
+        "category": "financial",
+        "aliases": (
+            "actuals", "actual_amount", "actual_usd", "actual_value", "realized",
+            "actual_sales", "actual_revenue", "actual_spend",
+        ),
+        "description": "Actual financial or operational realized measurement.",
+        "expected_type": "numeric",
+        "typically_positive": True,
+    },
+    "budget": {
+        "category": "financial",
+        "aliases": (
+            "budgeted", "budget_amount", "budget_usd", "allocated_budget",
+            "target_budget", "planned_budget", "plan",
+        ),
+        "description": "Allocated or planned budget financial measurement.",
+        "expected_type": "numeric",
+        "typically_positive": True,
+    },
+    "forecast_measure": {
+        "category": "financial",
+        "aliases": (
+            "forecast_usd", "forecast_amount", "forecast_value", "projected_usd",
+            "projected_amount", "forecasted",
+        ),
+        "description": "Forecasted financial projection measure.",
+        "expected_type": "numeric",
+        "typically_positive": True,
+    },
+    "variance": {
+        "category": "derived_financial",
+        "aliases": (
+            "variance_usd", "variance_amount", "delta", "diff", "difference",
+            "budget_variance", "forecast_variance", "deviation",
+        ),
+        "description": "Difference or variance between actual and budget/plan.",
+        "expected_type": "numeric",
+        "typically_positive": False,
+    },
+    "year": {
+        "category": "temporal",
+        "aliases": (
+            "fiscal_year", "fiscalyear", "calendar_year", "fy", "cy", "yr",
+            "academic_year", "tax_year",
+        ),
+        "description": "Calendar or fiscal year time dimension.",
+        "expected_type": "temporal",
+    },
+    "quarter": {
+        "category": "temporal",
+        "aliases": (
+            "qtr", "fiscal_quarter", "calendar_quarter", "fq", "cq",
+        ),
+        "description": "Quarterly period time dimension.",
+        "expected_type": "temporal",
+    },
     "timestamp": {
         "category": "temporal",
         "aliases": (
@@ -172,11 +229,11 @@ SEMANTIC_HINTS: dict[str, tuple[str, ...]] = {
         "name", "company", "organization", "organisation", "vendor", "supplier",
         "customer", "client", "product", "brand", "store", "branch", "partner",
         "employee", "person", "owner", "category_name", "country", "city",
-        "region", "state", "division", "department", "channel",
+        "region", "state", "division", "department", "dept", "channel",
     ),
     "derived_metric": (
         "rate", "ratio", "percentage", "percent", "pct", "margin", "growth",
-        "delta", "difference", "change", "share", "index", "yield", "efficiency",
+        "delta", "difference", "variance", "change", "share", "index", "yield", "efficiency",
         "density", "average_per", "per_unit",
     ),
     "metric_synonyms": (
@@ -184,19 +241,22 @@ SEMANTIC_HINTS: dict[str, tuple[str, ...]] = {
         "sales", "profit", "loss", "count", "quantity", "qty", "units", "volume",
         "balance", "fee", "charge", "payment", "score", "rating", "weight",
         "duration", "hours", "distance", "temp", "temperature", "salary", "wage",
-        "gdp", "rate_value",
+        "gdp", "rate_value", "actual", "actuals", "budget", "forecast", "usd",
     ),
-    "date_words": ("date", "day", "month", "year", "quarter", "yr", "dt"),
+    "date_words": ("date", "day", "month", "year", "quarter", "yr", "dt", "period", "fy", "cy"),
     "time_words": ("time", "hour", "minute", "second", "timestamp", "ts"),
     "dimension_words": ("type", "status", "segment", "group", "class", "tier",
-                        "level", "source", "category", "method", "platform"),
+                        "level", "source", "category", "method", "platform", "dept", "department"),
     "text_words": ("text", "title", "description", "comment", "note", "message",
-                   "content", "body", "summary", "address", "review"),
+                   "content", "body", "summary", "address", "review", "notes"),
 }
 
 
 def _normalize(name: str) -> str:
-    return str(name).strip().lower().replace(" ", "_").replace("-", "_")
+    import re
+    s = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', str(name))
+    s = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1_\2', s)
+    return s.strip().lower().replace(" ", "_").replace("-", "_")
 
 
 def _token_hits(name: str, tokens: tuple[str, ...]) -> list[str]:
