@@ -96,3 +96,4 @@ def auto_select_ann_architecture(
         task_type=task_type,
         alpha=0.0001 if n_samples >= 100 else 0.001,
     )
+

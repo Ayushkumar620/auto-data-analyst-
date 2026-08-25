@@ -419,3 +419,4 @@ def test_ann_side_by_side_comparison_with_ml(temp_registry, ann_regression_df):
         "Random Forest Regressor",
         "Artificial Neural Network (ANN/MLP)",
     ]
+

@@ -2,6 +2,7 @@
 
 **Audit Date:** August 25, 2026  
 **Auditor:** Lead AI Architect & Senior Full-Stack Engineer  
+**Repository State:** 356 Unit & Integration Tests Passing (100% Pass Rate) | Clean Git Working Tree  
 **Repository State:** 372 Unit & Integration Tests Passing (100% Pass Rate) | Clean Git Working Tree  
 **Remote Repository:** `https://github.com/Ayushkumar620/auto-data-analyst-.git`
 
@@ -44,6 +45,7 @@ The **Auto Data Analyst** project is a **command-driven, multi-agent autonomous 
 | **Temporal Understanding Engine** | **COMPLETED** | Non-synthetic date parsing for relative & absolute time structures (`today`, `yesterday`, `this/last quarter`, `Q1-Q4`, `this/last year`, `2025`, `January 2026`, `MoM`, `YoY`). |
 | **Semantic Cross-Referencing & Ambiguity Resolution** | **COMPLETED** | Cross-references terms with `DatasetKnowledge`. Detects multiple competing column candidates (e.g. `gross_sales` vs `net_sales`), prompts clarification (`needs_clarification=True`), and sets appropriate confidence. |
 | **`ExecutionPlan` & `ExecutionStep` Models** | **COMPLETED** | Pydantic v2 models for DAG task plans, atomic execution steps, dependency declarations, retry policies, and execution metrics. |
+| **`ToolRegistry` System** | **COMPLETED** | Centralized capability registry mapping 12 core analytical tools with typed input/output schemas and validation rules (`agent/tool_registry.py`). |
 | **`ToolRegistry` System** | **COMPLETED** | Centralized capability registry mapping 13 core analytical tools with typed input/output schemas and validation rules (`agent/tool_registry.py`). |
 | **`ExecutionGraph` & Cycle Detection** | **COMPLETED** | Directed acyclic graph engine with cycle detection (DFS/topological sort), parallel level resolution, and upfront validation against unregistered tools and broken dependencies. |
 | **`ExecutionEngine`** | **COMPLETED** | Robust execution runner supporting topological step dispatch, recoverable error retries, upstream failure propagation with step skipping, and partial success preservation (`agent/execution_engine.py`). |
@@ -51,6 +53,7 @@ The **Auto Data Analyst** project is a **command-driven, multi-agent autonomous 
 
 ---
 
+## 3. Milestone 3 — Model Selection, Training & Evaluation 🤖🏋️
 ## 3. Milestone 3 — Model Selection, Training & Neural Network Engines 🤖🏋️🧠
 
 | Component | Status | Details |
@@ -60,8 +63,11 @@ The **Auto Data Analyst** project is a **command-driven, multi-agent autonomous 
 | **Automatic Task & Modality Detection** | **COMPLETED** | Distinguishes between `regression`, `binary_classification`, `multiclass_classification`, `clustering`, `time_series_forecasting`, and `image_classification` across `tabular`, `time_series`, `image`, and `spatial` modalities. |
 | **Explainable Suitability Scoring** | **COMPLETED** | Computes transparent score ($0.0 \le s \le 1.0$) based on sample count, feature dimensionality, numeric/categorical mix, missing rates, class balance, and model inductive bias. |
 | **`TrainingRequest`, `TrainingResult`, `ModelComparisonResult`** | **COMPLETED** | Pydantic schemas for multi-algorithm training jobs, validation tracking, metric dictionaries, and comparison reports (`agent/model_training_schemas.py`). |
+| **`BaseModelTrainer` & `TraditionalMLTrainer`** | **COMPLETED** | Extensible model trainer contract and scikit-learn adapter for Linear, Ridge, Lasso, Logistic, Random Forest, Gradient Boosting, Extra Trees, SVM, and k-NN (`agent/model_training_engine.py`). |
 | **`BaseModelTrainer`, `TraditionalMLTrainer`, `ANNTrainer`** | **COMPLETED** | Extensible model trainer contracts and concrete adapters for Traditional ML and Deep Artificial Neural Networks (`agent/model_training_engine.py`). |
 | **Leakage-Free `DataPreprocessor`** | **COMPLETED** | Preprocessor pipeline learning numeric scalers, medians, and categorical mappings strictly on training folds to eliminate data leakage. |
+| **`ModelTrainingEngine` & `ModelTrainingAgent`** | **COMPLETED** | Cross-validation engine executing KFold, StratifiedKFold, and TimeSeriesSplit with overfitting diagnostics, deterministic ranking, artifact persistence, and `ModelRegistry` integration. |
+| **Milestone 3 Tests** | **COMPLETED** | 31 dedicated unit test cases across Task 1 (15/15) and Task 2 (16/16) fully passing. |
 | **Production `ANNEngine` & `ANNAgent`** | **COMPLETED** | Deep Multi-Layer Perceptron engine for tabular regression, binary/multiclass classification, automatic topology selection (`agent/ann_schemas.py`), early stopping, loss curve extraction, and `ann_trainer` tool registration. |
 | **`ModelTrainingEngine` & Prediction Pipeline** | **COMPLETED** | Cross-validation engine executing KFold, StratifiedKFold, and TimeSeriesSplit with overfitting diagnostics, deterministic ranking, artifact persistence, schema validation, and `ModelRegistry` integration. |
 | **Milestone 3 Tests** | **COMPLETED** | 47 dedicated unit test cases across Task 1 (15/15), Task 2 (16/16), and Task 3 (16/16) fully passing. |
@@ -76,6 +82,7 @@ The **Auto Data Analyst** project is a **command-driven, multi-agent autonomous 
 | **Dataset Knowledge Engine** | `agent/dataset_knowledge.py`, `backend/app/core/dataset_knowledge.py` | 100% | Pydantic models for `DatasetKnowledge`, `ColumnKnowledge`, `DataQuality`, and `SemanticType`. |
 | **Semantic Schema Agent** | `agent/semantic_schema_agent.py`, `backend/app/core/semantic.py` | 100% | Semantic classification, role discovery, confidence scoring, and profiler pipeline. |
 | **Command Intelligence Agent** | `agent/intent.py` | 100% | Natural language command parsing, `UserIntent` generation, temporal parsing, ambiguity handling, and LLM fallback. |
+| **Tool Registry** | `agent/tool_registry.py` | 100% | Typed registry of 12 analytical operations, capabilities, input/output schemas, and execution wrappers. |
 | **Tool Registry** | `agent/tool_registry.py` | 100% | Typed registry of 13 analytical operations, capabilities, input/output schemas, and execution wrappers. |
 | **Dynamic Task Planner** | `agent/dynamic_planner.py` | 100% | Dynamic DAG execution plan synthesis, cycle detection, tool validation, and deterministic fallback. |
 | **Execution Engine** | `agent/execution_engine.py` | 100% | Dependency-aware execution, retry/repair policies, partial success isolation, and step execution tracing. |
