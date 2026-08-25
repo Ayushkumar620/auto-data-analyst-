@@ -102,3 +102,4 @@ class InsightRanker:
                 if lim not in limits:
                     limits.append(lim)
         return limits
+

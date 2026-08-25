@@ -181,3 +181,4 @@ class AutonomousAnalysisResult(BaseModel):
             "confidence": round(float(self.confidence), 2),
             "execution_time": round(float(self.execution_time), 4),
         }
+

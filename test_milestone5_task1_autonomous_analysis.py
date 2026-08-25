@@ -365,3 +365,4 @@ def test_autonomous_analyst_agent_run(sales_df):
     assert result.status == AgentStatus.COMPLETED
     assert "insight_count" in result.metadata
     assert len(result.evidence) > 0
+
