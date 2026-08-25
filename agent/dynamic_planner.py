@@ -379,7 +379,23 @@ class DynamicTaskPlanner(BaseAgent):
         upstream_dep = [cleaning_step_id] if cleaning_step_id else [profiling_step_id]
 
         # 3. Main Analytical Execution Paths
-        if primary_intent_val == "root_cause_analysis":
+        if primary_intent_val == "recommendation" or "decision_support" in req_caps or "recommendation_generation" in req_caps:
+            rec_step = f"step_{step_idx}"
+            steps.append(
+                ExecutionStep(
+                    step_id=rec_step,
+                    tool_name="decision_engine",
+                    agent_name="RecommendationAgent",
+                    purpose="Generate evidence-backed, ranked recommendations from analysis context.",
+                    inputs={"objective": user_intent.objective or None,
+                            "user_intent": user_intent.original_command or ""},
+                    required_capabilities=["decision_support", "recommendation_generation", "risk_assessment"],
+                    dependencies=upstream_dep,
+                )
+            )
+            step_idx += 1
+            upstream_dep = [rec_step]
+        elif primary_intent_val == "root_cause_analysis":
             metric_target = user_intent.metrics[0] if user_intent.metrics else (knowledge.get_primary_metric() if knowledge else "revenue")
             
             # Step A: Aggregation & Trend

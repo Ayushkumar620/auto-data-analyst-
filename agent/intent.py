@@ -428,6 +428,18 @@ class CommandIntelligenceAgent(BaseAgent):
                 intent_candidates.append((IntentType.VISUALIZATION, 85))
             requested_output = "chart"
 
+        # 8. Recommendation / Decision Support
+        if any(w in text for w in ("recommend", "recommendation", "what should i do",
+                                   "what to do", "advise", "decision", "which action",
+                                   "safest", "increase revenue while", "reducing risk")):
+            capabilities.extend(["decision_support", "recommendation_generation"])
+            intent_candidates.append((IntentType.RECOMMENDATION, 90))
+            requested_output = "recommendation"
+        elif any(w in text for w in ("should we", "should i", "trade-off", "option a", "option b")):
+            capabilities.append("decision_support")
+            intent_candidates.append((IntentType.RECOMMENDATION, 85))
+            requested_output = "recommendation"
+
         # Multi-step determination
         if len(capabilities) >= 3:
             primary = IntentType.MULTI_STAGE_PIPELINE if len(intent_candidates) > 1 else intent_candidates[0][0]
