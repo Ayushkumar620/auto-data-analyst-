@@ -87,7 +87,6 @@ from backend.app.ml.registry import ModelRegistry
 
 
 # ==============================================================================
-# 1. Base Model Trainer Interface & Scikit-Learn Adapter
 # 1. Base Model Trainer Interface & Concrete Adapters
 # ==============================================================================
 
