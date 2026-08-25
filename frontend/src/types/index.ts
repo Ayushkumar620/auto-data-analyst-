@@ -93,3 +93,46 @@ export type AnalysisRecord = {
   created_at: string;
   status: 'completed' | 'failed' | 'running';
 };
+
+// ==========================================
+// Phase 3: Model Registry Types
+// ==========================================
+export type ModelStatus = 'active' | 'staging' | 'archived';
+export type ModelFamily = 'traditional_ml' | 'ann' | 'cnn' | 'forecasting';
+export type ProblemType =
+  | 'binary_classification'
+  | 'multiclass_classification'
+  | 'regression'
+  | 'time_series_forecast';
+
+export type ModelMetadata = {
+  model_id: string;
+  name: string;
+  version: number;
+  model_family: ModelFamily | string;
+  algorithm: string;
+  problem_type: ProblemType | string;
+  target_column: string;
+  feature_columns: string[];
+  feature_dtypes: Record<string, string>;
+  hyperparameters: Record<string, unknown>;
+  training_metrics: Record<string, number>;
+  validation_metrics: Record<string, number>;
+  primary_metric_name: string;
+  primary_metric_value: number;
+  loss_curve?: number[];
+  created_at: string;
+  status: ModelStatus | string;
+  tags?: string[];
+  preprocessor_meta?: Record<string, unknown>;
+  reference_profile?: Record<string, unknown>;
+  feature_importances?: Record<string, number>;
+};
+
+export type InferenceResponse = {
+  model_id: string;
+  predictions: Array<number | string>;
+  probabilities?: Array<number[] | Record<string, number>>;
+  duration_ms?: number;
+  batch_size?: number;
+};
