@@ -83,13 +83,13 @@ class RecommendationAgent(BaseAgent):
         query_type = "recommend"
         if any(k in lowered for k in ("why", "explain", "reason")):
             query_type = "explain"
-        elif any(k in lowered for k in ("risk", "safe", "danger")):
-            query_type = "risks"
         elif any(k in lowered for k in ("highest impact", "biggest impact", "largest impact",
                                         "best expected impact")):
             query_type = "highest_impact"
-        elif any(k in lowered for k in ("safest", "least risk", "lowest risk")):
+        elif any(k in lowered for k in ("safest", "least risk", "lowest risk", "safest option")):
             query_type = "safest"
+        elif any(k in lowered for k in ("risk", "safe", "danger")):
+            query_type = "risks"
         objectives = RecommendationObjective.parse_objectives(text)
         return {"query_type": query_type, "objectives": list(objectives)}
 
@@ -133,7 +133,8 @@ class RecommendationAgent(BaseAgent):
             lines.append(f"- [{risk.severity.value}] {risk.risk} "
                          f"(confidence {risk.confidence:.0%})")
         return {"response": "\n".join(lines),
-                "risks": [r.to_dict() for r in result.risks], "query_type": "risks"}
+                "risks": [r.to_dict() for r in result.risks],
+                "result": result.to_dict(), "query_type": "risks"}
 
     @staticmethod
     def _respond_explain(result: RecommendationResult) -> Dict[str, Any]:
