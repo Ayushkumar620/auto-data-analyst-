@@ -257,3 +257,4 @@ def test_llm_unavailable_deterministic_fallback():
     assert result.agent_name == "Command Intelligence Agent"
     assert "user_intent" in result.data
     assert result.data["user_intent"]["ranking"]["limit"] == 5
+
