@@ -42,13 +42,16 @@ class ModelArtifactMetadata:
     status: str = "active"  # "active", "staging", "archived"
     tags: List[str] = field(default_factory=list)
     preprocessor_meta: Dict[str, Any] = field(default_factory=dict)
+    reference_profile: Dict[str, Any] = field(default_factory=dict)
+    feature_importances: Dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> ModelArtifactMetadata:
-        return cls(**data)
+        valid_keys = cls.__dataclass_fields__.keys()
+        return cls(**{k: v for k, v in data.items() if k in valid_keys})
 
 
 class ModelRegistry:
@@ -108,6 +111,8 @@ class ModelRegistry:
         loss_curve: Optional[List[float]] = None,
         preprocessor: Optional[Any] = None,
         tags: Optional[List[str]] = None,
+        reference_profile: Optional[Dict[str, Any]] = None,
+        feature_importances: Optional[Dict[str, float]] = None,
     ) -> ModelArtifactMetadata:
         """Serialize a trained model and save complete metadata to the registry."""
         index = self._read_index()
@@ -148,6 +153,8 @@ class ModelRegistry:
             status="active",
             tags=tags or [],
             preprocessor_meta={"has_preprocessor": preprocessor is not None},
+            reference_profile=reference_profile or {},
+            feature_importances=feature_importances or {},
         )
 
         # Update index
@@ -318,4 +325,43 @@ class ModelRegistry:
             "predictions": preds_list,
             "probabilities": probabilities,
         }
+
+    # ------------------------------------------------------------------
+    # Monitoring History Tracking
+    # ------------------------------------------------------------------
+    def record_monitoring_run(self, model_id: str, run_summary: Dict[str, Any]) -> None:
+        """Persist a model monitoring assessment to the monitoring history log."""
+        history_file = self.registry_dir / "monitoring_history.json"
+        history = []
+        if history_file.exists():
+            try:
+                with open(history_file, "r", encoding="utf-8") as f:
+                    history = json.load(f)
+            except Exception:
+                history = []
+
+        entry = {
+            "run_id": f"mon_{uuid.uuid4().hex[:8]}",
+            "model_id": model_id,
+            "timestamp": datetime.now().isoformat(),
+            **run_summary,
+        }
+        history.append(entry)
+        with open(history_file, "w", encoding="utf-8") as f:
+            json.dump(history, f, indent=2)
+
+    def get_monitoring_history(self, model_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Retrieve monitoring history records filtered by model ID."""
+        history_file = self.registry_dir / "monitoring_history.json"
+        if not history_file.exists():
+            return []
+        try:
+            with open(history_file, "r", encoding="utf-8") as f:
+                history = json.load(f)
+        except Exception:
+            return []
+
+        if model_id:
+            return [h for h in history if h.get("model_id") == model_id]
+        return history
 
