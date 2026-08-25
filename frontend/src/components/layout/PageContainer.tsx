@@ -64,14 +64,16 @@ type CardProps = {
   children: React.ReactNode;
   className?: string;
   padding?: boolean;
+  style?: React.CSSProperties;
 };
 
-export function Card({ children, className, padding = true }: CardProps) {
+export function Card({ children, className, padding = true, style }: CardProps) {
   return (
     <div
       className={`glass-card${padding ? ' glass-card--padded' : ''}${
         className ? ` ${className}` : ''
       }`}
+      style={style}
     >
       {children}
     </div>
@@ -81,11 +83,11 @@ export function Card({ children, className, padding = true }: CardProps) {
 // ──────────────────────────────────────────────────────────────────────────
 // GlassPanel
 // ──────────────────────────────────────────────────────────────────────────
-type GlassPanelProps = { children: React.ReactNode; className?: string };
+type GlassPanelProps = { children: React.ReactNode; className?: string; style?: React.CSSProperties };
 
-export function GlassPanel({ children, className }: GlassPanelProps) {
+export function GlassPanel({ children, className, style }: GlassPanelProps) {
   return (
-    <div className={`glass-panel${className ? ` ${className}` : ''}`}>
+    <div className={`glass-panel${className ? ` ${className}` : ''}`} style={style}>
       {children}
     </div>
   );

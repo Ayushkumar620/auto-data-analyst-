@@ -22,7 +22,7 @@ export default function AnalysisResponseRenderer({ content }: AnalysisResponseRe
       const paragraph = textBuffer.join('\n').trim();
       if (paragraph) {
         elements.push(
-          <div key={`p-${elements.length}`} style={{ marginBottom: '0.65rem', lineHeight: '1.55' }}>
+          <div key={`p-${elements.length}`} style={{ marginBottom: '0.65rem', lineHeight: '1.55', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0 }}>
             {renderInlineMarkdown(paragraph)}
           </div>,
         );
@@ -36,7 +36,8 @@ export default function AnalysisResponseRenderer({ content }: AnalysisResponseRe
       elements.push(
         <div
           key={`table-${elements.length}`}
-          style={{ overflowX: 'auto', margin: '0.85rem 0', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+          className="table-responsive-container"
+          style={{ overflowX: 'auto', width: '100%', maxWidth: '100%', minWidth: 0, margin: '0.85rem 0', borderRadius: '8px', border: '1px solid #e2e8f0' }}
         >
           <table className="result-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -159,7 +160,7 @@ export default function AnalysisResponseRenderer({ content }: AnalysisResponseRe
   flushTable();
   flushAlert();
 
-  return <div className="analysis-response-body">{elements}</div>;
+  return <div className="analysis-response-body" style={{ width: '100%', maxWidth: '100%', minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{elements}</div>;
 }
 
 /** Helper to render bold (**text**), inline code (`code`), lists, and emojis */

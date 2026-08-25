@@ -21,7 +21,7 @@ export default function PlotlyChart({ data, layout }: ChartSpec) {
 
       const handleResize = () => {
         if (ref.current) {
-          Plotly.Plots.resize(ref.current);
+          (Plotly as unknown as { Plots?: { resize: (el: HTMLElement) => void } }).Plots?.resize(ref.current);
         }
       };
 
