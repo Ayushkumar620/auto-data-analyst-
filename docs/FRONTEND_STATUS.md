@@ -1,34 +1,34 @@
 # Frontend Status — Auto Data Analyst Platform
 
 **Status Date:** 2026-08-25  
-**Current Milestone:** Frontend Phase 3 (Model Registry & Leaderboard UI) — COMPLETE  
-**Build Status:** PASSING (`tsc` + `vite build` clean, `vitest` passing 7/7)
+**Current Milestone:** Frontend Phase 4 (Conversational AI Analyst Workspace) — COMPLETE  
+**Build Status:** PASSING (`tsc` + `vite build` clean, `vitest` passing 7/7, `pytest` backend passing 20/20)
 
 ---
 
-## 1. Application Architecture & Navigation
+## 1. Application Architecture & Data Flow
 
-The platform integrates data management, model evaluation, and autonomous AI reasoning within a unified glassmorphic shell:
+The platform provides a cohesive, multi-tier data analyst experience:
 
 ```
-[Datasets Workspace] ──> [Model Registry & Leaderboard] ──> [AI Analyst / Studio]
-  - Datasets (/datasets)    - Leaderboard (/models)            - Autonomous Analysis (/analyst)
-  - Details (/datasets/:id) - Model Details (/models/:id)      - History (/analyses)
-  - Workspaces (/workspaces)- Live Inference Form             - Details (/analyses/:id)
+[Dataset Workspace] ──> [Model Registry] ──> [Conversational AI Analyst]
+  - Datasets (/datasets)    - Models (/models)     - Stateful Workspace (/analyst)
+  - Details (/datasets/:id) - Details (/models/:id)- Multi-turn Sessions (session_id)
+  - Workspaces (/workspaces)- Live Inference Form  - Verifiable Evidence & Provenance
 ```
 
 ---
 
-## 2. Active Routes (Phase 1, 2 & 3)
+## 2. Active Routes (Phase 1, 2, 3 & 4)
 
 | Route | View Component | Status | Description |
 |---|---|---|---|
-| `/overview` | `OverviewPage` | **Active** | Application landing page with real KPIs, project lists, and quick actions. |
+| `/overview` | `OverviewPage` | **Active** | Landing page with KPIs, project lists, and quick actions. |
+| `/analyst` | `AnalystPage` | **Active** | Full Conversational AI Data Analyst workspace with multi-turn reasoning and active dataset context. |
 | `/datasets` | `DatasetsPage` | **Active** | Dataset explorer with live search, sorting, delete actions, and responsive grid. |
-| `/datasets/:datasetId` | `DatasetWorkspacePage` | **Active** | Detailed workspace tabs: Overview, Schema Explorer, Paginated Preview Table, Data Quality. |
+| `/datasets/:datasetId` | `DatasetWorkspacePage` | **Active** | Multi-tab workspace: Overview, Schema Explorer, Paginated Preview Table, Data Quality. |
 | `/models` | `ModelRegistryPage` | **Active** | Model leaderboard with family/status filtering, search, and KPI strip. |
 | `/models/:modelId` | `ModelDetailPage` | **Active** | Loss curves, feature importances, schema, hyperparameters, and live inference form. |
-| `/analyst` | `AnalystPage` | **Active** | Context-aware AI Analyst query studio connected to `/api/v1/analyze`. |
 | `/analyses` | `AnalysesPage` | **Active** | History tracker for past autonomous analyses and evidence chains. |
 | `/analyses/:analysisId` | `AnalysisDetailPage` | **Active** | Executive findings synthesis, detected intent, pipeline operations, and evidence chain. |
 | `/workspaces` | `WorkspacesPage` | **Active** | Collaborative environment manager and project organizer. |
@@ -45,19 +45,21 @@ The platform integrates data management, model evaluation, and autonomous AI rea
 
 ---
 
-## 3. Phase 3: Model Registry Architecture
+## 3. Phase 4: Conversational AI Analyst Architecture
 
-- **`modelService.ts`**:
-  - `listModels(params)`: Calls `GET /api/v1/models` with query filters for family, problem type, and deployment status.
-  - `getModelMetadata(modelId)`: Calls `GET /api/v1/models/{model_id}` to retrieve metrics, loss curves, feature schema, hyperparameters, and feature importances.
-  - `runModelInference(modelId, data)`: Calls `POST /api/v1/models/{model_id}/predict` for real-time interactive predictions.
-  - `updateModelStatus(modelId, status)`: Calls `PATCH /api/v1/models/{model_id}/status` to promote models to active or staging.
-  - `deleteModel(modelId)`: Calls `DELETE /api/v1/models/{model_id}`.
-- **UI Components**:
-  - `ModelCard.tsx`: Grid card displaying algorithm, family badge, problem type, target column, primary metric, and status.
-  - `StatusChip.tsx`: Styled badges for active (green), staging (blue), and archived (gray) lifecycles.
-  - `MetricBadge.tsx`: Performance metric display formatting percentages and decimals.
-  - `PlotlyChart.tsx`: Loss curve convergence plot and top-10 feature importance horizontal bar chart.
+- **Backend API (`/api/v1/chat/session`)**:
+  - Exposes the master `ConversationalAnalystAgent`.
+  - Maintains stateful multi-turn context per `session_id`.
+  - Supports pronoun/anaphoric reference resolution ("Analyze revenue" -> "Why did it decline?").
+  - Returns synthesized responses with structured evidence provenance (`Evidence` model).
+- **Frontend Services & Components**:
+  - `chatService.ts`: Added `sendConversationalMessage` and `getConversationalSession`.
+  - `AnalystPage.tsx`: Upgraded into a dedicated conversational workspace with active dataset context pill, chronological thread, thinking indicator, error recovery, and suggestion chips.
+  - `ChatMessage.tsx`: Compact user bubbles and structured assistant cards.
+  - `AnalysisResponseRenderer.tsx`: Renders Markdown tables, alerts (`[!NOTE]`, `[!TIP]`, `[!WARNING]`), bold metrics, and code formatting.
+  - `EvidencePanel.tsx`: Collapsible proof drawer displaying claim types (`FACT`, `OBSERVATION`, `CORRELATION`), confidence percentages, and source columns.
+  - `AnalystComposer.tsx`: Multiline command input with Enter to submit and Shift+Enter for newlines.
+  - `ConversationHistory.tsx`: Session drawer allowing switching between conversations and starting a new analysis.
 
 ---
 
@@ -65,16 +67,20 @@ The platform integrates data management, model evaluation, and autonomous AI rea
 
 ```bash
 > tsc && vite build
-✓ 91 modules transformed.
+✓ 96 modules transformed.
 dist/index.html                     0.47 kB │ gzip:     0.31 kB
 dist/assets/index-CLBCHm_N.css     33.35 kB │ gzip:     6.93 kB
-dist/assets/index-C1MAFofi.js   4,970.53 kB │ gzip: 1,501.78 kB
-✓ built in 22.93s
+dist/assets/index-DxNObqC0.js   4,982.68 kB │ gzip: 1,504.75 kB
+✓ built in 20.29s
 
 > vitest run
  Test Files  3 passed (3)
       Tests  7 passed (7)
+
+> pytest test_milestone5_task2_conversational_analyst.py
+============================= 20 passed in 14.58s =============================
 ```
 - **TypeScript**: 0 errors.
-- **Vite Build**: Succeeded in 22.93s.
-- **Vitest**: 7/7 tests passed.
+- **Frontend Build**: Succeeded in 20.29s.
+- **Vitest Unit Tests**: 7/7 tests passed.
+- **Backend Tests**: 20/20 passed.
