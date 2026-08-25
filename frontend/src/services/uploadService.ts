@@ -1,5 +1,6 @@
 import type { DatasetProfile } from '../types';
 import { buildApiUrl } from './api';
+import { registerDatasetProfile } from './datasetService';
 
 type FastApiUploadResponse = {
   dataset?: { name?: string; rows?: number; columns?: number; file_type?: string };
@@ -13,6 +14,12 @@ type FastApiUploadResponse = {
   preview?: Array<Record<string, unknown>>;
   data_types?: Record<string, string>;
   memory_usage?: string;
+  quality_score?: number;
+  column_analysis?: Record<string, any>;
+  numeric_analysis?: Record<string, any>;
+  categorical_analysis?: Record<string, any>;
+  recommendations?: Array<any>;
+  insights?: Array<any>;
   workspace_id?: string | null;
   project_id?: string | null;
   workspace_dataset_id?: string | null;
@@ -36,6 +43,12 @@ function normalizeUploadResponse(payload: FastApiUploadResponse): DatasetProfile
     preview: payload.preview ?? [],
     data_types: payload.data_types,
     memory_usage: payload.memory_usage,
+    quality_score: payload.quality_score,
+    column_analysis: payload.column_analysis,
+    numeric_analysis: payload.numeric_analysis,
+    categorical_analysis: payload.categorical_analysis,
+    recommendations: payload.recommendations,
+    insights: payload.insights,
     workspace_id: payload.workspace_id ?? undefined,
     project_id: payload.project_id ?? undefined,
     workspace_dataset_id: payload.workspace_dataset_id ?? undefined,
@@ -63,5 +76,8 @@ export async function uploadDataset(file: File, context?: UploadContext): Promis
   }
 
   const payload = (await response.json()) as FastApiUploadResponse;
-  return normalizeUploadResponse(payload);
+  const profile = normalizeUploadResponse(payload);
+  registerDatasetProfile(profile, file.name);
+  return profile;
 }
+
