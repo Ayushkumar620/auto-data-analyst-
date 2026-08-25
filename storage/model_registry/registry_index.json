@@ -781,5 +781,32 @@
     "preprocessor_meta": {
       "has_preprocessor": false
     }
+  },
+  "mod_2f0bd1ac5a": {
+    "model_id": "mod_2f0bd1ac5a",
+    "name": "Agent_Test_Model",
+    "version": 30,
+    "model_family": "traditional_ml",
+    "algorithm": "Random Forest",
+    "problem_type": "binary_classification",
+    "target_column": "label",
+    "feature_columns": [
+      "feat_1",
+      "feat_2",
+      "feat_3"
+    ],
+    "feature_dtypes": {},
+    "hyperparameters": {},
+    "training_metrics": {},
+    "validation_metrics": {},
+    "primary_metric_name": "score",
+    "primary_metric_value": 0.0,
+    "loss_curve": [],
+    "created_at": "2026-08-25T08:51:19.315338",
+    "status": "active",
+    "tags": [],
+    "preprocessor_meta": {
+      "has_preprocessor": false
+    }
   }
 }

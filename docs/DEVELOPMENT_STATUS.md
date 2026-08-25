@@ -2,7 +2,7 @@
 
 **Audit Date:** August 25, 2026  
 **Auditor:** Lead AI Architect & Senior Full-Stack Engineer  
-**Repository State:** 310 Unit & Integration Tests Passing (100% Pass Rate) | Clean Git Working Tree  
+**Repository State:** 325 Unit & Integration Tests Passing (100% Pass Rate) | Clean Git Working Tree  
 **Remote Repository:** `https://github.com/Ayushkumar620/auto-data-analyst-.git`
 
 ---
@@ -48,7 +48,21 @@ The **Auto Data Analyst** project is a **command-driven, multi-agent autonomous 
 
 ---
 
-## 3. Complete Module Inventory & Health Matrix 📦
+## 3. Milestone 2, Task 2 — Dynamic Task Planner & Execution Graph 🗺️
+
+| Component | Status | Details |
+| :--- | :---: | :--- |
+| **`ExecutionPlan` & `ExecutionStep` Models** | **COMPLETED** | Pydantic v2 models for DAG task plans, atomic execution steps, dependency declarations, retry policies, and execution metrics. |
+| **`ToolRegistry` System** | **COMPLETED** | Centralized capability registry mapping 11 core analytical tools with typed input/output schemas and validation rules (`agent/tool_registry.py`). |
+| **`ExecutionGraph` & Cycle Detection** | **COMPLETED** | Directed acyclic graph engine with cycle detection (DFS/topological sort), parallel level resolution, and upfront validation against unregistered tools and broken dependencies. |
+| **`ExecutionEngine`** | **COMPLETED** | Robust execution runner supporting topological step dispatch, recoverable error retries, upstream failure propagation with step skipping, and partial success preservation (`agent/execution_engine.py`). |
+| **Dynamic Multi-Step Planning** | **COMPLETED** | Constructs multi-step execution plans from `UserIntent` + `DatasetKnowledge` + `ToolRegistry` for root-cause analysis, compound pipelines, comparisons, forecasting, and ML workflows. |
+| **Deterministic Fallback & Legacy Compatibility** | **COMPLETED** | Complete offline deterministic planning fallback without LLM dependency, plus full backward compatibility for `PlannerAgent.plan`, `plan_and_execute`, `TaskPlan`, and `PlanStep`. |
+| **Milestone 2 Task 2 Tests** | **COMPLETED** | 15 dedicated unit test cases in `test_milestone2_task2_dynamic_planner_and_execution_graph.py` covering all 15 required scenarios (15/15 passed). |
+
+---
+
+## 4. Complete Module Inventory & Health Matrix 📦
 
 | Module | Location | Status | Capabilities & Verified Operations |
 | :--- | :--- | :---: | :--- |
@@ -56,6 +70,10 @@ The **Auto Data Analyst** project is a **command-driven, multi-agent autonomous 
 | **Dataset Knowledge Engine** | `agent/dataset_knowledge.py`, `backend/app/core/dataset_knowledge.py` | 100% | Pydantic models for `DatasetKnowledge`, `ColumnKnowledge`, `DataQuality`, and `SemanticType`. |
 | **Semantic Schema Agent** | `agent/semantic_schema_agent.py`, `backend/app/core/semantic.py` | 100% | Semantic classification, role discovery, confidence scoring, and profiler pipeline. |
 | **Command Intelligence Agent** | `agent/intent.py` | 100% | Natural language command parsing, `UserIntent` generation, temporal parsing, ambiguity handling, and LLM fallback. |
+| **Tool Registry** | `agent/tool_registry.py` | 100% | Typed registry of 11 analytical operations, capabilities, input/output schemas, and execution wrappers. |
+| **Dynamic Task Planner** | `agent/dynamic_planner.py` | 100% | Dynamic DAG execution plan synthesis, cycle detection, tool validation, and deterministic fallback. |
+| **Execution Engine** | `agent/execution_engine.py` | 100% | Dependency-aware execution, retry/repair policies, partial success isolation, and step execution tracing. |
+| **Planner Agent** | `agent/planner.py` | 100% | Master coordinator connecting intent, knowledge, planner, and execution engine. |
 | **Command Orchestrator** | `agent/command_orchestrator.py` | 100% | End-to-end 6-stage autonomous lifecycle with execution graphs and timing breakdowns. |
 
 ```
