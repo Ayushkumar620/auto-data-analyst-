@@ -1006,11 +1006,19 @@ class RecommendationEngine:
         self.action_generator = ActionGenerator()
         self.scorer = RecommendationScorer()
 
-    def generate(self, request: RecommendationRequest) -> RecommendationResult:
+        def generate(self, request: RecommendationRequest) -> RecommendationResult:
         start = time.perf_counter()
         objectives = RecommendationObjective.normalize(request.optimization_objective)
-        if not objectives and request.user_intent:
-            objectives = RecommendationObjective.parse_objectives(request.user_intent)
+        # Only parse the user intent for an objective when the user actually
+        # supplied a natural-language intent. A programmatic call that simply
+        # passes insights without an objective still produces evidence-backed
+        # recommendations (with UNSPECIFIED objective) rather than blocking on
+        # clarification. Clarification is requested only in the conversational
+        # case where a user intent was provided but no objective could be parsed.
+        parsed_from_intent: List[RecommendationObjective] = []
+        has_user_intent = bool(request.user_intent)
+        if not objectives and has_user_intent:
+            parsed_from_intent = RecommendationObjective.parse_objectives(request.user_intent)
 
         context = self.builder.build(request)
 
@@ -1023,18 +1031,20 @@ class RecommendationEngine:
         context.opportunities = opportunities
 
         candidates = self.action_generator.generate(
-            context, objectives, scenarios, monitoring, risk_tolerance=request.risk_tolerance)
+            context, objectives or parsed_from_intent, scenarios, monitoring,
+            risk_tolerance=request.risk_tolerance)
         context.available_actions = candidates
 
         recommendations: List[Recommendation] = []
         for cand in candidates:
-            factors, score = self.scorer.score(cand, context, objectives, request.risk_tolerance)
+            factors, score = self.scorer.score(
+                cand, context, objectives or parsed_from_intent, request.risk_tolerance)
             recommendations.append(self._to_recommendation(cand, factors, score))
 
         recommendations.sort(key=lambda r: r.score, reverse=True)
         limited = recommendations[: request.max_recommendations]
 
-        trade_offs = self._build_trade_offs(limited, objectives)
+        trade_offs = self._build_trade_offs(limited, objectives or parsed_from_intent)
         audit = self._build_audit(limited)
 
         all_evidence: List[Evidence] = []
@@ -1048,9 +1058,12 @@ class RecommendationEngine:
         expected_impacts = [r.expected_impact for r in limited
                             if r.expected_impact and r.expected_impact.availability == ImpactAvailability.AVAILABLE]
 
-        needs_objective = not bool(objectives)
+        # Clarification is only needed for the conversational case: the user
+        # supplied a natural-language intent but it contained no recognizable
+        # business objective.
+        needs_objective = has_user_intent and not objectives and not parsed_from_intent
         confidence = self._overall_confidence(limited, risks)
-        summary = self._executive_summary(limited, objectives, risks, needs_objective)
+        summary = self._executive_summary(limited, objectives or parsed_from_intent, risks, needs_objective)
         elapsed = round(time.perf_counter() - start, 4)
 
         return RecommendationResult(
@@ -1065,7 +1078,7 @@ class RecommendationEngine:
             evidence=all_evidence,
             confidence=confidence,
             execution_time=elapsed,
-            objectives=objectives,
+            objectives=objectives or parsed_from_intent,
             trade_offs=trade_offs,
             audit_trail=audit,
             needs_objective_clarification=needs_objective,
