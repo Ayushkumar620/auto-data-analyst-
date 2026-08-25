@@ -446,27 +446,47 @@ class SemanticSchemaAgent(BaseAgent):
         return None, 0.50, "general"
 
     def _is_potential_date(self, series: pd.Series, norm_name: str) -> bool:
-        """Safely test if a non-datetime column represents date/timestamps without mutating data."""
+        """Safely test if a column represents date/timestamps/years without mutating data."""
         # 1. Check naming tokens
-        date_tokens = ("date", "time", "created_at", "updated_at", "timestamp", "dob", "year", "month", "dt")
-        name_hint = any(token == norm_name or norm_name.endswith(f"_{token}") or norm_name.startswith(f"{token}_") for token in date_tokens)
+        date_tokens = ("date", "time", "created_at", "updated_at", "timestamp", "dob", "year", "month", "dt", "quarter", "qtr", "fy", "cy", "period")
+        tokens = norm_name.split("_")
+        name_hint = any(token == norm_name or norm_name.endswith(f"_{token}") or norm_name.startswith(f"{token}_") or token in tokens for token in date_tokens)
+
+        # 2. Check numeric years, quarters, months
+        if pd.api.types.is_numeric_dtype(series):
+            s_clean = series.dropna()
+            if not s_clean.empty:
+                min_v, max_v = s_clean.min(), s_clean.max()
+                # Integer years (e.g. 2020-2030 or FiscalYear)
+                if min_v >= 1800 and max_v <= 2150 and (name_hint or (pd.api.types.is_integer_dtype(series) and max_v - min_v <= 100)):
+                    return True
+                # Quarters (1-4) with quarter naming hint
+                if min_v >= 1 and max_v <= 4 and any(t in norm_name for t in ("quarter", "qtr")):
+                    return True
+                # Months (1-12) with month naming hint
+                if min_v >= 1 and max_v <= 12 and any(t in norm_name for t in ("month", "mon")):
+                    return True
+            return False
 
         if not name_hint and not pd.api.types.is_string_dtype(series) and not pd.api.types.is_object_dtype(series):
             return False
 
-        # 2. Sample value inspection
+        # 3. Sample value inspection for string/object columns
         sample = series.dropna().head(10)
         if sample.empty:
             return name_hint
 
-        # Try parsing sample strings safely
         parsed_count = 0
         for val in sample:
             s_val = str(val).strip()
-            if not s_val or len(s_val) < 4:
+            if not s_val or len(s_val) < 2:
                 continue
-            # Regex check for YYYY-MM-DD, DD/MM/YYYY, ISO timestamps
-            if re.match(r"^\d{4}[-/]\d{1,2}[-/]\d{1,2}", s_val) or re.match(r"^\d{1,2}[-/]\d{1,2}[-/]\d{2,4}", s_val):
+            # Regex check for YYYY, YYYY-MM-DD, DD/MM/YYYY, ISO timestamps, Q1-2024, 2024Q1
+            if re.match(r"^\d{4}$", s_val) and 1800 <= int(s_val) <= 2150:
+                parsed_count += 1
+            elif re.match(r"^Q[1-4][-_\s]?\d{2,4}", s_val, re.I) or re.match(r"^\d{2,4}[-_\s]?Q[1-4]", s_val, re.I):
+                parsed_count += 1
+            elif re.match(r"^\d{4}[-/]\d{1,2}[-/]\d{1,2}", s_val) or re.match(r"^\d{1,2}[-/]\d{1,2}[-/]\d{2,4}", s_val):
                 parsed_count += 1
             else:
                 try:

@@ -38,18 +38,28 @@ class TimeSeriesDetector:
             if pd.api.types.is_datetime64_any_dtype(df[col]):
                 return col
 
-        # 2. String/object columns matching date names
+        # 2. String/object or integer columns matching date/time/year names
         for pattern in self.DATE_PATTERNS:
             for col in df.columns:
                 if pattern.search(col):
-                    # Verify parseability on sample
-                    try:
-                        sample = df[col].dropna().head(10)
-                        if not sample.empty:
-                            pd.to_datetime(sample)
+                    series = df[col].dropna()
+                    if series.empty:
+                        continue
+                    # Integer year columns (e.g. FiscalYear, Year: 2020-2030)
+                    if pd.api.types.is_numeric_dtype(df[col]):
+                        if series.between(1800, 2150).all():
                             return col
-                    except Exception:
-                        pass
+                        if series.between(1, 4).all() and any(q in col.lower() for q in ("quarter", "qtr", "q")):
+                            return col
+                    else:
+                        # Verify parseability on sample
+                        try:
+                            sample = series.head(10)
+                            if not sample.empty:
+                                pd.to_datetime(sample)
+                                return col
+                        except Exception:
+                            pass
 
         # 3. Fallback: inspect any object column
         for col in df.select_dtypes(include=["object", "string"]).columns:
@@ -61,25 +71,67 @@ class TimeSeriesDetector:
             except Exception:
                 pass
 
+        # 4. Fallback: inspect any numeric column that has year-range values
+        for col in df.select_dtypes(include=[np.number]).columns:
+            series = df[col].dropna()
+            if len(series) >= 3 and series.between(1900, 2100).all() and pd.api.types.is_integer_dtype(df[col]):
+                return col
+
         return None
 
     def detect_target_column(self, df: pd.DataFrame, time_col: Optional[str] = None, hint: Optional[str] = None) -> Optional[str]:
         """Identify primary numeric forecasting target."""
+        # 1. User explicit target ALWAYS wins
         if hint and hint in df.columns and pd.api.types.is_numeric_dtype(df[hint]):
             return hint
 
+        # 2. Filter available numeric columns
         num_cols = [c for c in df.select_dtypes(include=[np.number]).columns if c != time_col]
         if not num_cols:
             return None
 
-        # Prefer common metric keywords
-        metric_keywords = ["sales", "revenue", "demand", "units", "quantity", "price", "profit", "value", "count"]
-        for kw in metric_keywords:
-            for c in num_cols:
-                if kw in c.lower():
-                    return c
+        # Filter out temporal years/quarters, IDs, constant, and high-null columns
+        candidate_cols = []
+        for c in num_cols:
+            series = df[c].dropna()
+            if len(series) < 3:
+                continue
+            # Exclude if constant
+            if series.nunique() <= 1:
+                continue
+            # Exclude temporal year columns unless explicitly requested
+            c_low = c.lower()
+            tokens = re.sub(r"[^\w]", " ", re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", c)).lower().split()
+            if any(t in tokens for t in ("year", "fy", "cy", "yr", "quarter", "qtr", "date", "timestamp", "month")):
+                if series.between(1800, 2150).all() or (series.between(1, 4).all() and "q" in c_low):
+                    continue
+            # Exclude identifier columns
+            if any(t in tokens for t in ("id", "key", "code", "uuid", "guid", "sku", "ref", "serial")) and series.nunique() / len(series) > 0.8:
+                continue
+            candidate_cols.append(c)
 
-        return num_cols[0]
+        if not candidate_cols:
+            return None
+
+        # Prefer primary business metric keywords
+        metric_keywords = [
+            "actual", "revenue", "sales", "demand", "profit", "budget", "volume",
+            "usd", "amount", "spend", "units", "quantity", "price", "cost", "value", "count"
+        ]
+        scored_candidates = []
+        for c in candidate_cols:
+            score = 0
+            c_low = c.lower()
+            tokens = re.sub(r"[^\w]", " ", re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", c)).lower().split()
+            for idx, kw in enumerate(metric_keywords):
+                if kw in tokens or kw in c_low:
+                    score += (len(metric_keywords) - idx) * 10
+            # Bonus for valid non-null ratio & variance
+            score += min(10, df[c].dropna().nunique())
+            scored_candidates.append((c, score))
+
+        scored_candidates.sort(key=lambda x: x[1], reverse=True)
+        return scored_candidates[0][0]
 
     def infer_frequency(self, series: pd.Series) -> Tuple[str, bool]:
         """

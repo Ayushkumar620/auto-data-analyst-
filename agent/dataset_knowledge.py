@@ -248,13 +248,37 @@ class DatasetKnowledge(BaseModel):
         return sorted_dates[0].column_name if hasattr(sorted_dates[0], "column_name") else str(sorted_dates[0])
 
     def get_primary_metric(self) -> Optional[str]:
-        """Return the primary numeric target metric with highest confidence."""
+        """Return the primary numeric target metric with highest confidence, excluding temporal/ID columns."""
         if not self.metrics:
             return None
-        if isinstance(self.metrics[0], str):
-            return self.metrics[0]
-        sorted_metrics = sorted(self.metrics, key=lambda m: getattr(m, "confidence", 1.0), reverse=True)
-        return sorted_metrics[0].column_name if hasattr(sorted_metrics[0], "column_name") else str(sorted_metrics[0])
+
+        candidates = []
+        for m in self.metrics:
+            col_name = m.column_name if hasattr(m, "column_name") else str(m)
+            col_k = self.get_column_knowledge(col_name)
+            concept = (getattr(m, "semantic_concept", "") or (col_k.concept if col_k else "")).lower()
+            category = (getattr(m, "concept_category", "") or "").lower()
+
+            # Skip temporal or identifier columns
+            if category == "temporal" or concept in ("year", "quarter", "month", "timestamp", "date", "period", "identifier"):
+                continue
+            if any(t in col_name.lower().split("_") for t in ("year", "fy", "cy", "quarter", "qtr", "date", "timestamp", "id", "key")):
+                continue
+
+            # Prioritize primary business measure concepts
+            score = getattr(m, "confidence", 1.0)
+            if any(term in col_name.lower() or term in concept for term in ("actual", "revenue", "sales", "demand", "profit", "budget", "volume", "usd", "amount", "spend", "units")):
+                score += 0.50
+
+            candidates.append((col_name, score))
+
+        if candidates:
+            candidates.sort(key=lambda x: x[1], reverse=True)
+            return candidates[0][0]
+
+        # Fallback if all metrics were filtered
+        first_m = self.metrics[0]
+        return first_m.column_name if hasattr(first_m, "column_name") else str(first_m)
 
     def get_primary_dimension(self) -> Optional[str]:
         """Return the primary grouping dimension with highest confidence."""
