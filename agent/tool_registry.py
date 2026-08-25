@@ -95,6 +95,7 @@ class ToolRegistry:
             InsightAgent,
             ModelRegistryAgent,
             ModelSelectionAgent,
+            ModelTrainingAgent,
             PredictionAgent,
             ReportAgent,
             VisualizationAgent,
@@ -204,16 +205,29 @@ class ToolRegistry:
             )
         )
 
-        # 9. Predictive Modeling (Regression & Classification)
+        # 9. Predictive Modeling (Legacy Baseline)
         self.register(
             ToolDefinition(
                 name="prediction",
                 description="Trains and validates supervised machine learning models (Random Forest, Gradient Boosting).",
-                capabilities=["prediction", "classification", "regression", "model_training", "feature_engineering"],
+                capabilities=["prediction", "classification", "regression", "feature_engineering"],
                 input_schema={"data": "pd.DataFrame", "target": "str", "features": "list"},
                 output_schema={"model_metrics": "dict", "predictions": "list"},
                 execution_fn=lambda data, **kw: PredictionAgent().run({"data": data, **kw}),
                 validation_requirements=["model_metrics has score >= 0"],
+            )
+        )
+
+        # 10. Advanced Model Training & Evaluation Engine (Milestone 3)
+        self.register(
+            ToolDefinition(
+                name="model_training",
+                description="Trains, cross-validates, evaluates, and registers multi-algorithm candidate models without data leakage.",
+                capabilities=["model_training", "model_evaluation", "model_benchmarking", "algorithm_comparison"],
+                input_schema={"data": "pd.DataFrame", "target": "str", "candidates": "list", "metric": "str"},
+                output_schema={"best_model": "dict", "ranking": "list", "candidates": "list"},
+                execution_fn=lambda data, **kw: ModelTrainingAgent().run({"data": data, **kw}),
+                validation_requirements=["best_model is not None"],
             )
         )
 
