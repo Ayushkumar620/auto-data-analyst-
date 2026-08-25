@@ -150,7 +150,7 @@ class AutonomousForecastEngine:
             source=f"AutonomousForecastEngine.{best_name}",
             method=f"chronological_backtest_eval({n_obs}_obs)",
             confidence=0.92,
-            claim_type=ClaimType.HYPOTHESIS,
+            claim_type=ClaimType.INFERENCE,
             computation_details={
                 "selected_model": best_name,
                 "validation_mae": best_metrics.get("MAE", 0.0),
