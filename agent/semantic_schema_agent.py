@@ -26,10 +26,28 @@ from backend.app.core.semantic import BUSINESS_CONCEPTS, SEMANTIC_HINTS, _normal
 from backend.app.profilers.dataset_profiler import DatasetProfiler
 
 
+import hashlib
+
+def _compute_dataframe_fingerprint(df: pd.DataFrame, dataset_name: str = "") -> str:
+    """Fast dataset fingerprint for O(1) semantic profile memoization."""
+    try:
+        n_rows, n_cols = df.shape
+        cols_str = ",".join(str(c) for c in df.columns)
+        dtypes_str = ",".join(str(t) for t in df.dtypes)
+        sample_hash = ""
+        if n_rows > 0:
+            sample_slice = df.iloc[:min(10, n_rows)]
+            sample_hash = str(pd.util.hash_pandas_object(sample_slice, index=False).sum())
+        raw_key = f"{dataset_name}|{n_rows}|{n_cols}|{cols_str}|{dtypes_str}|{sample_hash}"
+        return hashlib.md5(raw_key.encode("utf-8")).hexdigest()
+    except Exception:
+        return f"{dataset_name}_{id(df)}"
+
+
 class SemanticSchemaAgent(BaseAgent):
     """
     Autonomous agent for dataset semantic profiling and ontology construction.
-    Produces a complete DatasetKnowledge artifact for all downstream agents.
+    Produces a rich, immutable DatasetKnowledge artifact for all downstream agents.
     """
 
     name = "Semantic Schema Agent"
@@ -40,6 +58,7 @@ class SemanticSchemaAgent(BaseAgent):
         super().__init__()
         self.hints = hints or SEMANTIC_HINTS
         self.profiler = DatasetProfiler()
+        self._knowledge_cache: Dict[str, DatasetKnowledge] = {}
 
     # ------------------------------------------------------------------
     # Core Pipeline
@@ -52,10 +71,15 @@ class SemanticSchemaAgent(BaseAgent):
     ) -> DatasetKnowledge:
         """
         Execute full semantic profiling pipeline on a pandas DataFrame.
-        Produces a rich, immutable DatasetKnowledge object.
+        Produces a rich, immutable DatasetKnowledge object with O(1) memoization.
         """
         d_id = dataset_id or dataset_name
         n_rows, n_cols = df.shape
+
+        # Check memoization cache
+        fingerprint = _compute_dataframe_fingerprint(df, dataset_name)
+        if fingerprint in self._knowledge_cache:
+            return self._knowledge_cache[fingerprint]
 
         # 1. Run raw structural and data quality profiling via DatasetProfiler
         profile_dict = self.profiler.profile(
@@ -150,6 +174,9 @@ class SemanticSchemaAgent(BaseAgent):
             entities=[],
             metadata={"profiler_version": "2.0"},
         )
+        if len(self._knowledge_cache) > 128:
+            self._knowledge_cache.clear()
+        self._knowledge_cache[fingerprint] = dk
         return dk
 
     # ------------------------------------------------------------------
