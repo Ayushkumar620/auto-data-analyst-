@@ -191,6 +191,19 @@ class ToolRegistry:
             )
         )
 
+        # 6b. Clustering & Segmentation (Milestone 6, Task 2)
+        self.register(
+            ToolDefinition(
+                name="clustering",
+                description="Discovers natural clusters and customer segments using benchmarked unsupervised algorithms.",
+                capabilities=["clustering", "segmentation", "group_discovery", "natural_groups"],
+                input_schema={"data": "pd.DataFrame", "features": "list", "n_clusters": "int"},
+                output_schema={"cluster_count": "int", "labels": "list", "cluster_sizes": "dict"},
+                execution_fn=lambda data, **kw: ClusteringAgent().run({"data": data, **kw}),
+                validation_requirements=["cluster_count >= 2"],
+            )
+        )
+
         # 7. Root-Cause Explanation & Driver Extraction
         self.register(
             ToolDefinition(

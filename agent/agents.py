@@ -27,6 +27,7 @@ from .cnn_agent import CNNAgent
 from .registry_agent import ModelRegistryAgent
 from .validation_agent import DataValidationAgent
 from .anomaly_agent import AnomalyDetectionAgent
+from .clustering_agent import ClusteringAgent
 from .schemas import ClaimType, Evidence, ErrorCategory
 
 

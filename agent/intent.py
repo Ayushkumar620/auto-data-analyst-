@@ -42,6 +42,7 @@ class AnalyticalIntent(str, Enum):
     CNN = "cnn"
     EXPLANATION = "explanation"
     ANOMALIES = "anomalies"
+    CLUSTERING = "clustering"
     REPORT = "report"
     UNKNOWN = "unknown"
 
@@ -423,6 +424,11 @@ class CommandIntelligenceAgent(BaseAgent):
             capabilities.append("anomaly_detection")
             intent_candidates.append((IntentType.ANOMALY_DETECTION, 93))
 
+        # 5b. Clustering / Segmentation
+        if any(w in text for w in ("cluster", "clustering", "segment", "segmentation", "segments", "group similar", "natural groups", "find groups")):
+            capabilities.append("clustering")
+            intent_candidates.append((IntentType.CLUSTERING, 93))
+
         # 6. Aggregation / Ranking / Regional Analysis
         if any(w in text for w in ("by region", "regional", "by country", "by category", "by customer")):
             capabilities.append("regional_analysis" if "region" in text else "segmentation")
@@ -690,6 +696,11 @@ class IntentAnalyzer:
         ),
         AnalyticalIntent.ANOMALIES: (
             "anomaly", "anomalies", "outlier", "outliers", "unusual", "deviations",
+        ),
+        AnalyticalIntent.CLUSTERING: (
+            "cluster", "clustering", "segment", "segmentation", "segments",
+            "natural groups", "group similar", "find groups", "similar records",
+            "k-means", "dbscan", "customer segments",
         ),
         AnalyticalIntent.REPORT: (
             "report", "summary report", "executive summary", "overview",
