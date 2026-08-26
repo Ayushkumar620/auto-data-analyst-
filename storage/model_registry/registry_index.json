@@ -2489,5 +2489,34 @@
     },
     "reference_profile": {},
     "feature_importances": {}
+  },
+  "mod_a16738532a": {
+    "model_id": "mod_a16738532a",
+    "name": "Agent_Test_Model",
+    "version": 48,
+    "model_family": "traditional_ml",
+    "algorithm": "Random Forest",
+    "problem_type": "binary_classification",
+    "target_column": "label",
+    "feature_columns": [
+      "feat_1",
+      "feat_2",
+      "feat_3"
+    ],
+    "feature_dtypes": {},
+    "hyperparameters": {},
+    "training_metrics": {},
+    "validation_metrics": {},
+    "primary_metric_name": "score",
+    "primary_metric_value": 0.0,
+    "loss_curve": [],
+    "created_at": "2026-08-26T19:43:32.177562",
+    "status": "active",
+    "tags": [],
+    "preprocessor_meta": {
+      "has_preprocessor": false
+    },
+    "reference_profile": {},
+    "feature_importances": {}
   }
 }
