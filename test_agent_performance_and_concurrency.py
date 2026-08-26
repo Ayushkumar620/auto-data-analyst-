@@ -7,14 +7,13 @@ from agent.execution_engine import ExecutionEngine, StepStatus
 from agent.dynamic_planner import ExecutionPlan, ExecutionStep
 from agent.semantic_schema_agent import SemanticSchemaAgent
 from agent.intent import IntentAnalyzer, AnalyticalIntent
-from agent.model_training_engine import TraditionalMLTrainer
-from agent.tool_registry import ToolRegistry, DEFAULT_TOOL_REGISTRY
+from agent.model_training_engine import ModelTrainingEngine
+from agent.tool_registry import ToolRegistry, ToolDefinition
 from agent.schemas import AgentResult
 
 
 def test_parallel_dag_execution():
     """Verify that independent DAG steps at the same topological level execute concurrently."""
-    # Create custom tool registry with artificial delay
     registry = ToolRegistry()
 
     def slow_eda(data, **kwargs):
@@ -32,10 +31,10 @@ def test_parallel_dag_execution():
     def fast_report(data, agent_outputs=None, **kwargs):
         return {"report": "Synthesized report", "num_inputs": len(agent_outputs or [])}
 
-    registry.register("eda", slow_eda)
-    registry.register("anomaly", slow_anomaly)
-    registry.register("agg", slow_agg)
-    registry.register("report", fast_report)
+    registry.register(ToolDefinition(name="eda", description="EDA", execution_fn=slow_eda))
+    registry.register(ToolDefinition(name="anomaly", description="Anomaly", execution_fn=slow_anomaly))
+    registry.register(ToolDefinition(name="agg", description="Agg", execution_fn=slow_agg))
+    registry.register(ToolDefinition(name="report", description="Report", execution_fn=fast_report))
 
     # 3 independent steps in Level 0, and 1 dependent step in Level 1
     steps = [
@@ -140,11 +139,11 @@ def test_intent_analyzer_cache():
 
 def test_model_training_parallel_multicore():
     """Verify that RandomForest and ExtraTrees estimators train cleanly with n_jobs=-1."""
-    trainer = TraditionalMLTrainer()
+    engine = ModelTrainingEngine()
     X = np.random.randn(100, 5)
     y = np.random.choice([0, 1], size=100)
 
-    est, name, fam = trainer.build_estimator("Random Forest Classifier", "classification", hyperparams={})
+    est, name, fam = engine.instantiate_model("Random Forest Classifier", "classification")
     assert hasattr(est, "n_jobs")
     assert est.n_jobs == -1
 
