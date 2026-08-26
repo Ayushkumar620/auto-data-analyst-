@@ -1,5 +1,5 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { IconCheck, IconChevronLeft, IconChevronRight, IconBrain, IconTrendUp, IconActivity } from '../ui/Icons';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { IconCheck, IconChevronLeft, IconChevronRight, IconBrain } from '../ui/Icons';
 
 export type TimelineStage = {
   id: string;
@@ -31,8 +31,10 @@ export default function HorizontalAnalysisTimeline({
   onSelectStage,
 }: HorizontalAnalysisTimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
 
   // Default standard 5-stage pipeline if not provided
@@ -89,19 +91,25 @@ export default function HorizontalAnalysisTimeline({
     },
   ];
 
-  const checkScroll = () => {
+  const checkScroll = useCallback(() => {
     const el = scrollRef.current;
     if (el) {
+      const maxScroll = el.scrollWidth - el.clientWidth;
       setCanScrollLeft(el.scrollLeft > 5);
-      setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 5);
+      setCanScrollRight(maxScroll > 5 && el.scrollLeft < maxScroll - 5);
+      if (maxScroll > 0) {
+        setScrollProgress(Math.min(100, Math.max(0, (el.scrollLeft / maxScroll) * 100)));
+      } else {
+        setScrollProgress(100);
+      }
     }
-  };
+  }, []);
 
   useEffect(() => {
     checkScroll();
     window.addEventListener('resize', checkScroll);
     return () => window.removeEventListener('resize', checkScroll);
-  }, [stages]);
+  }, [stages, checkScroll]);
 
   const handleScroll = (direction: 'left' | 'right') => {
     const el = scrollRef.current;
@@ -109,6 +117,27 @@ export default function HorizontalAnalysisTimeline({
       const scrollAmount = direction === 'left' ? -280 : 280;
       el.scrollBy({ left: scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 320);
+    }
+  };
+
+  const scrollToStage = (index: number) => {
+    const cardEl = cardRefs.current[index];
+    const trackEl = scrollRef.current;
+    if (cardEl && trackEl) {
+      const targetLeft = cardEl.offsetLeft - trackEl.offsetLeft - 16;
+      trackEl.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
+      setTimeout(checkScroll, 320);
+    }
+  };
+
+  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const el = scrollRef.current;
+    if (el) {
+      const val = parseFloat(e.target.value);
+      const maxScroll = el.scrollWidth - el.clientWidth;
+      el.scrollLeft = (val / 100) * maxScroll;
+      setScrollProgress(val);
+      checkScroll();
     }
   };
 
@@ -121,7 +150,7 @@ export default function HorizontalAnalysisTimeline({
 
   return (
     <div className={`horizontal-timeline-panel${className ? ` ${className}` : ''}`}>
-      {/* Panel Header & Controls */}
+      {/* Top Panel Header */}
       <div className="timeline-header">
         <div className="timeline-header-info">
           <div className="timeline-header-title-row">
@@ -132,13 +161,16 @@ export default function HorizontalAnalysisTimeline({
             <span className="timeline-stage-count">
               {stages.filter((s) => s.status === 'completed').length} / {stages.length} Completed
             </span>
+            {totalDurationMs !== undefined && (
+              <span className="timeline-total-time">?? {Math.round(totalDurationMs)}ms</span>
+            )}
           </div>
           <p className="timeline-subtitle">
             Step-by-step multi-agent reasoning flow moving from left to right across analytical stages.
           </p>
         </div>
 
-        {/* Left / Right Scroll Buttons */}
+        {/* Top Mini Scroll Controls */}
         <div className="timeline-controls">
           <button
             type="button"
@@ -163,7 +195,7 @@ export default function HorizontalAnalysisTimeline({
         </div>
       </div>
 
-      {/* Horizontal Scroll Track */}
+      {/* Main Horizontal Scroll Track */}
       <div
         ref={scrollRef}
         className="timeline-scroll-track"
@@ -190,6 +222,7 @@ export default function HorizontalAnalysisTimeline({
                 )}
 
                 <div
+                  ref={(el) => (cardRefs.current[idx] = el)}
                   className={`timeline-card timeline-card--${stage.status}${isSelected ? ' timeline-card--selected' : ''}`}
                   onClick={() => handleStageClick(stage)}
                   role="button"
@@ -235,6 +268,72 @@ export default function HorizontalAnalysisTimeline({
               </React.Fragment>
             );
           })}
+        </div>
+      </div>
+
+      {/* Down / Bottom Scroll Navigation Panel (From Left to Right) */}
+      <div className="timeline-down-scroll-panel" aria-label="Timeline horizontal navigation">
+        <div className="timeline-down-scroll-left">
+          <button
+            type="button"
+            className="timeline-down-nav-btn"
+            onClick={() => handleScroll('left')}
+            disabled={!canScrollLeft}
+            aria-label="Scroll left across stages"
+          >
+            <IconChevronLeft size={16} aria-hidden />
+            <span>Scroll Left</span>
+          </button>
+        </div>
+
+        {/* Step Quick Jump Pills & Slider Track */}
+        <div className="timeline-down-scroll-center">
+          <div className="timeline-step-pills">
+            {stages.map((stage, idx) => {
+              const isSelected = selectedStageId === stage.id;
+              return (
+                <button
+                  key={stage.id}
+                  type="button"
+                  className={`timeline-step-pill${isSelected ? ' timeline-step-pill--selected' : ''}`}
+                  onClick={() => {
+                    scrollToStage(idx);
+                    setSelectedStageId(stage.id);
+                  }}
+                  title={`Jump to Stage ${stage.stepNumber}: ${stage.title}`}
+                  aria-label={`Jump to Stage ${stage.stepNumber}: ${stage.title}`}
+                >
+                  <span className="timeline-pill-dot" />
+                  <span>S{stage.stepNumber}: {stage.title.split(' ')[0]}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="timeline-progress-container" title={`Scroll progress: ${Math.round(scrollProgress)}%`}>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={scrollProgress}
+              onChange={handleSliderChange}
+              className="timeline-progress-slider"
+              aria-label="Horizontal scroll position"
+            />
+          </div>
+        </div>
+
+        <div className="timeline-down-scroll-right">
+          <button
+            type="button"
+            className="timeline-down-nav-btn"
+            onClick={() => handleScroll('right')}
+            disabled={!canScrollRight}
+            aria-label="Scroll right across stages"
+          >
+            <span>Scroll Right</span>
+            <IconChevronRight size={16} aria-hidden />
+          </button>
         </div>
       </div>
 
