@@ -136,6 +136,7 @@ class ForecastResult(BaseModel):
             "date_col": self.time_column,
             "frequency": self.frequency,
             "forecast_horizon": self.forecast_horizon,
+            "predictions": [p.to_dict() for p in self.predictions],
             "forecast_periods": self.forecast_horizon,
             "predictions": preds_list,
             "forecast_values": forecast_vals,

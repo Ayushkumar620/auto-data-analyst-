@@ -73,6 +73,7 @@ class AutonomousForecastEngine:
         horizon = max(1, min(request.forecast_horizon, 36))
 
         # 1. Clean and Aggregate Series
+        series_df = df[[time_col, target_col]].dropna().copy()
         if time_col == "_time_step" or time_col not in df.columns or time_col == target_col:
             time_col = "_time_step"
             series_df = pd.DataFrame({
@@ -151,12 +152,15 @@ class AutonomousForecastEngine:
         last_date = series_df[time_col].iloc[-1]
         future_dates = self._generate_future_dates(last_date, horizon, freq_str)
 
+        # 7. Projected Change vs Baseline (Distinguished from Validation Accuracy)
+        last_val = y_all[-1]
         # 7. Historical Slope and Projected Change vs Baseline
         x_all = np.arange(n_obs)
         slope_val = float(np.polyfit(x_all, y_all, 1)[0]) if n_obs >= 2 else 0.0
 
         last_val = float(y_all[-1])
         mean_forecast = float(np.mean(future_y))
+        projected_change_pct = round(((mean_forecast - last_val) / (abs(last_val) + 1e-9)) * 100.0, 2)
         if abs(last_val) > 1e-9:
             projected_change_pct = round(((mean_forecast - last_val) / abs(last_val)) * 100.0, 2)
         else:
@@ -332,8 +336,10 @@ class AutonomousForecastEngine:
         sum_abs_true = float(np.sum(np.abs(y_true)))
         wape = float(np.sum(np.abs(y_true - y_pred)) / sum_abs_true) if sum_abs_true > 0 else 0.0
 
+        # Symmetric MAPE (sMAPE): safe when actuals are zero
         # Symmetric MAPE (sMAPE): safe when actuals and predictions are zero
         denom = (np.abs(y_true) + np.abs(y_pred)) / 2.0
+        smape = float(np.mean(np.where(denom > 1e-9, np.abs(y_pred - y_true) / denom, 0.0)) * 100.0)
         safe_denom = np.where(denom > 1e-9, denom, 1.0)
         smape = float(np.mean(np.where(denom > 1e-9, np.abs(y_pred - y_true) / safe_denom, 0.0)) * 100.0)
 

@@ -214,9 +214,12 @@ class TimeSeriesDetector:
         warnings: List[str] = []
         limitations: List[str] = []
 
+        time_col = self.detect_time_column(df, hint=time_column)
+        target_col = self.detect_target_column(df, time_col=time_col, hint=target_column)
         # Detect temporal column from dataset
         detected_time = self.detect_time_column(df, hint=time_column)
 
+        if not time_col:
         if not detected_time:
             return ForecastSuitabilityResult(
                 suitable=False,
@@ -233,12 +236,15 @@ class TimeSeriesDetector:
             return ForecastSuitabilityResult(
                 suitable=False,
                 score=0.0,
+                detected_time_column=time_col,
                 detected_time_column=detected_time,
                 reasons=["No numeric target metric found in dataset."],
                 warnings=["Forecasting requires at least one continuous numeric metric."],
                 limitations=["Cannot forecast non-numeric categorical variables."],
             )
 
+        # Ingest and prepare series
+        clean_df = df[[time_col, target_col]].dropna().copy()
         # If user explicitly forecasts the temporal column itself (e.g. target == FiscalYear)
         if detected_time == target_col:
             time_col = "_time_step"
