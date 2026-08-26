@@ -237,9 +237,17 @@ class PredictionAgent(BaseAgent):
             from agent.result_validator import ResultValidator
 
             data = task.get("data")
-            target = task.get("target")
+            target = task.get("target") or task.get("target_column")
+            features = task.get("features") or task.get("feature_columns")
+            include_temporal = task.get("include_temporal_features", True)
 
-            pre_audit = PreExecutionValidator.validate(data, task_type="prediction", target=target, agent_name=self.name)
+            pre_audit = PreExecutionValidator.validate(
+                data,
+                task_type="prediction",
+                target=target,
+                feature_columns=features,
+                agent_name=self.name,
+            )
             if not pre_audit.is_valid:
                 if pre_audit.needs_clarification:
                     return self._needs_clarification(
@@ -256,7 +264,11 @@ class PredictionAgent(BaseAgent):
                 )
 
             predictor = DataPredictor(data)
-            result = predictor.predict(target=target)
+            result = predictor.predict(
+                target=target,
+                features=features,
+                include_temporal_features=include_temporal,
+            )
             if "error" in result:
                 return self._error(
                     message=result["error"],
@@ -324,10 +336,17 @@ class ForecastAgent(BaseAgent):
             from agent.result_validator import ResultValidator
 
             data = task.get("data")
-            target = task.get("target")
-            periods = task.get("periods", 5)
+            target = task.get("target") or task.get("target_column")
+            time_column = task.get("time_column") or task.get("date_col")
+            periods = task.get("periods") or task.get("forecast_horizon") or 5
 
-            pre_audit = PreExecutionValidator.validate(data, task_type="forecasting", target=target, agent_name=self.name)
+            pre_audit = PreExecutionValidator.validate(
+                data,
+                task_type="forecasting",
+                target=target,
+                time_column=time_column,
+                agent_name=self.name,
+            )
             if not pre_audit.is_valid:
                 err = pre_audit.error
                 return self._error(
@@ -338,7 +357,7 @@ class ForecastAgent(BaseAgent):
                 )
 
             predictor = DataPredictor(data)
-            result = predictor.forecast(target=target, periods=periods)
+            result = predictor.forecast(target=target, periods=periods, time_column=time_column)
             if "error" in result:
                 return self._error(
                     message=result["error"],

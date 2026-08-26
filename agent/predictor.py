@@ -26,7 +26,7 @@ class DataPredictor:
             return None
         return self.data if isinstance(self.data, pd.DataFrame) else None
 
-    def forecast(self, target=None, periods=5):
+    def forecast(self, target=None, periods=5, time_column=None):
         """Autonomous time-series forecast delegating to AutonomousForecastEngine as single source of truth."""
         df = self._get_main_df()
         if df is None or df.empty:
@@ -38,7 +38,7 @@ class DataPredictor:
         from agent.canonical_data_layer import CanonicalDataLayer
 
         detector = TimeSeriesDetector()
-        date_col = detector.detect_time_column(df)
+        date_col = time_column if (time_column and time_column in df.columns) else detector.detect_time_column(df)
 
         if target and target in df.columns:
             chosen_target = target
@@ -133,7 +133,7 @@ class DataPredictor:
             "valid_rows": audit.valid_rows,
         }
 
-    def predict(self, target=None):
+    def predict(self, target=None, features=None, include_temporal_features=True):
         """Train a model to predict a target column with multi-candidate benchmarking and canonical validation."""
         df = self._get_main_df()
         if df is None or df.empty:
@@ -154,6 +154,9 @@ class DataPredictor:
         X, y, audit = CanonicalDataLayer.prepare_tabular_prediction_data(
             df,
             target_column=chosen_target,
+            features=features,
+            include_temporal_features=include_temporal_features,
+            task_type="tabular_supervised",
             minimum_required_rows=10,
         )
 

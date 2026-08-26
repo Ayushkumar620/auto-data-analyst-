@@ -425,12 +425,22 @@ class CanonicalDataLayer:
         cls,
         df: pd.DataFrame,
         target_column: str,
+        features: Optional[List[str]] = None,
+        include_temporal_features: bool = True,
+        time_column: Optional[str] = None,
+        task_type: str = "tabular_supervised",
         minimum_required_rows: int = 10,
     ) -> Tuple[Optional[pd.DataFrame], Optional[pd.Series], DatasetRowAudit]:
         """
         Prepare features X and target y for tabular prediction (regression or classification).
         Non-destructive: isolates target validation and imputes/filters features so
         unrelated missing values never discard valid observations.
+
+        Distinguishes semantic column roles:
+        - For forecasting: temporal column is time index, excluded from ordinary ML features.
+        - For supervised ML: temporal column is encoded into rich numeric calendar/cyclical features.
+        - Explicit features override automatic exclusion.
+        - Identifiers, constants, and high-cardinality noise are excluded by default.
         """
         audit, target_clean, _ = cls.audit_dataset_for_target(
             df,
@@ -446,53 +456,135 @@ class CanonicalDataLayer:
         df_valid = df.loc[valid_target_mask].copy()
         y = target_clean.loc[valid_target_mask].copy()
 
-        # Profiling for identifier exclusion
+        # Profiling for semantic role detection
         profile = cls.profile_dataset(df_valid)
 
-        # 2. Select Candidate Features (exclude target & identifiers)
-        feature_cols = [
-            c for c in df_valid.columns
-            if c != target_column and c not in profile.identifier_columns
-        ]
+        # 2. Select Candidate Feature Columns
+        if features is not None and len(features) > 0:
+            # Explicit user-selected features override automatic exclusions
+            feature_cols = [c for c in features if c in df_valid.columns and c != target_column]
+            is_explicit_features = True
+        else:
+            is_explicit_features = False
+            feature_cols = [
+                c for c in df_valid.columns
+                if c != target_column
+                and c not in profile.identifier_columns
+                and c not in profile.constant_columns
+                and c not in profile.high_cardinality_columns
+                and c not in profile.text_columns
+            ]
 
         if not feature_cols:
-            X = pd.DataFrame({"__step": np.arange(len(y))}, index=y.index)
-            return X, y, audit
+            X_df = pd.DataFrame({"__step": np.arange(len(y), dtype=float)}, index=y.index)
+            return X_df, y, audit
 
-        # 3. Clean Feature Columns Without Dropping Valid Target Rows
+        # 3. Clean and Transform Feature Columns Without Dropping Valid Target Rows
         X_df = pd.DataFrame(index=y.index)
+        is_forecasting = task_type in ("forecasting", "time_series_forecast")
+
         for col in feature_cols:
             series = df_valid[col]
 
-            # Exclude feature if > 60% missing values
-            if series.isna().mean() > 0.60:
+            # Check if this column is temporal (by dtype, profile, or parseability)
+            is_temporal = (
+                col in profile.datetime_candidates
+                or (time_column is not None and col == time_column)
+                or pd.api.types.is_datetime64_any_dtype(series)
+            )
+            if not is_temporal and (series.dtype == object or str(series.dtype).startswith("str")):
+                # Check sample parseability
+                coerced_sample = cls.coerce_datetime_series(series.dropna().head(15))
+                if coerced_sample.notna().mean() >= 0.80 and coerced_sample.nunique() > 1:
+                    is_temporal = True
+
+            # Case A: Temporal Column Handling
+            if is_temporal:
+                if is_forecasting and not is_explicit_features:
+                    # In forecasting, temporal index serves as chronological axis, not tabular feature
+                    continue
+
+                if include_temporal_features or is_explicit_features:
+                    dt_series = cls.coerce_datetime_series(series)
+                    valid_dt_count = int(dt_series.notna().sum())
+                    if valid_dt_count >= 3:
+                        # Impute any missing datetime with median timestamp
+                        if dt_series.isna().any():
+                            median_ts = dt_series.dropna().median()
+                            dt_series = dt_series.fillna(median_ts)
+
+                        added_temp_feature = False
+
+                        # Year feature
+                        if dt_series.dt.year.nunique() > 1:
+                            X_df[f"{col}_year"] = dt_series.dt.year.astype(float)
+                            added_temp_feature = True
+
+                        # Month + cyclical features
+                        if dt_series.dt.month.nunique() > 1:
+                            m_s = dt_series.dt.month.astype(float)
+                            X_df[f"{col}_month"] = m_s
+                            X_df[f"{col}_month_sin"] = np.sin(2.0 * np.pi * m_s / 12.0)
+                            X_df[f"{col}_month_cos"] = np.cos(2.0 * np.pi * m_s / 12.0)
+                            added_temp_feature = True
+
+                        # Day of month feature
+                        if dt_series.dt.day.nunique() > 1:
+                            X_df[f"{col}_day"] = dt_series.dt.day.astype(float)
+                            added_temp_feature = True
+
+                        # Day of week + cyclical + weekend features
+                        if dt_series.dt.dayofweek.nunique() > 1:
+                            dow_s = dt_series.dt.dayofweek.astype(float)
+                            X_df[f"{col}_dayofweek"] = dow_s
+                            X_df[f"{col}_dayofweek_sin"] = np.sin(2.0 * np.pi * dow_s / 7.0)
+                            X_df[f"{col}_dayofweek_cos"] = np.cos(2.0 * np.pi * dow_s / 7.0)
+                            X_df[f"{col}_is_weekend"] = (dow_s >= 5.0).astype(float)
+                            added_temp_feature = True
+
+                        # Hour feature (for intraday sequences)
+                        if dt_series.dt.hour.nunique() > 1:
+                            h_s = dt_series.dt.hour.astype(float)
+                            X_df[f"{col}_hour"] = h_s
+                            added_temp_feature = True
+
+                        # Elapsed days trend feature
+                        min_dt = dt_series.min()
+                        elapsed = (dt_series - min_dt).dt.total_seconds() / 86400.0
+                        if elapsed.nunique() > 1:
+                            X_df[f"{col}_elapsed_days"] = elapsed.astype(float)
+                            added_temp_feature = True
+
+                        if not added_temp_feature:
+                            # Fallback: epoch timestamp in seconds
+                            X_df[f"{col}_timestamp"] = (dt_series.astype("int64") // 10**9).astype(float)
+                continue
+
+            # Case B: Non-Temporal Column Handling
+            # Exclude feature if >60% missing values (unless explicitly requested)
+            if not is_explicit_features and series.isna().mean() > 0.60:
                 audit.removal_reasons.append(f"Excluded sparse feature column '{col}' (>60% missing values).")
                 continue
 
-            # Exclude feature if constant (0 variance)
-            if series.nunique(dropna=True) <= 1:
-                continue
-
-            # Datetime conversion
-            if pd.api.types.is_datetime64_any_dtype(series):
-                X_df[col] = series.astype("int64") // 10**9
+            # Exclude feature if constant (unless explicitly requested)
+            if not is_explicit_features and series.nunique(dropna=True) <= 1:
                 continue
 
             # Try numeric coercion
             num_s = cls.coerce_numeric_series(series)
             if num_s.notna().mean() >= 0.70:
-                median_val = num_s.median() if not np.isnan(num_s.median()) else 0.0
-                X_df[col] = num_s.fillna(median_val)
+                median_val = float(num_s.median()) if not np.isnan(num_s.median()) else 0.0
+                X_df[col] = num_s.fillna(median_val).astype(float)
             else:
                 from sklearn.preprocessing import LabelEncoder
                 cat_s = series.fillna("Unknown").astype(str)
                 try:
-                    X_df[col] = LabelEncoder().fit_transform(cat_s)
+                    X_df[col] = LabelEncoder().fit_transform(cat_s).astype(float)
                 except Exception:
                     pass
 
         if X_df.empty or X_df.shape[1] == 0:
-            X_df = pd.DataFrame({"__step": np.arange(len(y))}, index=y.index)
+            X_df = pd.DataFrame({"__step": np.arange(len(y), dtype=float)}, index=y.index)
 
         audit.analysis_rows = len(y)
         audit.valid_rows = len(y)
