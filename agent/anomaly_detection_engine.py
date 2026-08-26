@@ -1,4 +1,4 @@
-﻿"""
+"""
 Universal, Dataset-Agnostic Anomaly Detection Engine.
 
 Single source of truth for anomaly and outlier detection.
@@ -183,8 +183,13 @@ class AnomalyDetectionEngine:
         for col in candidate_cols:
             series = df[col]
 
-            # 1. Identifier exclusion
-            if not is_explicit and col in profile.identifier_columns:
+            # 0. Missingness check (>60% missingness excluded)
+            if not is_explicit and series.isna().mean() > 0.60:
+                excluded.append(str(col))
+                continue
+
+            # 1. Identifier exclusion (only when other candidate columns exist)
+            if not is_explicit and col in profile.identifier_columns and len(candidate_cols) > 1:
                 excluded.append(str(col))
                 continue
 
@@ -217,15 +222,10 @@ class AnomalyDetectionEngine:
             num_valid_ratio = num_s.notna().mean()
 
             if num_valid_ratio >= 0.60:
-                # Sparse feature check
-                if not is_explicit and num_s.isna().mean() > 0.60:
-                    excluded.append(str(col))
-                    continue
-
                 median_val = float(num_s.median()) if not np.isnan(num_s.median()) else 0.0
                 clean_col = num_s.fillna(median_val).astype(float)
 
-                if clean_col.nunique() > 1 or is_explicit:
+                if clean_col.nunique() > 1 or is_explicit or len(candidate_cols) == 1:
                     X_df[str(col)] = clean_col
                     # Compute feature statistics for explainability
                     q25 = float(clean_col.quantile(0.25))
@@ -246,7 +246,7 @@ class AnomalyDetectionEngine:
                     excluded.append(str(col))
             else:
                 # Categorical column
-                if is_explicit or (series.nunique(dropna=True) <= 20 and len(df) >= 20):
+                if (is_explicit or (series.nunique(dropna=True) <= 20 and len(df) >= 20)) and series.isna().mean() <= 0.60:
                     cat_s = series.fillna("__UNKNOWN__").astype(str)
                     try:
                         encoded = LabelEncoder().fit_transform(cat_s).astype(float)

@@ -282,6 +282,10 @@ class ValidationResult(BaseModel):
     repaired: bool = False
     repair_actions: List[str] = Field(default_factory=list)
 
+    @property
+    def is_valid(self) -> bool:
+        return self.passed
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "passed": self.passed,

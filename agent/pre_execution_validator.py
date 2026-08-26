@@ -429,18 +429,18 @@ class PreExecutionValidator:
         target: Optional[str],
         agent_name: str,
     ) -> PreExecutionValidationReport:
-        if not profile.numeric_columns:
-            err = AgentError.create(
-                category=ErrorCategory.DATA_INVALID,
-                user_message="Anomaly detection requires at least one numeric measure to compute deviations.",
-                agent_name=agent_name,
-            )
-            return PreExecutionValidationReport(is_valid=False, task_type="anomaly_detection", error=err)
-
         if len(df) < 5:
             err = AgentError.create(
                 category=ErrorCategory.INSUFFICIENT_DATA,
                 user_message=f"Need at least 5 observations for statistical anomaly detection. Found {len(df)}.",
+                agent_name=agent_name,
+            )
+            return PreExecutionValidationReport(is_valid=False, task_type="anomaly_detection", error=err)
+
+        if not profile.numeric_columns:
+            err = AgentError.create(
+                category=ErrorCategory.DATA_INVALID,
+                user_message="Anomaly detection requires at least one numeric measure to compute deviations.",
                 agent_name=agent_name,
             )
             return PreExecutionValidationReport(is_valid=False, task_type="anomaly_detection", error=err)
