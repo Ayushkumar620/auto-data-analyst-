@@ -1,4 +1,4 @@
-"""
+﻿"""
 Universal Canonical Agent Result Contract & Error Architecture.
 
 Defines standardized Pydantic data contracts for all analytical agents,
@@ -54,13 +54,13 @@ class ErrorCategory(str, Enum):
     INTERNAL_ERROR = "internal_error"
 
     # Legacy category aliases
-    INPUT_VALIDATION = "input_invalid"
-    DATA_QUALITY = "data_invalid"
-    COMPUTATION = "execution_failure"
-    RESOURCE = "execution_failure"
-    SEMANTIC = "ambiguous_request"
-    DEPENDENCY = "dependency_failure"
-    UNKNOWN = "internal_error"
+    INPUT_VALIDATION = "input_validation"
+    DATA_QUALITY = "data_quality"
+    COMPUTATION = "computation"
+    RESOURCE = "resource"
+    SEMANTIC = "semantic"
+    DEPENDENCY = "dependency"
+    UNKNOWN = "unknown"
 
 
 class ValidationSeverity(str, Enum):
@@ -95,7 +95,7 @@ class Evidence(BaseModel):
     calculation: Optional[str] = None
     source_reference: Optional[str] = None
     result: Any = None
-    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    confidence: float = Field(default=1.0)
 
     # Backward compatibility fields
     source: Optional[str] = None
@@ -104,13 +104,6 @@ class Evidence(BaseModel):
     claim_type: Union[ClaimType, str] = ClaimType.OBSERVATION
     raw_value: Any = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
-
-    @field_validator("confidence")
-    @classmethod
-    def validate_confidence(cls, v: float) -> float:
-        if v < 0.0 or v > 1.0:
-            return max(0.0, min(1.0, float(v)))
-        return float(v)
 
     @model_validator(mode="before")
     @classmethod
@@ -184,28 +177,23 @@ class AgentError(BaseModel):
     @classmethod
     def sync_error_fields(cls, data: Any) -> Any:
         if isinstance(data, dict):
-            # Sync user_message
             if "message" in data and not data.get("user_message"):
-                # Clean message without stack traces
                 msg = str(data["message"])
                 clean_msg = msg.split("\n")[0] if "Traceback" in msg else msg
                 data["user_message"] = clean_msg
             elif "user_message" in data and not data.get("message"):
                 data["message"] = str(data["user_message"])
 
-            # Sync details / technical_details
             if "details" in data and not data.get("technical_details"):
                 data["technical_details"] = data["details"] if isinstance(data["details"], dict) else {"details": data["details"]}
             elif "technical_details" in data and not data.get("details"):
                 data["details"] = data["technical_details"]
 
-            # Sync suggested_fix / suggested_action
             if "suggested_fix" in data and not data.get("suggested_action"):
                 data["suggested_action"] = data["suggested_fix"]
             elif "suggested_action" in data and not data.get("suggested_fix"):
                 data["suggested_fix"] = data["suggested_action"]
 
-            # Sync category / code
             if "category" in data and ("code" not in data or data["code"] == "INTERNAL_ERROR"):
                 cat = data["category"]
                 data["code"] = cat.value if isinstance(cat, ErrorCategory) else str(cat).upper()
@@ -242,7 +230,6 @@ class AgentError(BaseModel):
         field: Optional[str] = None,
         agent_name: Optional[str] = None,
     ) -> "AgentError":
-        """Factory method to construct safe, clean errors."""
         cat_enum = category if isinstance(category, ErrorCategory) else ErrorCategory(str(category).lower())
         return cls(
             code=cat_enum.value.upper(),
@@ -325,13 +312,9 @@ class ValidationResult(BaseModel):
 class AgentResult(BaseModel):
     """
     Authoritative, standardized Pydantic data contract for all analytical agents.
-    
-    Exposes complete diagnostic, evidentiary, and mathematical validation properties
-    without hardcoded assumptions or raw stack traces.
     """
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
 
-    success: bool = True
     status: Union[AgentStatus, str] = Field(default=AgentStatus.SUCCESS)
     task_type: Optional[str] = None
     agent_name: str = Field(default="Unknown Agent")
@@ -341,7 +324,7 @@ class AgentResult(BaseModel):
     result: Dict[str, Any] = Field(default_factory=dict)
     metrics: Dict[str, Any] = Field(default_factory=dict)
     evidence: List[Evidence] = Field(default_factory=list)
-    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    confidence: float = Field(default=1.0)
     warnings: List[str] = Field(default_factory=list)
     errors: List[AgentError] = Field(default_factory=list)
     assumptions: List[str] = Field(default_factory=list)
@@ -369,13 +352,6 @@ class AgentResult(BaseModel):
     model_used: Optional[str] = None
     retry_count: int = 0
 
-    @field_validator("confidence")
-    @classmethod
-    def validate_confidence(cls, v: float) -> float:
-        if math.isnan(v) or math.isinf(v):
-            return 0.0
-        return max(0.0, min(1.0, float(v)))
-
     @field_validator("status")
     @classmethod
     def validate_status(cls, v: Union[AgentStatus, str]) -> Union[AgentStatus, str]:
@@ -392,16 +368,7 @@ class AgentResult(BaseModel):
     @classmethod
     def sync_legacy_and_modern_fields(cls, data: Any) -> Any:
         if isinstance(data, dict):
-            # 1. Sync success and status
-            if "status" in data:
-                st = data["status"]
-                st_str = st.value if isinstance(st, AgentStatus) else str(st).lower()
-                if "success" not in data:
-                    data["success"] = st_str in ("success", "completed")
-            elif "success" in data:
-                data["status"] = AgentStatus.SUCCESS if data["success"] else AgentStatus.FAILED
-
-            # 2. Sync result / data / output
+            # Sync result / data / output
             res = data.get("result") or data.get("data") or data.get("output") or {}
             if not isinstance(res, dict):
                 res = {"value": res}
@@ -409,34 +376,43 @@ class AgentResult(BaseModel):
             data["data"] = res
             data["output"] = res
 
-            # 3. Sync execution_id / task_id / agent_id
+            # Sync execution_id / task_id / agent_id
             ex_id = data.get("execution_id") or data.get("task_id") or data.get("agent_id") or f"exec_{uuid.uuid4().hex[:8]}"
             data["execution_id"] = str(ex_id)
             data["task_id"] = str(ex_id)
             data["agent_id"] = str(ex_id)
 
-            # 4. Sync agent_name / agent
+            # Sync agent_name / agent
             ag_name = data.get("agent_name") or data.get("agent") or "Unknown Agent"
             data["agent_name"] = str(ag_name)
             data["agent"] = str(ag_name)
 
-            # 5. Sync execution_time_ms / duration_ms / execution_time
+            # Sync execution_time_ms / duration_ms / execution_time
             dur = data.get("execution_time_ms") or data.get("duration_ms") or data.get("execution_time") or 0.0
             data["execution_time_ms"] = float(dur)
             data["duration_ms"] = float(dur)
             data["execution_time"] = float(dur)
 
-            # 6. Sync model_info / model_used
+            # Sync model_info / model_used
             if "model_used" in data and not data.get("model_info"):
                 data["model_info"] = {"name": data["model_used"]}
             elif "model_info" in data and isinstance(data["model_info"], dict) and not data.get("model_used"):
                 data["model_used"] = data["model_info"].get("name") or data["model_info"].get("model_name")
         return data
 
+    def __init__(self, **data: Any):
+        super().__init__(**data)
+        if not self.agent:
+            self.agent = self.agent_name
+        if not self.agent_id:
+            self.agent_id = self.task_id
+        if self.output is None:
+            self.output = self.data
+
     @property
     def is_success(self) -> bool:
         st = self.status.value if isinstance(self.status, AgentStatus) else str(self.status).lower()
-        return st in ("success", "completed") and self.success
+        return st in ("success", "completed")
 
     @property
     def is_partial(self) -> bool:
@@ -456,11 +432,18 @@ class AgentResult(BaseModel):
     @property
     def is_error(self) -> bool:
         st = self.status.value if isinstance(self.status, AgentStatus) else str(self.status).lower()
-        return st in ("failed", "error", "validation_failed") or not self.success
+        return st in ("failed", "error", "validation_failed")
+
+    @property
+    def has_evidence(self) -> bool:
+        return len(self.evidence) > 0
+
+    @property
+    def has_errors(self) -> bool:
+        return len(self.errors) > 0
 
     def add_error(self, error: AgentError) -> None:
         self.errors.append(error)
-        self.success = False
         self.status = AgentStatus.ERROR
 
     def add_warning(self, warning: str) -> None:
@@ -469,10 +452,30 @@ class AgentResult(BaseModel):
     def add_evidence(self, evidence: Evidence) -> None:
         self.evidence.append(evidence)
 
+    def get(self, key: str, default: Any = None) -> Any:
+        if key == "success":
+            return self.is_success
+        if key == "status":
+            return self.status.value if isinstance(self.status, AgentStatus) else str(self.status)
+        if key in ("output", "data", "result"):
+            return self.result if self.result is not None else (self.data or {})
+        if hasattr(self, key):
+            return getattr(self, key)
+        return default
+
+    def __getitem__(self, key: str) -> Any:
+        val = self.get(key)
+        if val is not None or hasattr(self, key):
+            return val
+        raise KeyError(key)
+
+    def __contains__(self, key: str) -> bool:
+        return hasattr(self, key) or key in ("success", "status", "output", "data", "result")
+
     def to_dict(self) -> Dict[str, Any]:
         st_val = self.status.value if isinstance(self.status, AgentStatus) else str(self.status)
         return {
-            "success": self.success,
+            "success": self.is_success,
             "status": st_val,
             "task_type": self.task_type,
             "agent_name": self.agent_name,
@@ -507,68 +510,171 @@ class AgentResult(BaseModel):
         }
 
     # ------------------------------------------------------------------
-    # Convenient Standardized Constructors
+    # Standardized Factory Methods
     # ------------------------------------------------------------------
 
     @classmethod
-    def create_success(
+    def success(
         cls,
-        agent_name: str,
-        result: Dict[str, Any],
-        task_type: Optional[str] = None,
-        target: Optional[str] = None,
-        metrics: Optional[Dict[str, Any]] = None,
+        agent: str = "Agent",
+        agent_name: Optional[str] = None,
+        role: str = "generalist",
+        agent_id: str = "",
+        task_id: Optional[str] = None,
+        started_at: Optional[datetime] = None,
+        timestamp: Optional[datetime] = None,
+        output: Optional[Dict[str, Any]] = None,
+        data: Optional[Dict[str, Any]] = None,
+        message: str = "Operation completed successfully.",
         evidence: Optional[List[Evidence]] = None,
         confidence: float = 1.0,
+        duration_ms: float = 0.0,
+        execution_time: Optional[float] = None,
         warnings: Optional[List[str]] = None,
-        assumptions: Optional[List[str]] = None,
-        limitations: Optional[List[str]] = None,
-        diagnostics: Optional[Dict[str, Any]] = None,
-        model_info: Optional[Dict[str, Any]] = None,
-        execution_time_ms: float = 0.0,
-        message: str = "",
+        metadata: Optional[Dict[str, Any]] = None,
+        model_used: Optional[str] = None,
+        **kwargs: Any,
     ) -> "AgentResult":
+        name = agent_name or agent
+        t_id = task_id or agent_id
+        dt = data if data is not None else (output or {})
+        exec_t = execution_time if execution_time is not None else duration_ms
+        ts = timestamp or started_at or datetime.now()
+
         return cls(
-            success=True,
-            status=AgentStatus.SUCCESS,
-            task_type=task_type,
-            agent_name=agent_name,
-            target=target,
-            result=result,
-            metrics=metrics or {},
+            status=AgentStatus.COMPLETED,
+            agent_name=name,
+            agent=name,
+            role=role,
+            task_id=t_id,
+            agent_id=t_id,
+            execution_id=t_id,
+            data=dt,
+            output=dt,
+            result=dt,
+            message=message,
+            started_at=ts,
+            timestamp=ts,
+            finished_at=datetime.now(),
+            duration_ms=exec_t,
+            execution_time=exec_t,
+            execution_time_ms=exec_t,
             evidence=evidence or [],
             confidence=confidence,
             warnings=warnings or [],
-            assumptions=assumptions or [],
-            limitations=limitations or [],
-            diagnostics=diagnostics or {},
-            model_info=model_info,
-            execution_time_ms=execution_time_ms,
-            message=message or f"{agent_name} completed successfully.",
+            metadata=metadata or {},
+            model_used=model_used,
+            **kwargs,
         )
 
     @classmethod
-    def create_error(
+    def failure(
         cls,
-        agent_name: str,
-        error: AgentError,
-        task_type: Optional[str] = None,
-        target: Optional[str] = None,
-        diagnostics: Optional[Dict[str, Any]] = None,
-        execution_time_ms: float = 0.0,
+        agent: str = "Agent",
+        agent_name: Optional[str] = None,
+        role: str = "generalist",
+        agent_id: str = "",
+        task_id: Optional[str] = None,
+        started_at: Optional[datetime] = None,
+        timestamp: Optional[datetime] = None,
+        errors: Optional[List[AgentError]] = None,
+        duration_ms: float = 0.0,
+        execution_time: Optional[float] = None,
+        output: Optional[Dict[str, Any]] = None,
+        data: Optional[Dict[str, Any]] = None,
+        message: str = "Operation failed.",
+        warnings: Optional[List[str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        model_used: Optional[str] = None,
+        **kwargs: Any,
     ) -> "AgentResult":
+        name = agent_name or agent
+        t_id = task_id or agent_id
+        dt = data if data is not None else (output or {})
+        exec_t = execution_time if execution_time is not None else duration_ms
+        ts = timestamp or started_at or datetime.now()
+
         return cls(
-            success=False,
-            status=AgentStatus.FAILED,
-            task_type=task_type,
-            agent_name=agent_name,
-            target=target,
-            result={"error": error.user_message or error.message},
-            errors=[error],
+            status=AgentStatus.ERROR,
+            agent_name=name,
+            agent=name,
+            role=role,
+            task_id=t_id,
+            agent_id=t_id,
+            execution_id=t_id,
+            data=dt,
+            output=dt,
+            result=dt,
+            message=message,
+            started_at=ts,
+            timestamp=ts,
+            finished_at=datetime.now(),
+            duration_ms=exec_t,
+            execution_time=exec_t,
+            execution_time_ms=exec_t,
+            evidence=[],
             confidence=0.0,
-            diagnostics=diagnostics or error.technical_details,
-            execution_time_ms=execution_time_ms,
-            message=error.user_message or error.message,
+            errors=errors or [],
+            warnings=warnings or [],
+            metadata=metadata or {},
+            model_used=model_used,
+            **kwargs,
+        )
+
+    @classmethod
+    def partial(
+        cls,
+        agent: str = "Agent",
+        agent_name: Optional[str] = None,
+        role: str = "generalist",
+        agent_id: str = "",
+        task_id: Optional[str] = None,
+        started_at: Optional[datetime] = None,
+        timestamp: Optional[datetime] = None,
+        output: Optional[Dict[str, Any]] = None,
+        data: Optional[Dict[str, Any]] = None,
+        message: str = "Operation partially completed.",
+        evidence: Optional[List[Evidence]] = None,
+        confidence: float = 0.5,
+        duration_ms: float = 0.0,
+        execution_time: Optional[float] = None,
+        errors: Optional[List[AgentError]] = None,
+        warnings: Optional[List[str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        model_used: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "AgentResult":
+        name = agent_name or agent
+        t_id = task_id or agent_id
+        dt = data if data is not None else (output or {})
+        exec_t = execution_time if execution_time is not None else duration_ms
+        ts = timestamp or started_at or datetime.now()
+
+        return cls(
+            status=AgentStatus.PARTIAL,
+            agent_name=name,
+            agent=name,
+            role=role,
+            task_id=t_id,
+            agent_id=t_id,
+            execution_id=t_id,
+            data=dt,
+            output=dt,
+            result=dt,
+            message=message,
+            started_at=ts,
+            timestamp=ts,
+            finished_at=datetime.now(),
+            duration_ms=exec_t,
+            execution_time=exec_t,
+            execution_time_ms=exec_t,
+            evidence=evidence or [],
+            confidence=confidence,
+            errors=errors or [],
+            warnings=warnings or [],
+            metadata=metadata or {},
+            model_used=model_used,
+            **kwargs,
         )
 
     @classmethod
@@ -588,7 +694,6 @@ class AgentResult(BaseModel):
             agent_name=agent_name,
         )
         return cls(
-            success=False,
             status=AgentStatus.NEEDS_CLARIFICATION,
             task_type=task_type,
             agent_name=agent_name,
@@ -614,7 +719,6 @@ class AgentResult(BaseModel):
             agent_name=agent_name,
         )
         return cls(
-            success=False,
             status=AgentStatus.NOT_SUPPORTED,
             task_type=task_type,
             agent_name=agent_name,
@@ -624,21 +728,3 @@ class AgentResult(BaseModel):
             diagnostics=diagnostics or {},
             message=reason,
         )
-
-    @classmethod
-    def create_partial(cls, **kwargs: Any) -> "AgentResult":
-        kwargs["success"] = True
-        kwargs["status"] = AgentStatus.PARTIAL
-        return cls(**kwargs)
-
-    @classmethod
-    def build_success(cls, **kwargs: Any) -> "AgentResult":
-        kwargs["success"] = True
-        kwargs["status"] = AgentStatus.SUCCESS
-        return cls(**kwargs)
-
-    @classmethod
-    def build_error(cls, **kwargs: Any) -> "AgentResult":
-        kwargs["success"] = False
-        kwargs["status"] = AgentStatus.ERROR
-        return cls(**kwargs)

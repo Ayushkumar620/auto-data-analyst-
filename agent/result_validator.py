@@ -1,4 +1,4 @@
-"""
+﻿"""
 Universal Agent Result Validator & Metric Verifier.
 
 Validates every AgentResult produced by an analytical agent before it is returned:
@@ -133,6 +133,9 @@ class ResultValidator:
     def _consistency_check(self, result: AgentResult, vr: ValidationResult) -> None:
         st_val = result.status.value if isinstance(result.status, AgentStatus) else str(result.status).lower()
         if st_val in ("success", "completed"):
+            if result.finished_at is None:
+                vr.add_issue(ValidationSeverity.ERROR, "MISSING_FINISHED_AT",
+                             "A completed result must have finished_at set.")
             dur = result.execution_time_ms or result.duration_ms or result.execution_time
             if dur < 0:
                 vr.add_issue(ValidationSeverity.ERROR, "NEGATIVE_DURATION",
@@ -152,6 +155,12 @@ class ResultValidator:
                              "Every evidence item must be an Evidence instance.",
                              field=field)
                 continue
+            if not isinstance(evidence.confidence, (int, float)) or not (0.0 <= float(evidence.confidence) <= 1.0):
+                vr.add_issue(ValidationSeverity.ERROR, "EVIDENCE_CONFIDENCE_RANGE",
+                             "Evidence confidence must be within [0, 1].", field=field)
+            if not isinstance(evidence.claim_type, ClaimType):
+                vr.add_issue(ValidationSeverity.ERROR, "INVALID_CLAIM_TYPE",
+                             "Evidence must carry a valid ClaimType enum.", field=field)
             op = evidence.operation or evidence.method
             if not isinstance(op, str) or not op.strip():
                 vr.add_issue(ValidationSeverity.ERROR, "EVIDENCE_NO_METHOD",
@@ -167,7 +176,7 @@ class ResultValidator:
                 ref = evidence.data_ref or {}
                 if _looks_causal(evidence.method, evidence.operation, str(ref), str(evidence.metadata)):
                     vr.add_issue(
-                        ValidationSeverity.ERROR, "CAUSAL_OVERCLAIM",
+                        ValidationSeverity.ERROR, "CORRELATION_AS_CAUSATION",
                         f"Evidence[{index}] marks a correlation claim with causal wording.",
                         field=f"evidence[{index}]",
                         repair_hint="Reclassify as INFERENCE or reword text to express statistical association.",
@@ -175,7 +184,6 @@ class ResultValidator:
 
     def _mathematical_metrics_check(self, result: AgentResult, vr: ValidationResult) -> None:
         """Verify finite numbers and mathematical bounds on reported metrics."""
-        # 0. Check for non-finite NaN/Inf in result and metrics
         def _contains_non_finite(obj: Any) -> bool:
             if isinstance(obj, float):
                 return math.isnan(obj) or math.isinf(obj)
@@ -251,20 +259,70 @@ class ResultValidator:
     ) -> None:
         if not context:
             return
-        data = context.get("dataframe") or context.get("data")
+        data = context.get("dataframe") if context.get("dataframe") is not None else context.get("data")
         if data is None:
             return
+        
+        columns = context.get("columns")
+        if columns is None:
+            if isinstance(data, pd.DataFrame):
+                real_cols = [str(c) for c in data.columns]
+            elif isinstance(data, dict):
+                real_cols = [str(c) for frame in data.values() if isinstance(frame, pd.DataFrame) for c in frame.columns]
+            else:
+                real_cols = []
+        else:
+            real_cols = [str(c) for c in columns]
+
         actual_rows = len(data) if isinstance(data, pd.DataFrame) else None
-        if actual_rows is not None:
-            for i, evidence in enumerate(result.evidence):
-                ref = evidence.data_ref or {}
-                claimed = ref.get("rows") or ref.get("row_count")
-                if isinstance(claimed, (int, float)) and claimed > actual_rows:
-                    vr.add_issue(
-                        ValidationSeverity.WARNING, "EVIDENCE_ROWS_EXCEEDED",
-                        f"Evidence[{i}] claims {claimed} rows but dataset has {actual_rows}.",
-                        field=f"evidence[{i}]",
-                    )
+
+        for i, evidence in enumerate(result.evidence):
+            if not isinstance(evidence, Evidence):
+                continue
+            ref = evidence.data_ref or {}
+            field = f"evidence[{i}]"
+
+            # Check unknown columns
+            names = ref.get("column_names") or ref.get("columns") or []
+            if isinstance(names, str):
+                names = [names]
+            elif not isinstance(names, (list, tuple)):
+                names = []
+            single_col = ref.get("column") or ref.get("col")
+            if isinstance(single_col, str):
+                names = list(names) + [single_col]
+            
+            if real_cols and any(isinstance(n, str) and n not in real_cols for n in names):
+                vr.add_issue(
+                    ValidationSeverity.ERROR, "EVIDENCE_UNKNOWN_COLUMN",
+                    f"Evidence[{i}] references unknown column(s) not in dataset.",
+                    field=field,
+                )
+
+            # Check row count
+            claimed = ref.get("rows") or ref.get("row_count")
+            if actual_rows is not None and isinstance(claimed, (int, float)) and claimed > actual_rows:
+                vr.add_issue(
+                    ValidationSeverity.WARNING, "EVIDENCE_ROWS_EXCEEDED",
+                    f"Evidence[{i}] claims {claimed} rows but dataset has {actual_rows}.",
+                    field=field,
+                )
+
+            # Null statistics spot check
+            op_str = (evidence.operation or evidence.method or "").casefold()
+            if "isnull" in op_str or "null" in op_str or "missing" in op_str:
+                if isinstance(data, pd.DataFrame) and evidence.raw_value is not None:
+                    col = ref.get("column") or ref.get("col")
+                    if col and col in data.columns:
+                        actual_nulls = int(data[col].isnull().sum())
+                    else:
+                        actual_nulls = int(data.isnull().sum().sum())
+                    if float(evidence.raw_value) != float(actual_nulls):
+                        vr.add_issue(
+                            ValidationSeverity.ERROR, "CALCULATION_MISMATCH",
+                            f"Evidence null count ({evidence.raw_value}) != actual ({actual_nulls}).",
+                            field=field,
+                        )
 
     def _attempt_repair(
         self,
@@ -285,7 +343,13 @@ class ResultValidator:
             actions.append(f"Clamped confidence to {result.confidence}.")
             changed = True
 
-        # 2. Sanitize NaN/Inf in data & metrics
+        # 2. Stamp finished_at if missing
+        if result.finished_at is None and (result.started_at or result.timestamp):
+            result.finished_at = result.started_at or result.timestamp
+            actions.append("Stamped missing finished_at.")
+            changed = True
+
+        # 3. Sanitize NaN/Inf in data & metrics
         clean_result = _sanitize_numeric_recursively(result.result)
         if clean_result != result.result:
             result.result = clean_result
@@ -293,7 +357,36 @@ class ResultValidator:
             actions.append("Sanitized non-finite NaN/Infinity values.")
             changed = True
 
-        # 3. Fix forecast interval bounds
+        # 4. Clean broken evidence
+        kept_ev: List[Evidence] = []
+        for ev in result.evidence:
+            if not isinstance(ev, Evidence):
+                actions.append("Dropped non-Evidence item.")
+                changed = True
+                continue
+            if not isinstance(ev.confidence, (int, float)) or not (0.0 <= float(ev.confidence) <= 1.0):
+                actions.append("Dropped evidence with invalid confidence.")
+                changed = True
+                continue
+            if not isinstance(ev.claim_type, ClaimType):
+                actions.append("Dropped evidence with invalid claim_type.")
+                changed = True
+                continue
+            if context:
+                data = context.get("dataframe") if context.get("dataframe") is not None else context.get("data")
+                if isinstance(data, pd.DataFrame):
+                    ref = ev.data_ref or {}
+                    names = ref.get("column_names") or ref.get("columns") or []
+                    if any(isinstance(n, str) and n not in data.columns for n in names):
+                        actions.append("Dropped evidence referencing hallucinated column.")
+                        changed = True
+                        continue
+            kept_ev.append(ev)
+        if len(kept_ev) != len(result.evidence):
+            result.evidence = kept_ev
+            changed = True
+
+        # 5. Fix forecast interval bounds
         forecast_pts = result.data.get("forecast") or result.data.get("predictions") or []
         if isinstance(forecast_pts, list):
             for pt in forecast_pts:
