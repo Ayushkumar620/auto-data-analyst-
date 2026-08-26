@@ -72,8 +72,27 @@ class AutonomousForecastEngine:
         freq_str = request.frequency or suitability.detected_frequency or "M"
         horizon = max(1, min(request.forecast_horizon, 36))
 
-        # 1. Clean and Aggregate Series
-        series_df = df[[time_col, target_col]].dropna().copy()
+        # 1. Clean and Aggregate Series using CanonicalDataLayer
+        from agent.canonical_data_layer import CanonicalDataLayer
+        audit, target_clean, time_clean = CanonicalDataLayer.audit_dataset_for_target(
+            df,
+            target_column=target_col,
+            time_column=time_col,
+            minimum_required_rows=5,
+        )
+
+        if time_col == "_time_step" or time_col not in df.columns or time_col == target_col or time_clean is None:
+            time_col = "_time_step"
+            series_df = pd.DataFrame({
+                time_col: pd.date_range("2020-01-01", periods=len(df), freq="D"),
+                target_col: target_clean,
+            }).dropna().copy()
+        else:
+            series_df = pd.DataFrame({
+                time_col: time_clean,
+                target_col: target_clean,
+            }).dropna().copy()
+
         series_df[time_col] = pd.to_datetime(series_df[time_col])
         series_df = series_df.sort_values(time_col)
 

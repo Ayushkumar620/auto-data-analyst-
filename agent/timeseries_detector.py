@@ -236,8 +236,27 @@ class TimeSeriesDetector:
                 limitations=["Cannot forecast non-numeric categorical variables."],
             )
 
-        # Ingest and prepare series
-        clean_df = df[[time_col, target_col]].dropna().copy()
+        from agent.canonical_data_layer import CanonicalDataLayer
+        audit, target_clean, time_clean = CanonicalDataLayer.audit_dataset_for_target(
+            df,
+            target_column=target_col,
+            time_column=time_col,
+            minimum_required_rows=5,
+        )
+
+        if time_col == target_col or time_clean is None:
+            synth_time = "_time_step"
+            clean_df = pd.DataFrame({
+                synth_time: pd.date_range("2020-01-01", periods=len(df), freq="D"),
+                target_col: target_clean,
+            }).dropna().copy()
+            time_col = synth_time
+        else:
+            clean_df = pd.DataFrame({
+                time_col: time_clean,
+                target_col: target_clean,
+            }).dropna().copy()
+
         clean_df[time_col] = pd.to_datetime(clean_df[time_col])
         clean_df = clean_df.sort_values(time_col)
         n_obs = len(clean_df)

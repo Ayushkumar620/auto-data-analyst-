@@ -1,4 +1,4 @@
-"""
+ï»¿"""
 Canonical Data Layer & Universal Row Validator.
 
 Provides centralized, dataset-agnostic data validation, type normalization,
@@ -66,8 +66,8 @@ class CanonicalDataLayer:
             if s.startswith("(") and s.endswith(")"):
                 s = "-" + s[1:-1]
 
-            # Remove currency symbols, commas, and percentage signs
-            s_clean = re.sub(r"[$,£€¥%\s]", "", s)
+            # Remove currency symbols, commas, and percentage signs using unicode escapes
+            s_clean = re.sub(r"[\$,\u00a3\u20ac\u00a5%\s]", "", s)
 
             # Handle common financial/metric multiplier suffixes
             multiplier = 1.0
