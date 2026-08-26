@@ -481,15 +481,56 @@ class CommandIntelligenceAgent(BaseAgent):
         if any(w in text for w in ("max", "maximum", "highest", "largest")):
             return "max"
         if any(w in text for w in ("min", "minimum", "lowest", "smallest")):
-RE_TOP_RANKING = re.compile(r"\b(top|first|highest|largest)\s+(\d+)\b", re.IGNORECASE)
-RE_BOT_RANKING = re.compile(r"\b(bottom|lowest|smallest)\s+(\d+)\b", re.IGNORECASE)
-RE_CLEAN_PREFIX = re.compile(r"^(?:the|an|a)\s+", re.IGNORECASE)
-RE_BETWEEN = re.compile(r"\bbetween\s+([a-zA-Z0-9_\s]+?)\s+and\s+([a-zA-Z0-9_\s]+?)(?:\s+in|\s+by|\s+for|$|\.)", re.IGNORECASE)
-RE_VS = re.compile(r"\b(?:vs|versus)\b", re.IGNORECASE)
-RE_REGION = re.compile(r"\b(?:in|region\s*==?)\s+(north|south|east|west|central|apac|emea|latam)\b", re.IGNORECASE)
+            return "min"
+        return None
 
+    def _extract_ranking(self, text: str) -> Optional[Dict[str, Any]]:
+        top_match = RE_TOP_RANKING.search(text)
+        if top_match:
+            return {"type": "top", "limit": int(top_match.group(2)), "order": "desc"}
+        bot_match = RE_BOT_RANKING.search(text)
+        if bot_match:
+            return {"type": "bottom", "limit": int(bot_match.group(2)), "order": "asc"}
+        return None
 
-class CommandIntelligenceAgent(BaseAgent):
+    def _clean_entity_name(self, raw_entity: str) -> str:
+        cleaned = RE_CLEAN_PREFIX.sub("", raw_entity.strip()).strip()
+        if cleaned.lower() in ("us", "usa", "uk", "uae"):
+            return cleaned.upper()
+        return cleaned.title()
+
+    def _extract_comparison(self, text: str) -> Optional[Dict[str, Any]]:
+        between_match = RE_BETWEEN.search(text)
+        if between_match:
+            left = self._clean_entity_name(between_match.group(1))
+            right = self._clean_entity_name(between_match.group(2))
+            return {"type": "between_entities", "entities": [left, right], "entity_a": left, "entity_b": right}
+        if "vs" in text or "versus" in text:
+            parts = RE_VS.split(text)
+            if len(parts) >= 2:
+                left = self._clean_entity_name(parts[0])
+                right = self._clean_entity_name(parts[1])
+                return {"type": "between_entities", "entities": [left, right], "entity_a": left, "entity_b": right}
+        return None
+
+    def _extract_filters(self, text: str, comparison: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        filters: Dict[str, Any] = {}
+        if comparison and comparison.get("type") == "between_entities":
+            entities = comparison.get("entities", [])
+            filters["entities"] = entities
+            if len(entities) >= 2:
+                filters["comparison_targets"] = entities
+
+        if "active" in text and "inactive" not in text:
+            filters["status"] = "Active"
+        elif "inactive" in text:
+            filters["status"] = "Inactive"
+
+        reg_match = RE_REGION.search(text)
+        if reg_match:
+            filters["region"] = reg_match.group(1).capitalize()
+
+        return filters
 
     # ------------------------------------------------------------------
     # Entity Extraction & DatasetKnowledge Grounding
@@ -662,6 +703,7 @@ class IntentAnalyzer:
 
     def __init__(self):
         self.modern_agent = CommandIntelligenceAgent()
+        self._intent_cache: Dict[str, IntentClassificationResult] = {}
 
     def analyze(
         self,
@@ -670,7 +712,7 @@ class IntentAnalyzer:
         dataframe: Optional[pd.DataFrame] = None,
         df: Optional[Any] = None,
     ) -> IntentClassificationResult:
-        """Parse natural language query into a structured multi-intent profile."""
+        """Parse natural language query into a structured multi-intent profile with O(1) cache."""
         if isinstance(knowledge, pd.DataFrame) and dataframe is None:
             dataframe = knowledge
             knowledge = None
@@ -681,6 +723,10 @@ class IntentAnalyzer:
                 knowledge = df
 
         q_norm = query.strip().lower()
+        cache_key = f"{q_norm}|{id(knowledge)}|{id(dataframe)}"
+        if cache_key in self._intent_cache:
+            return self._intent_cache[cache_key]
+
         reasoning: List[str] = []
         matched_intents: List[AnalyticalIntent] = []
 
@@ -792,7 +838,7 @@ class IntentAnalyzer:
 
         confidence = 0.95 if matched_intents else 0.70
 
-        return IntentClassificationResult(
+        res = IntentClassificationResult(
             primary_intent=primary,
             secondary_intents=secondary,
             confidence=confidence,
@@ -807,3 +853,7 @@ class IntentAnalyzer:
             raw_query=query,
             reasoning=reasoning,
         )
+        if len(self._intent_cache) > 256:
+            self._intent_cache.clear()
+        self._intent_cache[cache_key] = res
+        return res
