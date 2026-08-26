@@ -231,14 +231,18 @@ export default function ChatPage() {
         <main className="studio-right-panel">
           {activeResult ? (
             <>
+              {/* Autonomous Agent Execution Graph Card */}
               {/* Autonomous Analysis Working Space Card */}
               <Card className="execution-graph-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
                 <div className="workspace-header">
                   <div>
                     <h2 className="section-title" style={{ margin: '0 0 0.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <IconBrain size={20} /> Autonomous Agent Execution Graph
                       <IconBrain size={20} /> Autonomous Analysis
                     </h2>
                     <p className="section-subtitle" style={{ margin: 0 }}>
+                      Multi-agent pipeline decomposed and executed across specialized autonomous agents.
                       {viewMode === 'agent'
                         ? 'Multi-agent pipeline decomposed and executed across specialized autonomous agents.'
                         : 'User-facing analysis progress workflow.'}
@@ -246,6 +250,43 @@ export default function ChatPage() {
                   </div>
 
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        padding: '0.2rem 0.6rem',
+                        borderRadius: '6px',
+                        backgroundColor: '#e0f2fe',
+                        color: '#0369a1',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      Intent: {activeResult.user_intent}
+                    </span>
+                    <span
+                      style={{
+                        padding: '0.2rem 0.6rem',
+                        borderRadius: '6px',
+                        backgroundColor: activeResult.validation_summary.status === 'PASSED' ? '#ecfdf5' : '#fff7ed',
+                        color: activeResult.validation_summary.status === 'PASSED' ? '#059669' : '#c2410c',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {activeResult.validation_summary.status}
+                    </span>
+                    <span
+                      style={{
+                        padding: '0.2rem 0.6rem',
+                        borderRadius: '6px',
+                        backgroundColor: '#f1f5f9',
+                        color: '#475569',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                      }}
+                    >
+                      ⏱️ {activeResult.duration_ms} ms
+                    </span>
                     {showExecutionDetails && (
                       <>
                         <span
@@ -304,6 +345,15 @@ export default function ChatPage() {
                 {/* Internal Horizontal Scrollable Agent Workspace */}
                 <div className="agent-workspace-scroll graph-wrapper" aria-label="Agent execution graph flow">
                   <div className="agent-workspace-content dag-flow">
+                    {/* Step 1: Intent & Planning */}
+                    <div className="dag-card dag-card--completed">
+                      <div className="dag-card-header">
+                        <span className="dag-card-step">Step 1</span>
+                        <span className="dag-card-status"><IconCheck size={10} aria-hidden /> Done</span>
+                      </div>
+                      <p className="dag-card-title">IntentAnalyzer</p>
+                      <p className="dag-card-role">Decompose query & formulate plan</p>
+                    </div>
                     {viewMode === 'agent' ? (
                       <>
                         {/* Step 1: Intent & Planning */}
@@ -316,8 +366,18 @@ export default function ChatPage() {
                           <p className="dag-card-role">Decompose query & formulate plan</p>
                         </div>
 
+                    <span className="dag-connector">→</span>
                         <span className="dag-connector">→</span>
 
+                    {/* Step 2: Quality & Validation */}
+                    <div className="dag-card dag-card--completed">
+                      <div className="dag-card-header">
+                        <span className="dag-card-step">Step 2</span>
+                        <span className="dag-card-status"><IconCheck size={10} aria-hidden /> Done</span>
+                      </div>
+                      <p className="dag-card-title">DataValidationAgent</p>
+                      <p className="dag-card-role">Verify schema & clean anomalies</p>
+                    </div>
                         {/* Step 2: Quality & Validation */}
                         <div className="dag-card dag-card--completed">
                           <div className="dag-card-header">
@@ -328,6 +388,9 @@ export default function ChatPage() {
                           <p className="dag-card-role">Verify schema & clean anomalies</p>
                         </div>
 
+                    {/* Step 3+: Deployed Agents */}
+                    {activeResult.selected_agents.map((agentName, idx) => (
+                      <React.Fragment key={idx}>
                         {/* Step 3+: Deployed Agents */}
                         {activeResult.selected_agents.map((agentName, idx) => (
                           <React.Fragment key={idx}>
@@ -350,12 +413,19 @@ export default function ChatPage() {
                         {/* Final Step: Synthesis & Findings */}
                         <div className="dag-card dag-card--completed">
                           <div className="dag-card-header">
+                            <span className="dag-card-step">Step {idx + 3}</span>
                             <span className="dag-card-step">Synthesis</span>
                             <span className="dag-card-status"><IconCheck size={10} aria-hidden /> Done</span>
                           </div>
+                          <p className="dag-card-title">{agentName}</p>
+                          <p className="dag-card-role">
+                            {activeResult.required_operations[idx] || 'Compute analytical findings'}
+                          </p>
                           <p className="dag-card-title">DecisionExplainer</p>
                           <p className="dag-card-role">Synthesize executive evidence</p>
                         </div>
+                      </React.Fragment>
+                    ))}
                       </>
                     ) : (
                       <>
@@ -369,8 +439,18 @@ export default function ChatPage() {
                           <p className="dag-card-role">Interpreted natural language goals & parameters</p>
                         </div>
 
+                    <span className="dag-connector">→</span>
                         <span className="dag-connector">→</span>
 
+                    {/* Final Step: Synthesis & Findings */}
+                    <div className="dag-card dag-card--completed">
+                      <div className="dag-card-header">
+                        <span className="dag-card-step">Synthesis</span>
+                        <span className="dag-card-status"><IconCheck size={10} aria-hidden /> Done</span>
+                      </div>
+                      <p className="dag-card-title">DecisionExplainer</p>
+                      <p className="dag-card-role">Synthesize executive evidence</p>
+                    </div>
                         <div className="dag-card dag-card--completed">
                           <div className="dag-card-header">
                             <span className="dag-card-step">Stage 2</span>
@@ -419,6 +499,7 @@ export default function ChatPage() {
               </Card>
 
               {/* Best Model Selection (if applicable) */}
+              {activeResult.model_selection_summary && (
               {showExecutionDetails && activeResult.model_selection_summary && (
                 <Card style={{ borderLeft: '4px solid #10b981', backgroundColor: '#f0fdf4' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -435,6 +516,15 @@ export default function ChatPage() {
                 </Card>
               )}
 
+              {/* Executive Report & Key Findings Card */}
+              <Card>
+                <h2 className="section-title" style={{ margin: '0 0 0.75rem', color: 'var(--primary)' }}>
+                  Executive Report & Verifiable Findings
+                </h2>
+                <div className="executive-report-body">
+                  <AnalysisResponseRenderer content={activeResult.final_explanation} />
+                </div>
+              </Card>
               {/* Executive Report & Key Findings Card (Controlled by Toggle) */}
               {showExecutiveReport && (
                 <Card>
