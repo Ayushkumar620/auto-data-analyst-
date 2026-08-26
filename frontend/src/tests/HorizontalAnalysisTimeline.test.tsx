@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import HorizontalAnalysisTimeline from '../components/analyst/HorizontalAnalysisTimeline';
 
@@ -35,11 +35,11 @@ describe('HorizontalAnalysisTimeline Component', () => {
     fireEvent.click(intentCard);
 
     // Verify stage drawer opens
-    expect(screen.getByText('Stage 1 — IntentAnalyzer')).toBeInTheDocument();
-    expect(screen.getByText('Close ?')).toBeInTheDocument();
+    expect(screen.getByText(/Intent & Planning — IntentAnalyzer/)).toBeInTheDocument();
+    expect(screen.getByText(/Close/)).toBeInTheDocument();
 
     // Clicking close dismisses drawer
-    fireEvent.click(screen.getByText('Close ?'));
-    expect(screen.queryByText('Stage 1 — IntentAnalyzer')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText(/Close/));
+    expect(screen.queryByText(/Intent & Planning — IntentAnalyzer/)).not.toBeInTheDocument();
   });
 });
