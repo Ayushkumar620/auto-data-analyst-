@@ -33,25 +33,6 @@ class DataPredictor:
         if df is None:
             return {"error": "No tabular data available for forecasting."}
 
-        # Find date column
-        date_col = None
-        for col in df.columns:
-            if pd.api.types.is_datetime64_any_dtype(df[col]):
-                date_col = col
-                break
-        if not date_col:
-            for col in df.columns:
-                c_low = col.lower()
-                tokens = re.sub(r"[^\w]", " ", re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", col)).lower().split()
-                if any(t in tokens or t in c_low for t in ("date", "datetime", "time", "timestamp", "month", "year", "quarter", "period", "fy", "cy")):
-                    series = df[col].dropna()
-                    if not series.empty:
-                        if pd.api.types.is_numeric_dtype(df[col]) and series.between(1800, 2150).all():
-                            date_col = col
-                            break
-                        elif pd.to_datetime(series.head(10), errors="coerce").notna().mean() >= 0.7:
-                            date_col = col
-                            break
         # Find date column and target using TimeSeriesDetector
         from agent.timeseries_detector import TimeSeriesDetector
         detector = TimeSeriesDetector()
@@ -62,42 +43,11 @@ class DataPredictor:
         if numeric.empty:
             return {"error": "No numeric column available for forecasting."}
 
-        # 1. User explicit target always wins if present
-        if target and target in df.columns:
         # User explicit target wins if provided, otherwise generic statistical ranking
         if target and target in df.columns and pd.api.types.is_numeric_dtype(df[target]):
             chosen_target = target
         else:
-            # 2. Filter candidate business measures (exclude date_col, integer years, IDs, high nulls)
-            candidate_cols = []
-            for col in numeric.columns:
-                if col == date_col:
-                    continue
-                series = df[col].dropna()
-                if len(series) < 3 or series.nunique() <= 1:
-                    continue
-                tokens = re.sub(r"[^\w]", " ", re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", col)).lower().split()
-                if any(t in tokens for t in ("year", "fy", "cy", "quarter", "qtr", "date", "timestamp", "month", "id", "key", "uuid", "sku", "code")):
-                    if series.between(1800, 2150).all() or series.nunique() / len(series) > 0.8:
-                        continue
-                candidate_cols.append(col)
             chosen_target = detector.detect_target_column(df, time_col=date_col) or numeric.columns[0]
-
-            metric_keywords = ["actual", "revenue", "sales", "demand", "profit", "budget", "volume", "usd", "amount", "spend", "units", "quantity", "price", "cost", "value"]
-            if candidate_cols:
-                scored = []
-                for c in candidate_cols:
-                    score = 0
-                    tokens = re.sub(r"[^\w]", " ", re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", c)).lower().split()
-                    for idx, kw in enumerate(metric_keywords):
-                        if kw in tokens or kw in c.lower():
-                            score += (len(metric_keywords) - idx) * 10
-                    score += min(10, df[c].dropna().nunique())
-                    scored.append((c, score))
-                scored.sort(key=lambda x: x[1], reverse=True)
-                chosen_target = scored[0][0]
-            else:
-                chosen_target = numeric.columns[0]
 
         target = chosen_target
 

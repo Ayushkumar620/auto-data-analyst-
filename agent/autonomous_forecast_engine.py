@@ -94,20 +94,17 @@ class AutonomousForecastEngine:
         for name, fn in candidates.items():
             try:
                 preds = fn(len(y_val))
-                eval_scores[name] = self._calculate_metrics(y_val, preds)
                 if np.all(np.isfinite(preds)):
                     eval_scores[name] = self._calculate_metrics(y_val, preds)
             except Exception:
                 pass
 
-        # Select Best Candidate (by lowest MAE)
         # Select Best Candidate (preferring simplest model if error is within 3% of complex model)
         if not eval_scores:
             eval_scores["naive_last"] = self._calculate_metrics(y_val, np.full(len(y_val), y_train[-1]))
 
         baseline_metrics = eval_scores.get("naive_last", next(iter(eval_scores.values())))
         opt_metric = request.optimization_metric.upper()
-        best_name = min(eval_scores.keys(), key=lambda k: eval_scores[k].get(opt_metric, eval_scores[k].get("MAE", 999999.0)))
 
         # Sort candidates by optimization metric
         sorted_candidates = sorted(
@@ -127,7 +124,6 @@ class AutonomousForecastEngine:
                     break
 
         best_metrics = eval_scores[best_name]
-        baseline_metrics = eval_scores.get("naive_last", best_metrics)
 
         # 4. Generate Future Forecast from Full Series
         full_candidates = self._get_candidate_models(y_all, None, freq_str)
@@ -159,16 +155,12 @@ class AutonomousForecastEngine:
             points.append(
                 ForecastPoint(
                     timestamp=dt_str,
-                    prediction=float(val),
-                    lower_bound=float(val - margin),
-                    upper_bound=float(val + margin),
                     prediction=pred_val,
                     lower_bound=float(pred_val - margin),
                     upper_bound=float(pred_val + margin),
                 )
             )
 
-        # 7. Construct Assumptions, Warnings, and Traceable Evidence
         # 8. Construct Assumptions, Warnings, and Traceable Evidence
         assumptions = [
             f"Future dynamics follow historical patterns observed across {n_obs} periods.",
@@ -222,7 +214,6 @@ class AutonomousForecastEngine:
     # --------------------------------------------------------------------------
     def _get_candidate_models(self, y_train: np.ndarray, y_val: Optional[np.ndarray], freq: str) -> Dict[str, Any]:
         """Produce dictionary of candidate forecasting functions taking horizon h -> np.ndarray."""
-        candidates = {}
         candidates: Dict[str, Any] = {}
         n = len(y_train)
 
@@ -230,15 +221,11 @@ class AutonomousForecastEngine:
         candidates["naive_last"] = lambda h: np.full(h, y_train[-1])
 
         # 2. Moving Average
-        window = min(3, len(y_train))
-        ma_val = np.mean(y_train[-window:])
         window = min(3, n)
         ma_val = float(np.mean(y_train[-window:]))
         candidates["moving_average"] = lambda h: np.full(h, ma_val)
 
         # 3. Seasonal Naive (if sufficient data)
-        season_lag = 12 if freq == "M" else (4 if freq == "Q" else 7)
-        if len(y_train) >= season_lag:
         season_lag = 12 if freq == "M" else (4 if freq == "Q" else (7 if freq == "D" else 1))
         if season_lag > 1 and n >= season_lag:
             def seasonal_fn(h: int) -> np.ndarray:
@@ -246,12 +233,9 @@ class AutonomousForecastEngine:
                 for i in range(h):
                     idx = -season_lag + (i % season_lag)
                     preds.append(y_train[idx])
-                return np.array(preds)
                 return np.array(preds, dtype=float)
             candidates["seasonal_naive"] = seasonal_fn
 
-        # 4. Holt Linear Exponential Smoothing
-        if len(y_train) >= 4:
         # 4. Linear Trend
         if n >= 3:
             x_arr = np.arange(n)
@@ -264,20 +248,13 @@ class AutonomousForecastEngine:
             beta = 0.2
             level = y_train[0]
             trend = y_train[1] - y_train[0]
-            for t in range(1, len(y_train)):
             for t in range(1, n):
                 last_level = level
                 level = alpha * y_train[t] + (1 - alpha) * (level + trend)
                 trend = beta * (level - last_level) + (1 - beta) * trend
 
-            candidates["exponential_smoothing"] = lambda h: np.array([level + (i + 1) * trend for i in range(h)])
             candidates["exponential_smoothing"] = lambda h: np.array([level + (i + 1) * trend for i in range(h)], dtype=float)
 
-        # 5. Autoregressive ML (Linear Trend + Lag-1)
-        if len(y_train) >= 6:
-            x = np.arange(len(y_train))
-            slope, intercept = np.polyfit(x, y_train, 1)
-            candidates["autoregressive_ml"] = lambda h: np.array([intercept + slope * (len(y_train) + i) for i in range(h)])
         # 6. Autoregressive ML (Lag-1 and Lag-2 features with Ridge Regression)
         if n >= 6:
             try:
@@ -329,7 +306,6 @@ class AutonomousForecastEngine:
     # Validation Metrics & Helpers
     # --------------------------------------------------------------------------
     def _calculate_metrics(self, y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
-        """Compute chronological backtesting metrics."""
         """Compute comprehensive chronological backtesting metrics."""
         y_true = np.asarray(y_true, dtype=float)
         y_pred = np.asarray(y_pred, dtype=float)
@@ -339,13 +315,10 @@ class AutonomousForecastEngine:
         sum_abs_true = float(np.sum(np.abs(y_true)))
         wape = float(np.sum(np.abs(y_true - y_pred)) / sum_abs_true) if sum_abs_true > 0 else 0.0
 
-        metrics = {"MAE": round(mae, 4), "RMSE": round(rmse, 4), "WAPE": round(wape, 4)}
         # Symmetric MAPE (sMAPE): safe when actuals are zero
         denom = (np.abs(y_true) + np.abs(y_pred)) / 2.0
         smape = float(np.mean(np.where(denom > 1e-9, np.abs(y_pred - y_true) / denom, 0.0)) * 100.0)
 
-        # Safe MAPE calculation
-        if np.all(y_true != 0):
         # R-squared
         ss_res = float(np.sum((y_true - y_pred) ** 2))
         ss_tot = float(np.sum((y_true - np.mean(y_true)) ** 2))
@@ -368,7 +341,6 @@ class AutonomousForecastEngine:
 
     def _generate_future_dates(self, start_date: pd.Timestamp, horizon: int, freq: str) -> List[str]:
         """Generate future timestamp strings matching frequency."""
-        offset_map = {"D": "D", "W": "W", "M": "ME", "Q": "QE", "Y": "YE", "IRREGULAR": "ME"}
         offset_map = {
             "H": "h",
             "D": "D",
@@ -381,7 +353,6 @@ class AutonomousForecastEngine:
         rule = offset_map.get(freq, "ME")
         try:
             date_range = pd.date_range(start_date, periods=horizon + 1, freq=rule)[1:]
-            return [d.strftime("%Y-%m-%d") for d in date_range]
             return [d.strftime("%Y-%m-%d %H:%M:%S" if freq == "H" else "%Y-%m-%d") for d in date_range]
         except Exception:
             return [f"Period +{i+1}" for i in range(horizon)]
