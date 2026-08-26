@@ -228,6 +228,23 @@ class ResultValidator:
                         vr.add_issue(ValidationSeverity.ERROR, "NEGATIVE_ERROR_METRIC",
                                      f"{err_key} ({val}) cannot be negative.", field=f"metrics.{err_key}")
 
+            # 4. Clustering metrics
+            if "silhouette_score" in metrics and isinstance(metrics["silhouette_score"], (int, float)):
+                sil = float(metrics["silhouette_score"])
+                if not -1.0 <= sil <= 1.0:
+                    vr.add_issue(ValidationSeverity.ERROR, "INVALID_SILHOUETTE_SCORE",
+                                 f"Silhouette score ({sil}) must be within [-1, 1].", field="metrics.silhouette_score")
+            if "calinski_harabasz_score" in metrics and isinstance(metrics["calinski_harabasz_score"], (int, float)):
+                ch = float(metrics["calinski_harabasz_score"])
+                if ch < 0:
+                    vr.add_issue(ValidationSeverity.ERROR, "INVALID_CH_SCORE",
+                                 f"Calinski-Harabasz score ({ch}) must be non-negative.", field="metrics.calinski_harabasz_score")
+            if "davies_bouldin_score" in metrics and isinstance(metrics["davies_bouldin_score"], (int, float)):
+                db = float(metrics["davies_bouldin_score"])
+                if db < 0:
+                    vr.add_issue(ValidationSeverity.ERROR, "INVALID_DB_SCORE",
+                                 f"Davies-Bouldin score ({db}) must be non-negative.", field="metrics.davies_bouldin_score")
+
     def _forecast_bounds_check(self, result: AgentResult, vr: ValidationResult) -> None:
         """Verify prediction intervals satisfy lower <= prediction <= upper."""
         forecast_pts = result.data.get("forecast") or result.data.get("predictions") or []
