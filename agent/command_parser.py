@@ -132,6 +132,21 @@ class CommandParser:
         target = kwargs.get("target")
         periods = kwargs.get("periods")
 
+        # Positional arguments: e.g. "predict continuous_target" or "forecast sensor_output for 4 periods"
+        if not target and len(tokens) > 1 and "=" not in tokens[1]:
+            main_df = self.predictor._get_main_df() if hasattr(self, "predictor") else None
+            if main_df is not None:
+                col_match = next((c for c in main_df.columns if c.lower() == tokens[1].lower()), tokens[1])
+                target = col_match
+            else:
+                target = tokens[1]
+
+        for idx, tok in enumerate(tokens[1:], start=1):
+            if tok in ("for", "periods", "horizon") and idx + 1 < len(tokens) and tokens[idx + 1].isdigit():
+                periods = int(tokens[idx + 1])
+            elif tok.isdigit() and not periods:
+                periods = int(tok)
+
         action = self.COMMANDS.get(cmd_word)
         if action is None:
             # Try substring match for keyword commands

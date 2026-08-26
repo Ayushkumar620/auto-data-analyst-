@@ -114,6 +114,8 @@ class ForecastResult(BaseModel):
     assumptions: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
     limitations: List[str] = Field(default_factory=list)
+    slope: Optional[float] = None
+    projected_change_pct: Optional[float] = None
     evidence: List[Evidence] = Field(default_factory=list)
     confidence: float = 0.90
     status: str = "SUCCESS"  # "SUCCESS", "NOT_SUPPORTED", "FAILED"

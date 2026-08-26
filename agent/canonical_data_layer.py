@@ -192,12 +192,18 @@ class CanonicalDataLayer:
                 constant_cols.append(str(col))
                 continue
 
-            # 2. Boolean check
+            # 2. Identifier check (e.g. ID string prefixes, uuid, primary keys)
+            col_name_lower = str(col).lower()
+            if (col_name_lower.endswith(("_id", " id", "id")) or col_name_lower in ("id", "pk", "uuid", "guid", "tx_id")) and unique_count / n_valid > 0.85:
+                identifier_cols.append(str(col))
+                continue
+
+            # 3. Boolean check
             if pd.api.types.is_bool_dtype(s) or (unique_count == 2 and set(non_null.unique()).issubset({0, 1, "0", "1", "true", "false", "True", "False", True, False})):
                 boolean_cols.append(str(col))
                 continue
 
-            # 3. Datetime check
+            # 4. Datetime check
             if pd.api.types.is_datetime64_any_dtype(s):
                 datetime_candidates.append(str(col))
                 continue
@@ -213,12 +219,12 @@ class CanonicalDataLayer:
                 except Exception:
                     pass
 
-            # 4. Numeric check (direct or coerced)
+            # 5. Numeric check (direct or coerced)
             coerced_num = cls.coerce_numeric_series(s)
             num_valid_ratio = coerced_num.notna().mean()
 
             if num_valid_ratio >= 0.70:
-                # Check if it is an integer sequential identifier
+                # Check if integer sequential identifier
                 if pd.api.types.is_integer_dtype(s) and unique_count / n_valid > 0.95 and coerced_num.min() >= 0:
                     diffs = coerced_num.diff().dropna()
                     if not diffs.empty and (diffs == 1).mean() > 0.8:
@@ -228,7 +234,7 @@ class CanonicalDataLayer:
                 numeric_cols.append(str(col))
                 continue
 
-            # 5. Categorical / Text check
+            # 6. Categorical / Text check
             if unique_count <= 50 or (unique_count / n_valid) <= 0.20:
                 categorical_cols.append(str(col))
             elif unique_count / n_valid > 0.80 and any(isinstance(x, str) and len(str(x)) > 40 for x in non_null.head(10)):
@@ -352,18 +358,25 @@ class CanonicalDataLayer:
     ) -> Tuple[DatasetRowAudit, pd.Series, Optional[pd.Series]]:
         """
         Audit row validity without dropping unrelated data rows.
-        Returns: (DatasetRowAudit, clean_target_series, clean_time_series)
+        Supports both continuous numeric regression/forecast targets and categorical classification targets.
         """
         orig_count = len(df)
         removal_reasons = []
 
         if target_column and target_column in df.columns:
             target_raw = df[target_column]
-            target_clean = cls.coerce_numeric_series(target_raw)
-            target_null_count = int(target_clean.isna().sum())
+            is_cat = target_raw.dtype == object or target_raw.nunique() <= 10 or not pd.api.types.is_numeric_dtype(target_raw)
+
+            if is_cat:
+                target_clean = target_raw.copy()
+                target_null_count = int(target_clean.isna().sum())
+            else:
+                target_clean = cls.coerce_numeric_series(target_raw)
+                target_null_count = int(target_clean.isna().sum())
+
             if target_null_count > 0:
                 removal_reasons.append(
-                    f"Target column '{target_column}' contained {target_null_count} missing or non-numeric values."
+                    f"Target column '{target_column}' contained {target_null_count} missing values."
                 )
             target_valid_count = int(target_clean.notna().sum())
         else:
@@ -415,7 +428,7 @@ class CanonicalDataLayer:
         minimum_required_rows: int = 10,
     ) -> Tuple[Optional[pd.DataFrame], Optional[pd.Series], DatasetRowAudit]:
         """
-        Prepare features X and target y for tabular prediction.
+        Prepare features X and target y for tabular prediction (regression or classification).
         Non-destructive: isolates target validation and imputes/filters features so
         unrelated missing values never discard valid observations.
         """
@@ -433,8 +446,15 @@ class CanonicalDataLayer:
         df_valid = df.loc[valid_target_mask].copy()
         y = target_clean.loc[valid_target_mask].copy()
 
-        # 2. Select Candidate Features (exclude target)
-        feature_cols = [c for c in df_valid.columns if c != target_column]
+        # Profiling for identifier exclusion
+        profile = cls.profile_dataset(df_valid)
+
+        # 2. Select Candidate Features (exclude target & identifiers)
+        feature_cols = [
+            c for c in df_valid.columns
+            if c != target_column and c not in profile.identifier_columns
+        ]
+
         if not feature_cols:
             X = pd.DataFrame({"__step": np.arange(len(y))}, index=y.index)
             return X, y, audit
