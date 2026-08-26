@@ -84,11 +84,18 @@ class TimeSeriesDetector:
         Rank candidate numeric targets based on statistical properties without hardcoded column names.
         Returns list of (column_name, suitability_score) sorted descending by score.
         """
-        # 1. User explicit target ALWAYS has highest priority
-        if hint and hint in df.columns and pd.api.types.is_numeric_dtype(df[hint]):
-            return [(hint, 100.0)]
+        from agent.canonical_data_layer import CanonicalDataLayer
 
-        num_cols = [c for c in df.select_dtypes(include=[np.number]).columns if c != time_col]
+        # 1. User explicit target ALWAYS has highest priority
+        if hint and hint in df.columns:
+            coerced_hint = CanonicalDataLayer.coerce_numeric_series(df[hint])
+            if coerced_hint.notna().sum() >= 3:
+                return [(hint, 100.0)]
+
+        num_cols = [
+            c for c in df.columns
+            if c != time_col and CanonicalDataLayer.coerce_numeric_series(df[c]).notna().sum() >= 3
+        ]
         if not num_cols:
             return []
 
@@ -237,8 +244,9 @@ class TimeSeriesDetector:
             )
 
         # Ingest and prepare series
+        from agent.canonical_data_layer import CanonicalDataLayer
         dt_series = pd.to_datetime(df[time_col], errors="coerce")
-        num_series = pd.to_numeric(df[target_col], errors="coerce")
+        num_series = CanonicalDataLayer.coerce_numeric_series(df[target_col])
         clean_df = pd.DataFrame({"__time": dt_series, "__target": num_series}).dropna().sort_values("__time")
         n_obs = len(clean_df)
 
@@ -268,7 +276,7 @@ class TimeSeriesDetector:
                 detected_frequency=freq_str,
                 observation_count=n_obs,
                 time_range=time_range,
-                reasons=[f"Dataset has only {n_obs} observations; minimum required is 5."],
+                reasons=[f"Insufficient historical observations (N={n_obs} < 5)."],
                 warnings=["Insufficient historical data to detect temporal autocorrelation or trend."],
                 limitations=["Statistical forecasts with N < 5 are mathematically unidentifiable."],
             )

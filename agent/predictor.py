@@ -94,7 +94,7 @@ class DataPredictor:
                 "minimum_required_rows": 5,
             }
 
-        y_valid = target_clean.dropna()
+        y_valid = CanonicalDataLayer.coerce_numeric_series(target_clean).dropna()
 
         # Build history records
         history = [{"index": i + 1, "actual": round(float(val), 4)} for i, val in enumerate(y_valid)]

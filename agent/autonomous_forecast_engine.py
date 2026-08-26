@@ -73,13 +73,14 @@ class AutonomousForecastEngine:
         horizon = max(1, min(request.forecast_horizon, 36))
 
         # 1. Clean and Aggregate Series
-        series_df = df[[time_col, target_col]].dropna().copy()
-        series_df[time_col] = pd.to_datetime(series_df[time_col])
-        series_df = series_df.sort_values(time_col)
+        from agent.canonical_data_layer import CanonicalDataLayer
+        dt_series = pd.to_datetime(df[time_col], errors="coerce")
+        target_series = CanonicalDataLayer.coerce_numeric_series(df[target_col])
+        series_df = pd.DataFrame({"__time": dt_series, "__target": target_series}).dropna().sort_values("__time")
 
         # Resample / aggregate if duplicates exist on timestamp
-        series_df = series_df.groupby(time_col)[target_col].mean().reset_index()
-        y_all = series_df[target_col].to_numpy(dtype=float)
+        series_df = series_df.groupby("__time")["__target"].mean().reset_index()
+        y_all = series_df["__target"].to_numpy(dtype=float)
         n_obs = len(y_all)
 
         # 2. Chronological Split (80% Train, 20% Backtest Validation)
@@ -140,7 +141,7 @@ class AutonomousForecastEngine:
         z_score = stats.norm.ppf(0.5 + request.confidence_level / 2.0)
 
         # 6. Build Future Date Sequence
-        last_date = series_df[time_col].iloc[-1]
+        last_date = series_df["__time"].iloc[-1]
         future_dates = self._generate_future_dates(last_date, horizon, freq_str)
 
         # 7. Projected Change vs Baseline (Distinguished from Validation Accuracy)
