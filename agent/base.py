@@ -222,6 +222,7 @@ class BaseAgent:
             started_at=self.started_at or datetime.now(),
             timestamp=self.started_at or datetime.now(),
             errors=[error],
+            confidence=0.0,
             duration_ms=duration,
             execution_time=duration,
             execution_time_ms=duration,
@@ -236,6 +237,10 @@ class BaseAgent:
     def run(self, task) -> AgentResult:
         """Execute the task. Subclasses must override and return AgentResult."""
         raise NotImplementedError("Subclasses must implement run() and return AgentResult")
+
+    def execute(self, task: Any) -> AgentResult:
+        """Alias for run() method."""
+        return self.run(task)
 
     def safe_run(self, task: Any) -> AgentResult:
         """

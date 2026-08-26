@@ -127,9 +127,15 @@ class ExecutionEngine:
                         result = res
                     else:
                         result = AgentResult.success(output={"result": res}, agent_name=tool_name)
-                else:
+                elif tool_name.lower() in ("analysis", "analysisagent", "summary", "eda"):
                     from agent.agents import AnalysisAgent
                     result = AnalysisAgent().execute(task_inputs)
+                else:
+                    result = AgentResult.error(
+                        error=f"Tool '{tool_name}' is not registered.",
+                        code="TOOL_NOT_FOUND",
+                        agent_name=tool_name or "ExecutionEngine",
+                    )
 
                 if result is not None and result.is_success:
                     break

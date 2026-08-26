@@ -105,6 +105,14 @@ class Evidence(BaseModel):
     raw_value: Any = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
+    @field_validator("confidence")
+    @classmethod
+    def validate_confidence(cls, v: float) -> float:
+        val = float(v)
+        if val < 0.0 or val > 1.0:
+            raise ValueError(f"confidence must be within [0.0, 1.0], got {val}")
+        return val
+
     @model_validator(mode="before")
     @classmethod
     def sync_legacy_fields(cls, data: Any) -> Any:
@@ -351,6 +359,14 @@ class AgentResult(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
     model_used: Optional[str] = None
     retry_count: int = 0
+
+    @field_validator("confidence")
+    @classmethod
+    def validate_confidence(cls, v: float) -> float:
+        val = float(v)
+        if val < 0.0 or val > 1.0:
+            raise ValueError(f"confidence must be within [0.0, 1.0], got {val}")
+        return val
 
     @field_validator("status")
     @classmethod
@@ -686,6 +702,50 @@ class AgentResult(BaseModel):
             warnings=warnings or [],
             metadata=metadata or {},
             model_used=model_used,
+            **kwargs,
+        )
+
+    @classmethod
+    def error(
+        cls,
+        error: Union[str, AgentError] = "",
+        agent: str = "Agent",
+        agent_name: Optional[str] = None,
+        role: str = "generalist",
+        code: str = "ERROR",
+        details: Optional[Dict[str, Any]] = None,
+        task_id: str = "",
+        message: Optional[str] = None,
+        errors: Optional[List[AgentError]] = None,
+        **kwargs: Any,
+    ) -> "AgentResult":
+        name = agent_name or agent
+        err_msg = str(error) if error else (message or "Error")
+        err_list = errors or []
+        if not err_list:
+            err_obj = error if isinstance(error, AgentError) else AgentError(
+                code=code,
+                message=err_msg,
+                user_message=err_msg,
+                details=details or {},
+                technical_details=details or {},
+                agent_name=name,
+            )
+            err_list = [err_obj]
+        return cls(
+            status=AgentStatus.ERROR,
+            agent_name=name,
+            agent=name,
+            role=role,
+            task_id=task_id,
+            agent_id=task_id,
+            execution_id=task_id or f"exec_{uuid.uuid4().hex[:8]}",
+            data={"error": err_msg},
+            output={"error": err_msg},
+            result={"error": err_msg},
+            message=message or f"{name} failed: {err_msg}",
+            errors=err_list,
+            confidence=0.0,
             **kwargs,
         )
 
