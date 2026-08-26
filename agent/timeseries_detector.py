@@ -85,20 +85,29 @@ class TimeSeriesDetector:
         Returns list of (column_name, suitability_score) sorted descending by score.
         """
         # 1. User explicit target ALWAYS has highest priority
+        if hint and hint in df.columns and pd.api.types.is_numeric_dtype(df[hint]):
+            return [(hint, 100.0)]
         if hint and hint in df.columns:
             from agent.canonical_data_layer import CanonicalDataLayer
             coerced = CanonicalDataLayer.coerce_numeric_series(df[hint])
             if coerced.notna().sum() >= 3:
                 return [(hint, 100.0)]
 
+        num_cols = [c for c in df.select_dtypes(include=[np.number]).columns if c != time_col]
+        if not num_cols:
+            return []
+
         from agent.canonical_data_layer import CanonicalDataLayer
         candidate_cols = [c for c in df.columns if c != time_col]
         scored_candidates: List[Tuple[str, float]] = []
 
+        for col in num_cols:
+            series = df[col].dropna()
         for col in candidate_cols:
             coerced_series = CanonicalDataLayer.coerce_numeric_series(df[col])
             series = coerced_series.dropna()
             n = len(series)
+            if n < 3:
             if n < 3 or (n / len(df)) < 0.30:
                 continue
 
@@ -238,6 +247,8 @@ class TimeSeriesDetector:
                 limitations=["Cannot forecast non-numeric categorical variables."],
             )
 
+        # Ingest and prepare series
+        clean_df = df[[time_col, target_col]].dropna().copy()
         from agent.canonical_data_layer import CanonicalDataLayer
         audit, target_clean, time_clean = CanonicalDataLayer.audit_dataset_for_target(
             df,

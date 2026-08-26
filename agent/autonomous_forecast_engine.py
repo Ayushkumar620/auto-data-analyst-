@@ -72,6 +72,8 @@ class AutonomousForecastEngine:
         freq_str = request.frequency or suitability.detected_frequency or "M"
         horizon = max(1, min(request.forecast_horizon, 36))
 
+        # 1. Clean and Aggregate Series
+        series_df = df[[time_col, target_col]].dropna().copy()
         # 1. Clean and Aggregate Series using CanonicalDataLayer
         from agent.canonical_data_layer import CanonicalDataLayer
         audit, target_clean, time_clean = CanonicalDataLayer.audit_dataset_for_target(
@@ -162,6 +164,7 @@ class AutonomousForecastEngine:
         last_date = series_df[time_col].iloc[-1]
         future_dates = self._generate_future_dates(last_date, horizon, freq_str)
 
+        # 7. Projected Change vs Baseline (Distinguished from Validation Accuracy)
         # 7. Projected Change vs Baseline and Historical Slope
         last_val = y_all[-1]
         mean_forecast = float(np.mean(future_y))
@@ -340,6 +343,7 @@ class AutonomousForecastEngine:
 
         # Symmetric MAPE (sMAPE): safe when actuals are zero
         denom = (np.abs(y_true) + np.abs(y_pred)) / 2.0
+        smape = float(np.mean(np.where(denom > 1e-9, np.abs(y_pred - y_true) / denom, 0.0)) * 100.0)
         safe_denom = np.where(denom > 1e-9, denom, 1.0)
         smape = float(np.mean(np.where(denom > 1e-9, np.abs(y_pred - y_true) / safe_denom, 0.0)) * 100.0)
 
