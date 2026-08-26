@@ -143,10 +143,16 @@ class AutonomousForecastEngine:
         last_date = series_df[time_col].iloc[-1]
         future_dates = self._generate_future_dates(last_date, horizon, freq_str)
 
-        # 7. Projected Change vs Baseline (Distinguished from Validation Accuracy)
-        last_val = y_all[-1]
+        # 7. Historical Slope and Projected Change vs Baseline
+        x_all = np.arange(n_obs)
+        slope_val = float(np.polyfit(x_all, y_all, 1)[0]) if n_obs >= 2 else 0.0
+
+        last_val = float(y_all[-1])
         mean_forecast = float(np.mean(future_y))
-        projected_change_pct = round(((mean_forecast - last_val) / (abs(last_val) + 1e-9)) * 100.0, 2)
+        if abs(last_val) > 1e-9:
+            projected_change_pct = round(((mean_forecast - last_val) / abs(last_val)) * 100.0, 2)
+        else:
+            projected_change_pct = round((mean_forecast - last_val) * 100.0, 2)
 
         points: List[ForecastPoint] = []
         for step, (dt_str, val) in enumerate(zip(future_dates, future_y), start=1):
@@ -186,6 +192,7 @@ class AutonomousForecastEngine:
                 "horizon": horizon,
                 "frequency": freq_str,
                 "projected_change_pct": projected_change_pct,
+                "slope": slope_val,
                 "candidate_models": list(eval_scores.keys()),
             },
         )
@@ -201,6 +208,8 @@ class AutonomousForecastEngine:
             confidence_level=request.confidence_level,
             validation_metrics=best_metrics,
             baseline_metrics=baseline_metrics,
+            projected_change_pct=projected_change_pct,
+            slope=slope_val,
             assumptions=assumptions,
             warnings=warnings,
             limitations=limitations,
