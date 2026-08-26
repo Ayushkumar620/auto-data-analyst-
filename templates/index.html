@@ -581,7 +581,6 @@
 
         function renderCharts(charts) {
             let html = '';
-            charts.forEach(function (chart) {
             charts.forEach(function (chart, idx) {
                 const currentType = (chart.chart_type || 'chart').toLowerCase();
                 const scrollId = 'chart-scroll-' + idx;
@@ -600,8 +599,6 @@
                     '<button class="chip' + (currentType === 'heatmap' ? ' active-chip' : '') + '" onclick="selectChartType(\'heatmap\')">🌡️ Heatmap</button>' +
                     '<button class="chip' + (currentType === 'area' ? ' active-chip' : '') + '" onclick="selectChartType(\'area\')">🌊 Area</button>' +
                     '</div>' +
-                    '<div style="text-align: center; background: #1e1e2e; border-radius: 10px; padding: 8px;">' +
-                    '<img src="data:image/png;base64,' + chart.image + '" alt="chart" style="max-width: 100%; border-radius: 8px;">' +
                     '<div class="chart-scroll-wrapper" id="' + scrollId + '">' +
                     '<img src="data:image/png;base64,' + chart.image + '" alt="chart">' +
                     '</div>' +
