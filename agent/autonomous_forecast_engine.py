@@ -340,7 +340,8 @@ class AutonomousForecastEngine:
 
         # Symmetric MAPE (sMAPE): safe when actuals are zero
         denom = (np.abs(y_true) + np.abs(y_pred)) / 2.0
-        smape = float(np.mean(np.where(denom > 1e-9, np.abs(y_pred - y_true) / denom, 0.0)) * 100.0)
+        safe_denom = np.where(denom > 1e-9, denom, 1.0)
+        smape = float(np.mean(np.where(denom > 1e-9, np.abs(y_pred - y_true) / safe_denom, 0.0)) * 100.0)
 
         # R-squared
         ss_res = float(np.sum((y_true - y_pred) ** 2))
