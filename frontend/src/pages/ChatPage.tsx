@@ -218,8 +218,115 @@ export default function ChatPage() {
         <main className="studio-right-panel">
           {activeResult ? (
             <>
+              {/* Autonomous Agent Execution Graph Card */}
               {/* Autonomous Agent Execution Timeline Panel */}
               <Card className="execution-graph-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
+                  <div>
+                    <h2 className="section-title" style={{ margin: '0 0 0.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <IconBrain size={20} /> Autonomous Agent Execution Graph
+                    </h2>
+                    <p className="section-subtitle" style={{ margin: 0 }}>
+                      Multi-agent pipeline decomposed and executed across specialized autonomous agents.
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        padding: '0.2rem 0.6rem',
+                        borderRadius: '6px',
+                        backgroundColor: '#e0f2fe',
+                        color: '#0369a1',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      Intent: {activeResult.user_intent}
+                    </span>
+                    <span
+                      style={{
+                        padding: '0.2rem 0.6rem',
+                        borderRadius: '6px',
+                        backgroundColor: activeResult.validation_summary.status === 'PASSED' ? '#ecfdf5' : '#fff7ed',
+                        color: activeResult.validation_summary.status === 'PASSED' ? '#059669' : '#c2410c',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {activeResult.validation_summary.status}
+                    </span>
+                    <span
+                      style={{
+                        padding: '0.2rem 0.6rem',
+                        borderRadius: '6px',
+                        backgroundColor: '#f1f5f9',
+                        color: '#475569',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                      }}
+                    >
+                      ⏱️ {activeResult.duration_ms} ms
+                    </span>
+                  </div>
+                </div>
+
+                {/* Horizontal Scrollable DAG Graph Wrapper */}
+                <div className="graph-wrapper" aria-label="Agent execution graph flow">
+                  <div className="dag-flow">
+                    {/* Step 1: Intent & Planning */}
+                    <div className="dag-card dag-card--completed">
+                      <div className="dag-card-header">
+                        <span className="dag-card-step">Step 1</span>
+                        <span className="dag-card-status"><IconCheck size={10} aria-hidden /> Done</span>
+                      </div>
+                      <p className="dag-card-title">IntentAnalyzer</p>
+                      <p className="dag-card-role">Decompose query & formulate plan</p>
+                    </div>
+
+                    <span className="dag-connector">→</span>
+
+                    {/* Step 2: Quality & Validation */}
+                    <div className="dag-card dag-card--completed">
+                      <div className="dag-card-header">
+                        <span className="dag-card-step">Step 2</span>
+                        <span className="dag-card-status"><IconCheck size={10} aria-hidden /> Done</span>
+                      </div>
+                      <p className="dag-card-title">DataValidationAgent</p>
+                      <p className="dag-card-role">Verify schema & clean anomalies</p>
+                    </div>
+
+                    {/* Step 3+: Deployed Agents */}
+                    {activeResult.selected_agents.map((agentName, idx) => (
+                      <React.Fragment key={idx}>
+                        <span className="dag-connector">→</span>
+                        <div className="dag-card dag-card--completed">
+                          <div className="dag-card-header">
+                            <span className="dag-card-step">Step {idx + 3}</span>
+                            <span className="dag-card-status"><IconCheck size={10} aria-hidden /> Done</span>
+                          </div>
+                          <p className="dag-card-title">{agentName}</p>
+                          <p className="dag-card-role">
+                            {activeResult.required_operations[idx] || 'Compute analytical findings'}
+                          </p>
+                        </div>
+                      </React.Fragment>
+                    ))}
+
+                    <span className="dag-connector">→</span>
+
+                    {/* Final Step: Synthesis & Findings */}
+                    <div className="dag-card dag-card--completed">
+                      <div className="dag-card-header">
+                        <span className="dag-card-step">Synthesis</span>
+                        <span className="dag-card-status"><IconCheck size={10} aria-hidden /> Done</span>
+                      </div>
+                      <p className="dag-card-title">DecisionExplainer</p>
+                      <p className="dag-card-role">Synthesize executive evidence</p>
+                    </div>
+                  </div>
+                </div>
                 <HorizontalAnalysisTimeline
                   stages={[
                     {
