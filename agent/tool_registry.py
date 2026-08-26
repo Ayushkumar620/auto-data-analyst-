@@ -186,7 +186,7 @@ class ToolRegistry:
                 capabilities=["anomaly_detection", "outliers", "spike_detection"],
                 input_schema={"data": "pd.DataFrame", "column": "str"},
                 output_schema={"anomalies": "list", "anomaly_count": "int"},
-                execution_fn=lambda data, **kw: InsightAgent().run({"data": data, "type": "anomalies", **kw}),
+                execution_fn=lambda data, **kw: AnomalyDetectionAgent().run({"data": data, **kw}),
                 validation_requirements=["anomaly_count >= 0"],
             )
         )

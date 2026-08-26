@@ -1,4 +1,4 @@
-﻿"""
+"""
 Universal Data-Driven Confidence Engine.
 
 Calculates grounded, mathematically bounded epistemic confidence scores [0.0, 1.0]
@@ -237,3 +237,61 @@ class ConfidenceCalculator:
             validation_score=comp_factor,
             factors={"completeness": comp_factor, "sample_size": size_factor, "clarity": amb_factor},
         )
+
+    @classmethod
+    def calculate_anomaly_confidence(
+        cls,
+        n_samples: int = 10,
+        n_features: int = 1,
+        anomalies_found: int = 0,
+        anomaly_rate: float = 0.05,
+        method_suitability: float = 85.0,
+        missing_rate: float = 0.0,
+    ) -> ConfidenceReport:
+        """Calculate confidence for anomaly detection outcomes."""
+        penalties: List[str] = []
+        explanations: List[str] = []
+        factors: Dict[str, float] = {}
+
+        # 1. Method suitability factor (0.5 to 1.0)
+        suit_factor = cls._clamp(method_suitability / 100.0, 0.5, 1.0)
+        factors["method_suitability"] = suit_factor
+        explanations.append(f"Algorithm suitability score = {method_suitability:.1f}")
+
+        # 2. Sample size factor
+        if n_samples < 10:
+            sample_factor = 0.65
+            penalties.append(f"Small sample size for anomaly detection (N={n_samples} < 10)")
+        elif n_samples < 30:
+            sample_factor = 0.85
+        else:
+            sample_factor = 1.0
+        factors["sample_size"] = sample_factor
+
+        # 3. Anomaly rate reasonableness (between 0.1% and 25%)
+        if anomaly_rate > 0.30:
+            rate_factor = 0.70
+            penalties.append(f"High anomaly rate ({anomaly_rate*100:.1f}%), potential noise contamination")
+        elif anomaly_rate == 0.0:
+            rate_factor = 0.85
+            explanations.append("No anomalous observations detected")
+        else:
+            rate_factor = 0.95
+        factors["rate_stability"] = rate_factor
+
+        # 4. Missingness factor
+        comp_factor = max(0.70, 1.0 - missing_rate)
+        factors["completeness"] = comp_factor
+
+        raw_conf = suit_factor * sample_factor * rate_factor * comp_factor
+        final_conf = cls._clamp(raw_conf, min_val=0.25, max_val=0.95)
+
+        return ConfidenceReport(
+            confidence=final_conf,
+            confidence_level=1.0,
+            validation_score=suit_factor,
+            factors=factors,
+            penalties=penalties,
+            explanations=explanations,
+        )
+
