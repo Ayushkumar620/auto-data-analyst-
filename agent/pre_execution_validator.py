@@ -1,4 +1,4 @@
-﻿"""
+"""
 Universal Pre-Execution Validator.
 
 Performs dataset-agnostic, task-specific pre-flight audits before any
@@ -441,6 +441,19 @@ class PreExecutionValidator:
             err = AgentError.create(
                 category=ErrorCategory.INSUFFICIENT_DATA,
                 user_message=f"Need at least 5 observations for statistical anomaly detection. Found {len(df)}.",
+                agent_name=agent_name,
+            )
+            return PreExecutionValidationReport(is_valid=False, task_type="anomaly_detection", error=err)
+
+        # Check if all candidate numeric columns have 0 variance
+        non_constant_numeric = [
+            c for c in profile.numeric_columns
+            if c not in profile.constant_columns and df[c].nunique(dropna=True) > 1
+        ]
+        if not non_constant_numeric:
+            err = AgentError.create(
+                category=ErrorCategory.DATA_INVALID,
+                user_message="All candidate feature columns have zero variance (constant values). Cannot detect anomalies in uniform data.",
                 agent_name=agent_name,
             )
             return PreExecutionValidationReport(is_valid=False, task_type="anomaly_detection", error=err)
