@@ -29,17 +29,12 @@ class DataPredictor:
 
         Uses linear regression on position (time index) to predict future values.
         """
-        """Autonomous time-series forecast delegating to AutonomousForecastEngine as single source of truth."""
         df = self._get_main_df()
         if df is None:
-        if df is None or df.empty:
             return {"error": "No tabular data available for forecasting."}
 
         # Find date column and target using TimeSeriesDetector
-        from agent.autonomous_forecast_engine import AutonomousForecastEngine
-        from agent.forecasting_schemas import ForecastRequest
         from agent.timeseries_detector import TimeSeriesDetector
-
         detector = TimeSeriesDetector()
         date_col = detector.detect_time_column(df)
 
@@ -53,15 +48,11 @@ class DataPredictor:
             chosen_target = target
         else:
             chosen_target = detector.detect_target_column(df, time_col=date_col) or numeric.columns[0]
-        chosen_target = target if (target and target in df.columns and pd.api.types.is_numeric_dtype(df[target])) else (
-            detector.detect_target_column(df, time_col=date_col) or numeric.columns[0]
-        )
 
         target = chosen_target
 
         # Get the target series
         y = pd.to_numeric(df[target], errors="coerce").dropna()
-        y = pd.to_numeric(df[chosen_target], errors="coerce").dropna()
         if len(y) < 5:
             return {"error": "Need at least 5 valid data points for forecasting."}
 
@@ -74,27 +65,14 @@ class DataPredictor:
                 y = combined["_value"].reset_index(drop=True)
             except Exception:
                 pass
-        req = ForecastRequest(
-            dataset=df,
-            target_column=chosen_target,
-            time_column=date_col,
-            forecast_horizon=periods,
-        )
-        engine = AutonomousForecastEngine()
-        res = engine.run_forecast(req)
 
         # Simple position-based linear regression
         X = np.arange(len(y)).reshape(-1, 1)
         model = LinearRegression()
         model.fit(X, y)
-        if res.status != "SUCCESS":
-            error_msg = res.warnings[0] if res.warnings else "Forecasting not supported for this dataset."
-            return {"error": error_msg}
 
         # In-sample predictions
         in_sample = model.predict(X)
-        # Build history records
-        history = [{"index": i + 1, "actual": round(float(val), 4)} for i, val in enumerate(y)]
 
         # Future predictions
         future_X = np.arange(len(y), len(y) + periods).reshape(-1, 1)
@@ -111,10 +89,6 @@ class DataPredictor:
                 "period": len(y) + i + 1,
                 "forecast": round(float(val), 4),
             })
-        forecast_records = [
-            {"period": len(y) + i + 1, "forecast": round(float(pt.prediction), 4), "timestamp": pt.timestamp}
-            for i, pt in enumerate(res.predictions)
-        ]
 
         # Build history records
         history = []
@@ -123,9 +97,6 @@ class DataPredictor:
                 "index": i + 1,
                 "actual": round(float(val), 4),
             })
-        slope_val = res.slope if res.slope is not None else 0.0
-        trend = "upward" if slope_val > 0 else ("downward" if slope_val < 0 else "flat")
-        last_val = float(y.iloc[-1])
 
         last_value = float(y.iloc[-1])
         projected_change = ((future[-1] - last_value) / last_value * 100) if last_value != 0 else 0
@@ -135,30 +106,16 @@ class DataPredictor:
             "target_column": target,
             "date_col": date_col,
             "time_column": date_col,
-            "target": res.target,
-            "target_column": res.target,
-            "date_col": res.time_column,
-            "time_column": res.time_column,
             "history_points": int(len(y)),
             "forecast_periods": periods,
             "forecast_horizon": periods,
-            "forecast_periods": res.forecast_horizon,
-            "forecast_horizon": res.forecast_horizon,
             "forecast_values": [r["forecast"] for r in forecast_records],
             "slope": round(slope, 4),
-            "slope": round(float(slope_val), 4),
             "trend": trend,
             "last_value": round(last_value, 4),
             "projected_change_percent": round(projected_change, 2),
-            "last_value": round(last_val, 4),
-            "projected_change_percent": res.projected_change_pct,
-            "projected_change_pct": res.projected_change_pct,
             "history": history,
             "forecast": forecast_records,
-            "model_name": res.model_name,
-            "model_family": res.model_family,
-            "validation_metrics": res.validation_metrics,
-            "confidence_level": res.confidence_level,
         }
 
     def predict(self, target=None):

@@ -216,11 +216,8 @@ class TimeSeriesDetector:
 
         time_col = self.detect_time_column(df, hint=time_column)
         target_col = self.detect_target_column(df, time_col=time_col, hint=target_column)
-        # Detect temporal column from dataset
-        detected_time = self.detect_time_column(df, hint=time_column)
 
         if not time_col:
-        if not detected_time:
             return ForecastSuitabilityResult(
                 suitable=False,
                 score=0.0,
@@ -229,15 +226,11 @@ class TimeSeriesDetector:
                 limitations=["Longitudinal forecasting is unsupported on static cross-sectional datasets."],
             )
 
-        # Resolve target metric
-        target_col = self.detect_target_column(df, time_col=detected_time, hint=target_column)
-
         if not target_col:
             return ForecastSuitabilityResult(
                 suitable=False,
                 score=0.0,
                 detected_time_column=time_col,
-                detected_time_column=detected_time,
                 reasons=["No numeric target metric found in dataset."],
                 warnings=["Forecasting requires at least one continuous numeric metric."],
                 limitations=["Cannot forecast non-numeric categorical variables."],
@@ -245,17 +238,6 @@ class TimeSeriesDetector:
 
         # Ingest and prepare series
         clean_df = df[[time_col, target_col]].dropna().copy()
-        # If user explicitly forecasts the temporal column itself (e.g. target == FiscalYear)
-        if detected_time == target_col:
-            time_col = "_time_step"
-            clean_df = pd.DataFrame({
-                time_col: pd.date_range("2020-01-01", periods=len(df), freq="D"),
-                target_col: df[target_col],
-            }).dropna().copy()
-        else:
-            time_col = detected_time
-            clean_df = df[[time_col, target_col]].dropna().copy()
-
         clean_df[time_col] = pd.to_datetime(clean_df[time_col])
         clean_df = clean_df.sort_values(time_col)
         n_obs = len(clean_df)

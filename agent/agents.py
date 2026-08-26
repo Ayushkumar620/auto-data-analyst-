@@ -292,25 +292,18 @@ class ForecastAgent(BaseAgent):
                 )
             evidence = [self.make_evidence(
                 method="position_based_linear_regression",
-                method="autonomous_timeseries_forecast",
                 data_ref={"target": result.get("target"),
                           "history_points": result.get("history_points"),
                           "date_col": result.get("date_col"),
                           "forecast_periods": result.get("forecast_periods"),
-                          "model_name": result.get("model_name"),
                           "trend": result.get("trend")},
                 confidence=0.7,
-                confidence=0.85,
                 claim_type=ClaimType.INFERENCE,
                 raw_value={"trend": result.get("trend"),
                            "projected_change_percent": result.get("projected_change_percent")},
-                           "projected_change_percent": result.get("projected_change_percent"),
-                           "projected_change_pct": result.get("projected_change_pct"),
-                           "model_name": result.get("model_name")},
             )]
             # Simple forecasts are inherently less certain than measured facts.
             return self._finish(result, evidence=evidence, confidence=0.7,
-            return self._finish(result, evidence=evidence, confidence=0.85,
                                 warnings=["Forecasts are estimates, not guarantees."])
         except Exception as e:
             return self._error(str(e), category=ErrorCategory.COMPUTATION)

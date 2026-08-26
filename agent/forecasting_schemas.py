@@ -111,8 +111,6 @@ class ForecastResult(BaseModel):
     confidence_level: float = 0.80
     validation_metrics: Dict[str, float] = Field(default_factory=dict)
     baseline_metrics: Dict[str, float] = Field(default_factory=dict)
-    projected_change_pct: Optional[float] = None
-    slope: Optional[float] = None
     assumptions: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
     limitations: List[str] = Field(default_factory=list)
@@ -121,28 +119,15 @@ class ForecastResult(BaseModel):
     status: str = "SUCCESS"  # "SUCCESS", "NOT_SUPPORTED", "FAILED"
 
     def to_dict(self) -> Dict[str, Any]:
-        preds_list = [p.to_dict() for p in self.predictions]
-        forecast_vals = [round(float(p.prediction), 4) for p in self.predictions]
-        proj_change = round(float(self.projected_change_pct), 2) if self.projected_change_pct is not None else None
-        slope_val = round(float(self.slope), 4) if self.slope is not None else None
-
         return {
             "model_id": self.model_id,
             "model_name": self.model_name,
             "model_family": self.model_family,
             "target": self.target,
-            "target_column": self.target,
             "time_column": self.time_column,
-            "date_col": self.time_column,
             "frequency": self.frequency,
             "forecast_horizon": self.forecast_horizon,
             "predictions": [p.to_dict() for p in self.predictions],
-            "forecast_periods": self.forecast_horizon,
-            "predictions": preds_list,
-            "forecast_values": forecast_vals,
-            "projected_change_pct": proj_change,
-            "projected_change_percent": proj_change,
-            "slope": slope_val,
             "confidence_level": self.confidence_level,
             "validation_metrics": {k: round(float(v), 4) for k, v in self.validation_metrics.items()},
             "baseline_metrics": {k: round(float(v), 4) for k, v in self.baseline_metrics.items()},

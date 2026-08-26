@@ -74,15 +74,6 @@ class AutonomousForecastEngine:
 
         # 1. Clean and Aggregate Series
         series_df = df[[time_col, target_col]].dropna().copy()
-        if time_col == "_time_step" or time_col not in df.columns or time_col == target_col:
-            time_col = "_time_step"
-            series_df = pd.DataFrame({
-                time_col: pd.date_range("2020-01-01", periods=len(df), freq="D"),
-                target_col: df[target_col],
-            }).dropna().copy()
-        else:
-            series_df = df[[time_col, target_col]].dropna().copy()
-
         series_df[time_col] = pd.to_datetime(series_df[time_col])
         series_df = series_df.sort_values(time_col)
 
@@ -154,17 +145,8 @@ class AutonomousForecastEngine:
 
         # 7. Projected Change vs Baseline (Distinguished from Validation Accuracy)
         last_val = y_all[-1]
-        # 7. Historical Slope and Projected Change vs Baseline
-        x_all = np.arange(n_obs)
-        slope_val = float(np.polyfit(x_all, y_all, 1)[0]) if n_obs >= 2 else 0.0
-
-        last_val = float(y_all[-1])
         mean_forecast = float(np.mean(future_y))
         projected_change_pct = round(((mean_forecast - last_val) / (abs(last_val) + 1e-9)) * 100.0, 2)
-        if abs(last_val) > 1e-9:
-            projected_change_pct = round(((mean_forecast - last_val) / abs(last_val)) * 100.0, 2)
-        else:
-            projected_change_pct = round((mean_forecast - last_val) * 100.0, 2)
 
         points: List[ForecastPoint] = []
         for step, (dt_str, val) in enumerate(zip(future_dates, future_y), start=1):
@@ -204,7 +186,6 @@ class AutonomousForecastEngine:
                 "horizon": horizon,
                 "frequency": freq_str,
                 "projected_change_pct": projected_change_pct,
-                "slope": slope_val,
                 "candidate_models": list(eval_scores.keys()),
             },
         )
@@ -220,8 +201,6 @@ class AutonomousForecastEngine:
             confidence_level=request.confidence_level,
             validation_metrics=best_metrics,
             baseline_metrics=baseline_metrics,
-            projected_change_pct=projected_change_pct,
-            slope=slope_val,
             assumptions=assumptions,
             warnings=warnings,
             limitations=limitations,
@@ -337,11 +316,8 @@ class AutonomousForecastEngine:
         wape = float(np.sum(np.abs(y_true - y_pred)) / sum_abs_true) if sum_abs_true > 0 else 0.0
 
         # Symmetric MAPE (sMAPE): safe when actuals are zero
-        # Symmetric MAPE (sMAPE): safe when actuals and predictions are zero
         denom = (np.abs(y_true) + np.abs(y_pred)) / 2.0
         smape = float(np.mean(np.where(denom > 1e-9, np.abs(y_pred - y_true) / denom, 0.0)) * 100.0)
-        safe_denom = np.where(denom > 1e-9, denom, 1.0)
-        smape = float(np.mean(np.where(denom > 1e-9, np.abs(y_pred - y_true) / safe_denom, 0.0)) * 100.0)
 
         # R-squared
         ss_res = float(np.sum((y_true - y_pred) ** 2))
