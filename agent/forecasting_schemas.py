@@ -135,6 +135,7 @@ class ForecastResult(BaseModel):
             "baseline_metrics": {k: round(float(v), 4) for k, v in self.baseline_metrics.items()},
             "slope": round(float(self.slope), 4) if self.slope is not None else None,
             "projected_change_pct": self.projected_change_pct,
+            "projected_change_percent": self.projected_change_pct,
             "assumptions": self.assumptions,
             "warnings": self.warnings,
             "limitations": self.limitations,
