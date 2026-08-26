@@ -71,21 +71,26 @@ class BaseAgent:
         msg = message or f"{self.name} completed successfully in {duration}ms."
         self.messages.append(msg)
 
-        return AgentResult.success(
+        return AgentResult(
+            success=True,
+            status=AgentStatus.SUCCESS,
             agent=self.name,
             agent_name=self.name,
             role=self.role,
             agent_id=self.agent_id,
             task_id=self.agent_id,
+            execution_id=self.agent_id,
             started_at=self.started_at,
             timestamp=self.started_at or datetime.now(),
             output=result,
             data=result,
+            result=result,
             message=msg,
             evidence=evidence or [],
             confidence=confidence,
             duration_ms=duration,
             execution_time=duration,
+            execution_time_ms=duration,
             warnings=(warnings or []) + [m for m in self.messages if "warning" in m.lower()],
             metadata=metadata or {},
             model_used=model_used,
@@ -109,21 +114,26 @@ class BaseAgent:
         msg = message or f"{self.name} partially completed in {duration}ms."
         self.messages.append(msg)
 
-        return AgentResult.partial(
+        return AgentResult(
+            success=True,
+            status=AgentStatus.PARTIAL,
             agent=self.name,
             agent_name=self.name,
             role=self.role,
             agent_id=self.agent_id,
             task_id=self.agent_id,
+            execution_id=self.agent_id,
             started_at=self.started_at,
             timestamp=self.started_at or datetime.now(),
             output=result,
             data=result,
+            result=result,
             message=msg,
             evidence=evidence or [],
             confidence=confidence,
             duration_ms=duration,
             execution_time=duration,
+            execution_time_ms=duration,
             errors=errors or [],
             warnings=(warnings or []) + self.messages,
             metadata=metadata or {},

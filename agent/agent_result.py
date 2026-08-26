@@ -1,4 +1,4 @@
-﻿"""
+"""
 Universal Canonical Agent Result Contract & Error Architecture.
 
 Defines standardized Pydantic data contracts for all analytical agents,
@@ -625,21 +625,20 @@ class AgentResult(BaseModel):
             message=reason,
         )
 
-    # Legacy factory aliases
     @classmethod
-    def success(cls, **kwargs: Any) -> "AgentResult":
+    def create_partial(cls, **kwargs: Any) -> "AgentResult":
+        kwargs["success"] = True
+        kwargs["status"] = AgentStatus.PARTIAL
+        return cls(**kwargs)
+
+    @classmethod
+    def build_success(cls, **kwargs: Any) -> "AgentResult":
         kwargs["success"] = True
         kwargs["status"] = AgentStatus.SUCCESS
         return cls(**kwargs)
 
     @classmethod
-    def error(cls, **kwargs: Any) -> "AgentResult":
+    def build_error(cls, **kwargs: Any) -> "AgentResult":
         kwargs["success"] = False
         kwargs["status"] = AgentStatus.ERROR
-        return cls(**kwargs)
-
-    @classmethod
-    def partial(cls, **kwargs: Any) -> "AgentResult":
-        kwargs["success"] = True
-        kwargs["status"] = AgentStatus.PARTIAL
         return cls(**kwargs)
