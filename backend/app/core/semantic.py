@@ -308,6 +308,7 @@ class SemanticSchemaAgent:
 
     def __init__(self, hints: dict[str, tuple[str, ...]] | None = None) -> None:
         self.hints = hints or SEMANTIC_HINTS
+        self._knowledge_cache: Dict[str, DatasetKnowledge] = {}
 
     def match_concept(
         self,
@@ -454,8 +455,22 @@ class SemanticSchemaAgent:
     ) -> DatasetKnowledge:
         """
         Construct a complete DatasetKnowledge object representing the semantic
-        and analytical profile of the dataset.
+        and analytical profile of the dataset with O(1) memoization.
         """
+        # Fast memoization check
+        try:
+            n_rows, n_cols = dataframe.shape
+            cols_str = ",".join(str(c) for c in dataframe.columns)
+            dtypes_str = ",".join(str(t) for t in dataframe.dtypes)
+            sample_hash = str(pd.util.hash_pandas_object(dataframe.iloc[:min(10, n_rows)], index=False).sum()) if n_rows > 0 else ""
+            raw_key = f"{dataset_id}|{n_rows}|{n_cols}|{cols_str}|{dtypes_str}|{sample_hash}"
+            fingerprint = hashlib.md5(raw_key.encode("utf-8")).hexdigest()
+        except Exception:
+            fingerprint = f"{dataset_id}_{id(dataframe)}"
+
+        if fingerprint in self._knowledge_cache:
+            return self._knowledge_cache[fingerprint]
+
         from backend.app.core.quality import DataQualityEngine
         from backend.app.core.relationships import RelationshipDiscoveryEngine
 
@@ -546,7 +561,7 @@ class SemanticSchemaAgent:
             "roles": roles,
         }
 
-        return DatasetKnowledge(
+        dk = DatasetKnowledge(
             dataset_id=dataset_id,
             dataset_type=inferred_type,
             columns=[str(c) for c in dataframe.columns],
@@ -567,6 +582,10 @@ class SemanticSchemaAgent:
             overall_confidence=overall_confidence,
             metadata=metadata,
         )
+        if len(self._knowledge_cache) > 128:
+            self._knowledge_cache.clear()
+        self._knowledge_cache[fingerprint] = dk
+        return dk
 
     # -- public API ---------------------------------------------------------
     def classify(self, dataframe: pd.DataFrame,
