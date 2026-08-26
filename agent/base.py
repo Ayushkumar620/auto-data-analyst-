@@ -130,6 +130,40 @@ class BaseAgent:
             model_used=model_used,
         )
 
+    def _needs_clarification(
+        self,
+        clarification_message: str,
+        options: List[Dict[str, Any]],
+        task_type: Optional[str] = None,
+        diagnostics: Optional[Dict[str, Any]] = None,
+    ) -> AgentResult:
+        """Return a structured clarification result when request is ambiguous."""
+        self.finished_at = datetime.now()
+        self.status = AgentStatus.NEEDS_CLARIFICATION
+        return AgentResult.create_needs_clarification(
+            agent_name=self.name,
+            clarification_message=clarification_message,
+            options=options,
+            task_type=task_type,
+            diagnostics=diagnostics,
+        )
+
+    def _not_supported(
+        self,
+        reason: str,
+        task_type: Optional[str] = None,
+        diagnostics: Optional[Dict[str, Any]] = None,
+    ) -> AgentResult:
+        """Return a structured not-supported result when dataset modality is incompatible."""
+        self.finished_at = datetime.now()
+        self.status = AgentStatus.NOT_SUPPORTED
+        return AgentResult.create_not_supported(
+            agent_name=self.name,
+            reason=reason,
+            task_type=task_type,
+            diagnostics=diagnostics,
+        )
+
     def _error(
         self,
         message: str,
@@ -156,26 +190,34 @@ class BaseAgent:
             code=code,
             category=category,
             message=clean_message,
+            user_message=clean_message,
+            technical_details=details or {},
             details=details or {},
             recoverable=recoverable,
             agent_name=self.name,
+            suggested_action=suggested_fix,
             suggested_fix=suggested_fix,
             fallback_agent=fallback_agent,
         )
 
-        return AgentResult.failure(
+        return AgentResult(
+            success=False,
+            status=AgentStatus.ERROR,
             agent=self.name,
             agent_name=self.name,
             role=self.role,
             agent_id=self.agent_id,
             task_id=self.agent_id,
+            execution_id=self.agent_id,
             started_at=self.started_at or datetime.now(),
             timestamp=self.started_at or datetime.now(),
             errors=[error],
             duration_ms=duration,
             execution_time=duration,
+            execution_time_ms=duration,
             output=output or {"error": clean_message},
             data=output or {"error": clean_message},
+            result=output or {"error": clean_message},
             message=f"{self.name} failed: {clean_message}",
             warnings=self.messages + [f"{self.name} error encountered."],
             model_used=model_used,
