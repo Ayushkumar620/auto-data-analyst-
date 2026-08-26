@@ -581,8 +581,9 @@
 
         function renderCharts(charts) {
             let html = '';
-            charts.forEach(function (chart) {
+            charts.forEach(function (chart, idx) {
                 const currentType = (chart.chart_type || 'chart').toLowerCase();
+                const scrollId = 'chart-scroll-' + idx;
                 html += '<div class="card">' +
                     '<div class="card-header">' +
                     '<span>📈 ' + escapeHtml(chart.chart_type.toUpperCase()) + ' Visualization</span>' +
@@ -598,8 +599,16 @@
                     '<button class="chip' + (currentType === 'heatmap' ? ' active-chip' : '') + '" onclick="selectChartType(\'heatmap\')">🌡️ Heatmap</button>' +
                     '<button class="chip' + (currentType === 'area' ? ' active-chip' : '') + '" onclick="selectChartType(\'area\')">🌊 Area</button>' +
                     '</div>' +
-                    '<div style="text-align: center; background: #1e1e2e; border-radius: 10px; padding: 8px;">' +
-                    '<img src="data:image/png;base64,' + chart.image + '" alt="chart" style="max-width: 100%; border-radius: 8px;">' +
+                    '<div class="chart-scroll-wrapper" id="' + scrollId + '">' +
+                    '<img src="data:image/png;base64,' + chart.image + '" alt="chart">' +
+                    '</div>' +
+                    '<div class="chart-scroll-toolbar">' +
+                    '<button type="button" class="chart-nav-btn" onclick="scrollChart(\'' + scrollId + '\', -300)">◀ Scroll Left</button>' +
+                    '<div style="display: flex; align-items: center; gap: 8px;">' +
+                    '<span style="font-size: 0.76rem; color: #94a3b8;">Use buttons or drag scrollbar to pan</span>' +
+                    '<button type="button" class="chart-nav-btn" style="background: rgba(255,255,255,0.06);" onclick="toggleChartZoom(\'' + scrollId + '\')">🔍 Full Width</button>' +
+                    '</div>' +
+                    '<button type="button" class="chart-nav-btn" onclick="scrollChart(\'' + scrollId + '\', 300)">Scroll Right ▶</button>' +
                     '</div>';
 
                 if (chart.summary) {
@@ -612,6 +621,16 @@
                 html += '</div>';
             });
             results.innerHTML = html;
+        }
+
+        function scrollChart(id, delta) {
+            const el = document.getElementById(id);
+            if (el) el.scrollBy({ left: delta, behavior: 'smooth' });
+        }
+
+        function toggleChartZoom(id) {
+            const el = document.getElementById(id);
+            if (el) el.classList.toggle('chart-expanded');
         }
 
         function selectChartType(type) {

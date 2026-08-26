@@ -170,8 +170,11 @@ header h1 {
    ========================================================================== */
 .grid {
     display: grid;
-    grid-template-columns: 1fr 1.5fr;
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
     gap: 20px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
 }
 
 @media (max-width: 900px) {
@@ -186,6 +189,114 @@ header h1 {
     border-radius: 16px;
     padding: 24px;
     backdrop-filter: blur(12px);
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.results-panel {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.results {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.card {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 16px;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+/* ==========================================================================
+   Internal Horizontal Scrollable Chart Workspace
+   ========================================================================== */
+.chart-scroll-wrapper {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    background: #1e1e2e;
+    border-radius: 10px;
+    padding: 10px;
+    scrollbar-width: thin;
+    scrollbar-color: #818cf8 #1e1e2e;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+}
+
+.chart-scroll-wrapper::-webkit-scrollbar {
+    height: 8px;
+}
+
+.chart-scroll-wrapper::-webkit-scrollbar-track {
+    background: #181825;
+    border-radius: 9999px;
+}
+
+.chart-scroll-wrapper::-webkit-scrollbar-thumb {
+    background: #818cf8;
+    border-radius: 9999px;
+}
+
+.chart-scroll-wrapper img {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.chart-scroll-wrapper.chart-expanded img {
+    max-width: none;
+    min-width: 900px;
+}
+
+.chart-scroll-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    flex-wrap: wrap;
+}
+
+.chart-nav-btn {
+    padding: 6px 14px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    border-radius: 6px;
+    border: 1px solid rgba(129, 140, 248, 0.4);
+    background: rgba(99, 102, 241, 0.15);
+    color: #c7d2fe;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.chart-nav-btn:hover {
+    background: rgba(99, 102, 241, 0.35);
+    color: #ffffff;
+    border-color: #818cf8;
 }
 
 .panel h2 {
