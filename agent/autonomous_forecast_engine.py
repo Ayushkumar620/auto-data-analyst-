@@ -190,6 +190,9 @@ class AutonomousForecastEngine:
             },
         )
 
+        x_steps = np.arange(len(y_all))
+        slope_val = float(np.polyfit(x_steps, y_all, 1)[0]) if len(y_all) >= 2 else 0.0
+
         return ForecastResult(
             model_name=best_name.replace("_", " ").title(),
             model_family=best_name,
@@ -201,6 +204,8 @@ class AutonomousForecastEngine:
             confidence_level=request.confidence_level,
             validation_metrics=best_metrics,
             baseline_metrics=baseline_metrics,
+            slope=slope_val,
+            projected_change_pct=projected_change_pct,
             assumptions=assumptions,
             warnings=warnings,
             limitations=limitations,

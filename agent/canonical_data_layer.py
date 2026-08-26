@@ -1,4 +1,4 @@
-﻿"""
+"""
 Canonical Data Layer & Universal Semantic Profiler.
 
 Establishes a single, authoritative, dataset-agnostic representation for all
@@ -212,7 +212,7 @@ class CanonicalDataLayer:
             if s.dtype == object or str(s.dtype).startswith("str"):
                 sample_valid = non_null.head(15)
                 try:
-                    parsed_sample = pd.to_datetime(sample_valid, errors="coerce")
+                    parsed_sample = pd.to_datetime(sample_valid, format="mixed", errors="coerce")
                     if parsed_sample.notna().mean() >= 0.80 and parsed_sample.nunique() > 1:
                         datetime_candidates.append(str(col))
                         continue
