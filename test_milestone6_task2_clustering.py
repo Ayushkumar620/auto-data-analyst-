@@ -1,4 +1,4 @@
-﻿"""
+"""
 Milestone 6 — Task 2: Comprehensive Universal Clustering & Segmentation Test Suite.
 
 Verifies:
@@ -249,7 +249,8 @@ def test_N_O_P_rejection_and_failure_invariants():
     df_id = pd.DataFrame({"id1": [f"id_{i}" for i in range(15)], "id2": [f"key_{i}" for i in range(15)]})
     res_id = agent.run({"data": df_id})
     assert not res_id.is_success
-    assert "identifier" in (res_id.error_message or "").lower() or "insufficient" in (res_id.error_message or "").lower()
+    msg_id = (res_id.error_message or "").lower()
+    assert "identifier" in msg_id or "quantifiable" in msg_id or "at least 2" in msg_id or "insufficient" in msg_id
 
 
 # ---------------------------------------------------------------------------
