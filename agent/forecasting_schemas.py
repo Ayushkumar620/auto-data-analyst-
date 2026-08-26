@@ -114,7 +114,8 @@ class ForecastResult(BaseModel):
     assumptions: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
     limitations: List[str] = Field(default_factory=list)
-    evidence: List[Evidence] = Field(default_factory=list)
+    slope: Optional[float] = None
+    projected_change_pct: Optional[float] = None
     confidence: float = 0.90
     status: str = "SUCCESS"  # "SUCCESS", "NOT_SUPPORTED", "FAILED"
 
@@ -127,7 +128,12 @@ class ForecastResult(BaseModel):
             "time_column": self.time_column,
             "frequency": self.frequency,
             "forecast_horizon": self.forecast_horizon,
+            "forecast_periods": self.forecast_horizon,
             "predictions": [p.to_dict() for p in self.predictions],
+            "forecast_values": [round(float(p.prediction), 4) for p in self.predictions],
+            "slope": round(float(self.slope), 4) if self.slope is not None else None,
+            "projected_change_pct": self.projected_change_pct,
+            "projected_change_percent": self.projected_change_pct,
             "confidence_level": self.confidence_level,
             "validation_metrics": {k: round(float(v), 4) for k, v in self.validation_metrics.items()},
             "baseline_metrics": {k: round(float(v), 4) for k, v in self.baseline_metrics.items()},

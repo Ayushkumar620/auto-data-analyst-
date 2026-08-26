@@ -162,10 +162,12 @@ class AutonomousForecastEngine:
         last_date = series_df[time_col].iloc[-1]
         future_dates = self._generate_future_dates(last_date, horizon, freq_str)
 
-        # 7. Projected Change vs Baseline (Distinguished from Validation Accuracy)
+        # 7. Projected Change vs Baseline and Historical Slope
         last_val = y_all[-1]
         mean_forecast = float(np.mean(future_y))
         projected_change_pct = round(((mean_forecast - last_val) / (abs(last_val) + 1e-9)) * 100.0, 2)
+        x_steps = np.arange(len(y_all))
+        slope_val = float(np.polyfit(x_steps, y_all, 1)[0]) if len(y_all) >= 2 else 0.0
 
         points: List[ForecastPoint] = []
         for step, (dt_str, val) in enumerate(zip(future_dates, future_y), start=1):
@@ -220,6 +222,8 @@ class AutonomousForecastEngine:
             confidence_level=request.confidence_level,
             validation_metrics=best_metrics,
             baseline_metrics=baseline_metrics,
+            slope=slope_val,
+            projected_change_pct=projected_change_pct,
             assumptions=assumptions,
             warnings=warnings,
             limitations=limitations,
