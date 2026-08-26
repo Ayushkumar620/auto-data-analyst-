@@ -232,41 +232,81 @@ class PredictionAgent(BaseAgent):
     def run(self, task):
         self._start()
         try:
+            from agent.pre_execution_validator import PreExecutionValidator
+            from agent.confidence_calculator import ConfidenceCalculator
+            from agent.result_validator import ResultValidator
+
             data = task.get("data")
             target = task.get("target")
+
+            pre_audit = PreExecutionValidator.validate(data, task_type="prediction", target=target, agent_name=self.name)
+            if not pre_audit.is_valid:
+                if pre_audit.needs_clarification:
+                    return self._needs_clarification(
+                        pre_audit.error.user_message if pre_audit.error else "Ambiguous prediction request.",
+                        pre_audit.clarification_options,
+                        task_type="prediction",
+                    )
+                err = pre_audit.error
+                return self._error(
+                    message=err.user_message if err else "Pre-execution validation failed.",
+                    code=err.code if err else "VALIDATION_FAILURE",
+                    category=err.category if err else ErrorCategory.DATA_INVALID,
+                    details=err.technical_details if err else {},
+                )
+
             predictor = DataPredictor(data)
             result = predictor.predict(target=target)
             if "error" in result:
-                return self._finish(
-                    result,
-                    confidence=0.0,
-                    warnings=[f"Prediction failed: {result['error']}"],
+                return self._error(
+                    message=result["error"],
+                    code="PREDICTION_FAILED",
+                    category=ErrorCategory.MODEL_FAILURE,
+                    details=result,
+                    output=result,
                 )
+
             evidence, confidence = self._prediction_evidence(result)
-            return self._finish(result, evidence=evidence, confidence=confidence)
+            raw_res = self._finish(result, evidence=evidence, confidence=confidence, model_used=result.get("model_name"))
+            repaired_res, _ = ResultValidator().repair(raw_res, context={"data": data})
+            return repaired_res
         except Exception as e:
             return self._error(str(e), category=ErrorCategory.COMPUTATION)
 
     def _prediction_evidence(self, result):
+        from agent.confidence_calculator import ConfidenceCalculator
         metric = result.get("metric", {})
+        model_name = result.get("model_name") or metric.get("model") or "machine_learning"
+        model_family = result.get("model_family") or "supervised_ml"
+
         evidence = [self.make_evidence(
-            method=f"sklearn.{str(metric.get('model', 'model')).lower().replace(' ', '_')}",
+            method=f"ml.{model_family}.{str(model_name).lower().replace(' ', '_')}",
             data_ref={"target": result.get("target"),
                       "features": result.get("features", []),
                       "train_size": result.get("train_size"),
                       "test_size": result.get("test_size"),
-                      "model": metric.get("model"),
+                      "model": model_name,
                       "type": metric.get("type")},
-            confidence=0.8,
+            confidence=0.85,
             claim_type=ClaimType.FACT,
             raw_value=metric,
         )]
+
         if metric.get("type") == "classification":
-            confidence = 0.7 + 0.25 * float(metric.get("accuracy", 0) or 0)
+            conf_rep = ConfidenceCalculator.calculate_classification_confidence(
+                accuracy=metric.get("accuracy"),
+                f1_score=metric.get("f1_score"),
+                n_samples=result.get("train_size", 10) + result.get("test_size", 0),
+                n_features=len(result.get("features", [])) or 1,
+            )
         else:
-            r2 = metric.get("r2_score")
-            confidence = min(0.95, 0.5 + 0.45 * float(r2)) if r2 is not None else 0.8
-        return evidence, round(confidence, 3)
+            conf_rep = ConfidenceCalculator.calculate_regression_confidence(
+                r2_score=metric.get("r2_score"),
+                cv_scores=metric.get("cv_scores"),
+                n_samples=result.get("train_size", 10) + result.get("test_size", 0),
+                n_features=len(result.get("features", [])) or 1,
+            )
+        return evidence, conf_rep.confidence
 
 
 class ForecastAgent(BaseAgent):
@@ -279,32 +319,66 @@ class ForecastAgent(BaseAgent):
     def run(self, task):
         self._start()
         try:
+            from agent.pre_execution_validator import PreExecutionValidator
+            from agent.confidence_calculator import ConfidenceCalculator
+            from agent.result_validator import ResultValidator
+
             data = task.get("data")
             target = task.get("target")
             periods = task.get("periods", 5)
+
+            pre_audit = PreExecutionValidator.validate(data, task_type="forecasting", target=target, agent_name=self.name)
+            if not pre_audit.is_valid:
+                err = pre_audit.error
+                return self._error(
+                    message=err.user_message if err else "Forecasting validation failed.",
+                    code=err.code if err else "VALIDATION_FAILURE",
+                    category=err.category if err else ErrorCategory.DATA_INVALID,
+                    details=err.technical_details if err else {},
+                )
+
             predictor = DataPredictor(data)
             result = predictor.forecast(target=target, periods=periods)
             if "error" in result:
-                return self._finish(
-                    result,
-                    confidence=0.0,
-                    warnings=[f"Forecast failed: {result['error']}"],
+                return self._error(
+                    message=result["error"],
+                    code="FORECAST_FAILED",
+                    category=ErrorCategory.MODEL_FAILURE,
+                    details=result,
+                    output=result,
                 )
+
+            model_name = result.get("model_name", "AutonomousForecaster")
+            model_fam = result.get("model_family", "time_series")
             evidence = [self.make_evidence(
-                method="position_based_linear_regression",
+                method=f"timeseries.{model_fam}.{str(model_name).lower().replace(' ', '_')}",
                 data_ref={"target": result.get("target"),
                           "history_points": result.get("history_points"),
                           "date_col": result.get("date_col"),
                           "forecast_periods": result.get("forecast_periods"),
                           "trend": result.get("trend")},
-                confidence=0.7,
+                confidence=0.80,
                 claim_type=ClaimType.INFERENCE,
                 raw_value={"trend": result.get("trend"),
                            "projected_change_percent": result.get("projected_change_percent")},
             )]
-            # Simple forecasts are inherently less certain than measured facts.
-            return self._finish(result, evidence=evidence, confidence=0.7,
-                                warnings=["Forecasts are estimates, not guarantees."])
+
+            conf_rep = ConfidenceCalculator.calculate_forecast_confidence(
+                validation_metrics=result.get("validation_metrics", {}),
+                baseline_metrics=result.get("baseline_metrics", {}),
+                horizon=periods,
+                n_obs=result.get("history_points", 15),
+            )
+
+            raw_res = self._finish(
+                result,
+                evidence=evidence,
+                confidence=conf_rep.confidence,
+                model_used=model_name,
+                warnings=["Forecasts are statistical projections with prediction intervals, not guarantees."],
+            )
+            repaired_res, _ = ResultValidator().repair(raw_res, context={"data": data})
+            return repaired_res
         except Exception as e:
             return self._error(str(e), category=ErrorCategory.COMPUTATION)
 
