@@ -3,6 +3,7 @@ import { executeCommand } from '../services/chatService';
 import type { CommandExecutionResponse } from '../services/chatService';
 import PlotlyChart from '../components/PlotlyChart';
 import AnalysisResponseRenderer from '../components/analyst/AnalysisResponseRenderer';
+import HorizontalAnalysisTimeline, { type TimelineStage } from '../components/analyst/HorizontalAnalysisTimeline';
 import { useDataset } from '../context/DatasetContext';
 import { PageContainer, PageHeader, Card } from '../components/layout/PageContainer';
 import EmptyState from '../components/ui/EmptyState';
