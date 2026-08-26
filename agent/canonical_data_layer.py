@@ -1,20 +1,23 @@
 ﻿"""
-Canonical Data Layer & Universal Row Validator.
+Canonical Data Layer & Universal Semantic Profiler.
 
-Provides centralized, dataset-agnostic data validation, type normalization,
-and granular row accounting across prediction, forecasting, profiling, and analysis.
+Establishes a single, authoritative, dataset-agnostic representation for all
+analytical agents, models, and pipelines.
 
-Separates row metrics into:
-- original_rows: total raw rows in user input
-- parsed_rows: rows successfully ingested into DataFrame
-- valid_rows: rows with usable analysis features
-- target_valid_rows: rows with valid target values
-- time_series_valid_rows: rows with valid (time, target) pairs
-- analysis_rows: rows retained for the final model execution
+Preserves:
+- original dataframe
+- original row count
+- original dtypes
+- semantic profile (numeric, categorical, datetime, identifier, text, constant)
+- missing and duplicate statistics
+- statistical target and feature candidates
+- task suitability (regression, classification, forecasting, clustering, descriptive)
+- granular row accounting and non-destructive transformations.
 """
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+import math
 import re
 from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
@@ -40,8 +43,50 @@ class DatasetRowAudit:
         return asdict(self)
 
 
+@dataclass
+class SemanticProfile:
+    """Deep statistical profiling of dataset characteristics without hardcoded assumptions."""
+    numeric_columns: List[str] = field(default_factory=list)
+    categorical_columns: List[str] = field(default_factory=list)
+    datetime_candidates: List[str] = field(default_factory=list)
+    boolean_columns: List[str] = field(default_factory=list)
+    identifier_columns: List[str] = field(default_factory=list)
+    text_columns: List[str] = field(default_factory=list)
+    constant_columns: List[str] = field(default_factory=list)
+    high_cardinality_columns: List[str] = field(default_factory=list)
+    missing_stats: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    duplicate_stats: Dict[str, Any] = field(default_factory=dict)
+    target_candidates: List[Dict[str, Any]] = field(default_factory=list)
+    feature_candidates: List[str] = field(default_factory=list)
+    suggested_task: str = "descriptive"
+    is_time_series_ready: bool = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class CanonicalDataset:
+    """Authoritative, non-mutated dataset object passed to analytical agents."""
+    original_df: pd.DataFrame
+    original_rows: int
+    columns: List[str]
+    original_dtypes: Dict[str, str]
+    profile: SemanticProfile
+    transformation_log: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "original_rows": self.original_rows,
+            "columns": self.columns,
+            "original_dtypes": self.original_dtypes,
+            "profile": self.profile.to_dict(),
+            "transformation_log": self.transformation_log,
+        }
+
+
 class CanonicalDataLayer:
-    """Authoritative validation and preprocessing pipeline for analytical engines."""
+    """Centralized, dataset-agnostic data validation, profiling, and preparation layer."""
 
     @staticmethod
     def coerce_numeric_series(series: pd.Series) -> pd.Series:
@@ -98,17 +143,204 @@ class CanonicalDataLayer:
         if pd.api.types.is_datetime64_any_dtype(series):
             return series
 
-        # If integer series in year range 1800..2150
         if pd.api.types.is_integer_dtype(series):
             non_null = series.dropna()
             if not non_null.empty and non_null.between(1800, 2150).all():
                 return pd.to_datetime(series.astype(str) + "-01-01", errors="coerce")
 
-        # Standard pandas to_datetime with fallback
         try:
             return pd.to_datetime(series, errors="coerce")
         except Exception:
             return pd.Series(pd.NaT, index=series.index)
+
+    @classmethod
+    def profile_dataset(cls, df: pd.DataFrame) -> SemanticProfile:
+        """
+        Perform comprehensive statistical semantic profiling on arbitrary tabular datasets.
+        Identifies numeric, categorical, boolean, datetime, identifier, constant, and target candidates.
+        """
+        n_rows = len(df)
+        if n_rows == 0:
+            return SemanticProfile()
+
+        numeric_cols: List[str] = []
+        categorical_cols: List[str] = []
+        datetime_candidates: List[str] = []
+        boolean_cols: List[str] = []
+        identifier_cols: List[str] = []
+        text_cols: List[str] = []
+        constant_cols: List[str] = []
+        high_cardinality_cols: List[str] = []
+        missing_stats: Dict[str, Dict[str, Any]] = {}
+
+        for col in df.columns:
+            s = df[col]
+            null_count = int(s.isna().sum())
+            null_pct = round((null_count / n_rows) * 100.0, 2)
+            missing_stats[str(col)] = {"null_count": null_count, "null_pct": null_pct}
+
+            non_null = s.dropna()
+            n_valid = len(non_null)
+            if n_valid == 0:
+                constant_cols.append(str(col))
+                continue
+
+            unique_count = int(non_null.nunique())
+
+            # 1. Constant check
+            if unique_count <= 1:
+                constant_cols.append(str(col))
+                continue
+
+            # 2. Boolean check
+            if pd.api.types.is_bool_dtype(s) or (unique_count == 2 and set(non_null.unique()).issubset({0, 1, "0", "1", "true", "false", "True", "False", True, False})):
+                boolean_cols.append(str(col))
+                continue
+
+            # 3. Datetime check
+            if pd.api.types.is_datetime64_any_dtype(s):
+                datetime_candidates.append(str(col))
+                continue
+
+            # Check if object/string column parses as datetime
+            if s.dtype == object or str(s.dtype).startswith("str"):
+                sample_valid = non_null.head(15)
+                try:
+                    parsed_sample = pd.to_datetime(sample_valid, errors="coerce")
+                    if parsed_sample.notna().mean() >= 0.80 and parsed_sample.nunique() > 1:
+                        datetime_candidates.append(str(col))
+                        continue
+                except Exception:
+                    pass
+
+            # 4. Numeric check (direct or coerced)
+            coerced_num = cls.coerce_numeric_series(s)
+            num_valid_ratio = coerced_num.notna().mean()
+
+            if num_valid_ratio >= 0.70:
+                # Check if it is an integer sequential identifier
+                if pd.api.types.is_integer_dtype(s) and unique_count / n_valid > 0.95 and coerced_num.min() >= 0:
+                    diffs = coerced_num.diff().dropna()
+                    if not diffs.empty and (diffs == 1).mean() > 0.8:
+                        identifier_cols.append(str(col))
+                        continue
+
+                numeric_cols.append(str(col))
+                continue
+
+            # 5. Categorical / Text check
+            if unique_count <= 50 or (unique_count / n_valid) <= 0.20:
+                categorical_cols.append(str(col))
+            elif unique_count / n_valid > 0.80 and any(isinstance(x, str) and len(str(x)) > 40 for x in non_null.head(10)):
+                text_cols.append(str(col))
+            else:
+                high_cardinality_cols.append(str(col))
+
+        # Duplicate statistics
+        dup_count = int(df.duplicated().sum())
+        duplicate_stats = {
+            "duplicate_rows": dup_count,
+            "duplicate_pct": round((dup_count / n_rows) * 100.0, 2),
+        }
+
+        # Target Candidates Ranking
+        target_candidates: List[Dict[str, Any]] = []
+        for col in numeric_cols:
+            if col in identifier_cols or col in constant_cols:
+                continue
+            s_num = cls.coerce_numeric_series(df[col]).dropna()
+            if len(s_num) < 3:
+                continue
+            variance = float(s_num.var()) if not math.isnan(s_num.var()) else 0.0
+            if variance <= 0:
+                continue
+            score = 60.0 + (len(s_num) / n_rows) * 20.0 + min(20.0, s_num.nunique() / 2.0)
+            target_candidates.append({
+                "column": col,
+                "score": round(score, 2),
+                "type": "regression",
+                "variance": round(variance, 4),
+                "unique_values": int(s_num.nunique()),
+            })
+
+        for col in categorical_cols:
+            if col in identifier_cols or col in constant_cols:
+                continue
+            s_cat = df[col].dropna()
+            u_count = s_cat.nunique()
+            if 2 <= u_count <= 20:
+                score = 50.0 + (len(s_cat) / n_rows) * 20.0
+                target_candidates.append({
+                    "column": col,
+                    "score": round(score, 2),
+                    "type": "classification",
+                    "classes": u_count,
+                })
+
+        target_candidates.sort(key=lambda x: x["score"], reverse=True)
+
+        # Feature Candidates
+        feature_candidates = [
+            c for c in df.columns
+            if c not in identifier_cols and c not in constant_cols and c not in high_cardinality_cols
+        ]
+
+        # Suggested Task Type
+        is_ts = len(datetime_candidates) > 0 and len(numeric_cols) > 0 and n_rows >= 5
+        if is_ts:
+            suggested_task = "time_series_forecast"
+        elif target_candidates and target_candidates[0]["type"] == "classification":
+            suggested_task = "classification"
+        elif target_candidates and target_candidates[0]["type"] == "regression":
+            suggested_task = "regression"
+        elif len(numeric_cols) >= 2:
+            suggested_task = "clustering"
+        else:
+            suggested_task = "descriptive"
+
+        return SemanticProfile(
+            numeric_columns=numeric_cols,
+            categorical_columns=categorical_cols,
+            datetime_candidates=datetime_candidates,
+            boolean_columns=boolean_cols,
+            identifier_columns=identifier_cols,
+            text_columns=text_cols,
+            constant_columns=constant_cols,
+            high_cardinality_columns=high_cardinality_cols,
+            missing_stats=missing_stats,
+            duplicate_stats=duplicate_stats,
+            target_candidates=target_candidates,
+            feature_candidates=feature_candidates,
+            suggested_task=suggested_task,
+            is_time_series_ready=is_ts,
+        )
+
+    @classmethod
+    def ingest(cls, data: Union[pd.DataFrame, Dict[str, Any]]) -> CanonicalDataset:
+        """Standardize any input data into a CanonicalDataset object with semantic profile."""
+        if isinstance(data, dict):
+            for df in data.values():
+                if isinstance(df, pd.DataFrame) and not df.empty:
+                    df_target = df
+                    break
+            else:
+                df_target = pd.DataFrame()
+        elif isinstance(data, pd.DataFrame):
+            df_target = data
+        else:
+            df_target = pd.DataFrame()
+
+        profile = cls.profile_dataset(df_target)
+        dtypes_map = {str(c): str(dt) for c, dt in df_target.dtypes.items()}
+
+        return CanonicalDataset(
+            original_df=df_target,
+            original_rows=len(df_target),
+            columns=list(df_target.columns),
+            original_dtypes=dtypes_map,
+            profile=profile,
+            transformation_log=[],
+        )
 
     @classmethod
     def audit_dataset_for_target(
@@ -204,7 +436,6 @@ class CanonicalDataLayer:
         # 2. Select Candidate Features (exclude target)
         feature_cols = [c for c in df_valid.columns if c != target_column]
         if not feature_cols:
-            # If no features exist, generate time-step positional feature
             X = pd.DataFrame({"__step": np.arange(len(y))}, index=y.index)
             return X, y, audit
 
@@ -230,11 +461,9 @@ class CanonicalDataLayer:
             # Try numeric coercion
             num_s = cls.coerce_numeric_series(series)
             if num_s.notna().mean() >= 0.70:
-                # Impute missing numeric with median
                 median_val = num_s.median() if not np.isnan(num_s.median()) else 0.0
                 X_df[col] = num_s.fillna(median_val)
             else:
-                # Treat as categorical, fill NA with 'Unknown' and label encode
                 from sklearn.preprocessing import LabelEncoder
                 cat_s = series.fillna("Unknown").astype(str)
                 try:
@@ -245,7 +474,6 @@ class CanonicalDataLayer:
         if X_df.empty or X_df.shape[1] == 0:
             X_df = pd.DataFrame({"__step": np.arange(len(y))}, index=y.index)
 
-        # Final audit synchronization
         audit.analysis_rows = len(y)
         audit.valid_rows = len(y)
         audit.rows_removed = audit.original_rows - len(y)

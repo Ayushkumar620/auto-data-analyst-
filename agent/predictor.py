@@ -1,17 +1,19 @@
-"""
+﻿"""
 Data Predictor - Builds ML models and time-series forecasts using canonical validation.
 """
 import re
+import time
 import pandas as pd
 import numpy as np
-from sklearn.linear_model import LinearRegression, LogisticRegression
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, r2_score, accuracy_score
+from sklearn.linear_model import LinearRegression, LogisticRegression, Ridge, Lasso
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier, GradientBoostingRegressor, GradientBoostingClassifier
+from sklearn.model_selection import train_test_split, KFold, StratifiedKFold
+from sklearn.metrics import mean_squared_error, r2_score, accuracy_score, f1_score, mean_absolute_error
 from sklearn.preprocessing import LabelEncoder
 
 
 class DataPredictor:
-    """Builds simple predictive models and forecasts from tabular data using CanonicalDataLayer."""
+    """Builds predictive models and forecasts from tabular data using CanonicalDataLayer."""
 
     def __init__(self, data):
         self.data = data
@@ -134,7 +136,7 @@ class DataPredictor:
         }
 
     def predict(self, target=None):
-        """Train a model to predict a target column with canonical non-destructive validation."""
+        """Train a model to predict a target column with multi-candidate benchmarking and canonical validation."""
         df = self._get_main_df()
         if df is None or df.empty:
             return {"error": "No tabular data available for prediction."}
@@ -177,46 +179,130 @@ class DataPredictor:
 
         if is_classification:
             le = LabelEncoder()
-            y_train_full = pd.Series(le.fit_transform(y.astype(str)), index=y.index)
+            y_encoded = pd.Series(le.fit_transform(y.astype(str)), index=y.index)
         else:
-            y_train_full = y
+            y_encoded = y
 
         features = list(X.columns)
+        n_samples = len(X)
+
+        # Train/test split
         X_train, X_test, y_train, y_test = train_test_split(
-            X, y_train_full, test_size=0.2, random_state=42
+            X, y_encoded, test_size=0.2, random_state=42
         )
 
+        # Multi-Candidate Benchmark
+        candidates = []
         if is_classification:
-            model = LogisticRegression(max_iter=1000)
+            candidates.append(("Logistic Regression", "Linear", LogisticRegression(max_iter=1000, random_state=42)))
+            candidates.append(("Random Forest Classifier", "Ensemble", RandomForestClassifier(n_estimators=50, max_depth=6, random_state=42)))
+            candidates.append(("Gradient Boosting Classifier", "Ensemble", GradientBoostingClassifier(n_estimators=50, max_depth=4, random_state=42)))
         else:
-            model = LinearRegression()
+            candidates.append(("Linear Regression", "Linear", LinearRegression()))
+            candidates.append(("Ridge Regression", "Linear", Ridge(alpha=1.0, random_state=42)))
+            candidates.append(("Random Forest Regressor", "Ensemble", RandomForestRegressor(n_estimators=50, max_depth=6, random_state=42)))
+            candidates.append(("Gradient Boosting Regressor", "Ensemble", GradientBoostingRegressor(n_estimators=50, max_depth=4, random_state=42)))
 
-        try:
-            model.fit(X_train, y_train)
-            preds = model.predict(X_test)
-        except Exception as e:
-            return {"error": f"Model training failed: {e}"}
+        best_name = None
+        best_family = None
+        best_model = None
+        best_score = -float("inf")
+        leaderboard = []
 
-        # Metrics
+        cv_folds = max(2, min(5, len(X_train) // 3))
+        cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42) if is_classification else KFold(n_splits=cv_folds, shuffle=True, random_state=42)
+
+        for name, family, model_inst in candidates:
+            try:
+                # Cross-validation
+                scores = []
+                for tr_idx, val_idx in cv.split(X_train, y_train):
+                    m_fold = model_inst.__class__(**model_inst.get_params())
+                    m_fold.fit(X_train.iloc[tr_idx], y_train.iloc[tr_idx])
+                    p_val = m_fold.predict(X_train.iloc[val_idx])
+                    if is_classification:
+                        scores.append(accuracy_score(y_train.iloc[val_idx], np.rint(p_val).astype(int)))
+                    else:
+                        scores.append(r2_score(y_train.iloc[val_idx], p_val))
+
+                mean_cv = float(np.mean(scores))
+
+                # Fit on full train and test on holdout
+                model_inst.fit(X_train, y_train)
+                p_test = model_inst.predict(X_test)
+
+                if is_classification:
+                    p_test_int = np.rint(p_test).astype(int)
+                    test_metric_val = float(accuracy_score(y_test, p_test_int))
+                    leaderboard.append({
+                        "model_name": name,
+                        "family": family,
+                        "cv_accuracy": round(mean_cv, 4),
+                        "test_accuracy": round(test_metric_val, 4),
+                    })
+                else:
+                    test_metric_val = float(r2_score(y_test, p_test))
+                    leaderboard.append({
+                        "model_name": name,
+                        "family": family,
+                        "cv_r2": round(mean_cv, 4),
+                        "test_r2": round(test_metric_val, 4),
+                    })
+
+                # Selection with slight Occam's razor preference for simpler models
+                simplicity_bonus = 0.02 if family == "Linear" else 0.0
+                adjusted_score = mean_cv + simplicity_bonus
+
+                if adjusted_score > best_score or best_model is None:
+                    best_score = adjusted_score
+                    best_name = name
+                    best_family = family
+                    best_model = model_inst
+            except Exception:
+                continue
+
+        if best_model is None:
+            best_model = LogisticRegression(max_iter=1000) if is_classification else LinearRegression()
+            best_model.fit(X_train, y_train)
+            best_name = "Logistic Regression" if is_classification else "Linear Regression"
+            best_family = "Linear"
+
+        preds = best_model.predict(X_test)
+
         if is_classification:
-            preds = np.rint(preds).astype(int)
-            metric = {"model": "Logistic Regression", "type": "classification", "accuracy": round(accuracy_score(y_test, preds), 4)}
-        else:
+            preds_int = np.rint(preds).astype(int)
+            acc = round(float(accuracy_score(y_test, preds_int)), 4)
             metric = {
-                "model": "Linear Regression",
+                "model": best_name,
+                "type": "classification",
+                "accuracy": acc,
+                "f1_score": round(float(f1_score(y_test, preds_int, average="weighted", zero_division=0)), 4),
+            }
+        else:
+            r2 = round(float(r2_score(y_test, preds)), 4)
+            mse = round(float(mean_squared_error(y_test, preds)), 4)
+            mae = round(float(mean_absolute_error(y_test, preds)), 4)
+            metric = {
+                "model": best_name,
                 "type": "regression",
-                "r2_score": round(r2_score(y_test, preds), 4),
-                "mean_squared_error": round(mean_squared_error(y_test, preds), 4),
+                "r2_score": r2,
+                "mean_squared_error": mse,
+                "mean_absolute_error": mae,
             }
 
         coefs = {}
-        if hasattr(model, "coef_"):
-            coefs = {f: round(float(c), 4) for f, c in zip(features, model.coef_.flatten())}
+        if hasattr(best_model, "coef_"):
+            coefs = {f: round(float(c), 4) for f, c in zip(features, best_model.coef_.flatten())}
+        elif hasattr(best_model, "feature_importances_"):
+            coefs = {f: round(float(c), 4) for f, c in zip(features, best_model.feature_importances_)}
 
         return {
             "target": chosen_target,
             "features": features,
             "metric": metric,
+            "model_name": best_name,
+            "model_family": best_family,
+            "leaderboard": leaderboard,
             "coefficients": coefs,
             "train_size": int(len(X_train)),
             "test_size": int(len(X_test)),
