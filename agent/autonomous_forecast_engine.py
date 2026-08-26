@@ -324,9 +324,10 @@ class AutonomousForecastEngine:
         sum_abs_true = float(np.sum(np.abs(y_true)))
         wape = float(np.sum(np.abs(y_true - y_pred)) / sum_abs_true) if sum_abs_true > 0 else 0.0
 
-        # Symmetric MAPE (sMAPE): safe when actuals are zero
+        # Symmetric MAPE (sMAPE): safe when actuals and predictions are zero
         denom = (np.abs(y_true) + np.abs(y_pred)) / 2.0
-        smape = float(np.mean(np.where(denom > 1e-9, np.abs(y_pred - y_true) / denom, 0.0)) * 100.0)
+        safe_denom = np.where(denom > 1e-9, denom, 1.0)
+        smape = float(np.mean(np.where(denom > 1e-9, np.abs(y_pred - y_true) / safe_denom, 0.0)) * 100.0)
 
         # R-squared
         ss_res = float(np.sum((y_true - y_pred) ** 2))
