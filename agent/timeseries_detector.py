@@ -214,10 +214,26 @@ class TimeSeriesDetector:
         warnings: List[str] = []
         limitations: List[str] = []
 
-        time_col = self.detect_time_column(df, hint=time_column)
-        target_col = self.detect_target_column(df, time_col=time_col, hint=target_column)
+        # Target resolution
+        target_col = self.detect_target_column(df, time_col=time_column, hint=target_column)
 
-        if not time_col:
+        # Time column resolution (avoid selecting target_col as time_col if target is explicitly given)
+        if target_column and target_column in df.columns:
+            other_cols = [c for c in df.columns if c != target_column]
+            time_col = self.detect_time_column(df[other_cols], hint=time_column) if other_cols else None
+            if not time_col and time_column and time_column in df.columns:
+                time_col = time_column
+        else:
+            time_col = self.detect_time_column(df, hint=time_column)
+
+        if not time_col and target_col:
+            # If target exists and no separate date col, but target has enough rows, allow index-based forecasting
+            time_col = "_time_step"
+            clean_df = pd.DataFrame({
+                time_col: pd.date_range("2020-01-01", periods=len(df), freq="D"),
+                target_col: df[target_col],
+            }).dropna().copy()
+        elif not time_col:
             return ForecastSuitabilityResult(
                 suitable=False,
                 score=0.0,
@@ -225,6 +241,14 @@ class TimeSeriesDetector:
                 warnings=["Forecasting requires a valid chronological dimension."],
                 limitations=["Longitudinal forecasting is unsupported on static cross-sectional datasets."],
             )
+        elif time_col == target_col:
+            time_col = "_time_step"
+            clean_df = pd.DataFrame({
+                time_col: pd.date_range("2020-01-01", periods=len(df), freq="D"),
+                target_col: df[target_col],
+            }).dropna().copy()
+        else:
+            clean_df = df[[time_col, target_col]].dropna().copy()
 
         if not target_col:
             return ForecastSuitabilityResult(
@@ -236,8 +260,6 @@ class TimeSeriesDetector:
                 limitations=["Cannot forecast non-numeric categorical variables."],
             )
 
-        # Ingest and prepare series
-        clean_df = df[[time_col, target_col]].dropna().copy()
         clean_df[time_col] = pd.to_datetime(clean_df[time_col])
         clean_df = clean_df.sort_values(time_col)
         n_obs = len(clean_df)

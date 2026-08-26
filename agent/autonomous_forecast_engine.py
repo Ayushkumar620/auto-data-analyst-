@@ -73,7 +73,15 @@ class AutonomousForecastEngine:
         horizon = max(1, min(request.forecast_horizon, 36))
 
         # 1. Clean and Aggregate Series
-        series_df = df[[time_col, target_col]].dropna().copy()
+        if time_col == "_time_step" or time_col not in df.columns or time_col == target_col:
+            time_col = "_time_step"
+            series_df = pd.DataFrame({
+                time_col: pd.date_range("2020-01-01", periods=len(df), freq="D"),
+                target_col: df[target_col],
+            }).dropna().copy()
+        else:
+            series_df = df[[time_col, target_col]].dropna().copy()
+
         series_df[time_col] = pd.to_datetime(series_df[time_col])
         series_df = series_df.sort_values(time_col)
 
