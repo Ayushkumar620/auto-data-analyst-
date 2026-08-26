@@ -1,0 +1,239 @@
+﻿"""
+Universal Data-Driven Confidence Engine.
+
+Calculates grounded, mathematically bounded epistemic confidence scores [0.0, 1.0]
+for all analytical agents based on:
+1. Validation performance (R2, Accuracy, F1, sMAPE, Silhouette)
+2. Sample size sufficiency (N / features ratio)
+3. Data completeness and missingness rate
+4. Cross-validation variance and model stability
+5. Baseline backtest outperformance (forecasting)
+6. Ambiguity in user intent or multiple candidate targets
+
+Explicitly separates:
+- confidence (epistemic certainty in analytical claim)
+- confidence_level (probabilistic prediction interval width)
+- validation_score (metric benchmark score)
+"""
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Union
+import numpy as np
+
+
+@dataclass
+class ConfidenceReport:
+    """Detailed decomposition of how confidence was derived."""
+    confidence: float
+    confidence_level: float
+    validation_score: float
+    factors: Dict[str, float] = field(default_factory=dict)
+    penalties: List[str] = field(default_factory=list)
+    explanations: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "confidence": round(float(self.confidence), 4),
+            "confidence_level": round(float(self.confidence_level), 4),
+            "validation_score": round(float(self.validation_score), 4),
+            "factors": {k: round(float(v), 4) for k, v in self.factors.items()},
+            "penalties": self.penalties,
+            "explanations": self.explanations,
+        }
+
+
+class ConfidenceCalculator:
+    """Computes transparent, data-driven confidence for analytical agents."""
+
+    @staticmethod
+    def _clamp(value: float, min_val: float = 0.0, max_val: float = 1.0) -> float:
+        if math.isnan(value) or math.isinf(value):
+            return min_val
+        return max(min_val, min(max_val, float(value)))
+
+    @classmethod
+    def calculate_regression_confidence(
+        cls,
+        r2_score: Optional[float] = None,
+        cv_scores: Optional[List[float]] = None,
+        n_samples: int = 0,
+        n_features: int = 1,
+        missing_rate: float = 0.0,
+        confidence_level: float = 0.80,
+    ) -> ConfidenceReport:
+        """Calculate confidence for supervised regression models."""
+        penalties: List[str] = []
+        explanations: List[str] = []
+        factors: Dict[str, float] = {}
+
+        # 1. Performance Base: R2 score (0 to 1)
+        r2_val = r2_score if r2_score is not None and not math.isnan(r2_score) else 0.0
+        val_score = cls._clamp(r2_val, min_val=0.0, max_val=1.0)
+        perf_factor = 0.40 + 0.45 * val_score
+        factors["performance"] = perf_factor
+        explanations.append(f"Model holdout R2 score = {val_score:.3f}")
+
+        # 2. Sample Size Sufficiency Ratio (N / p)
+        sample_ratio = n_samples / max(1, n_features)
+        if sample_ratio < 5:
+            sample_factor = 0.60
+            penalties.append(f"Low sample-to-feature ratio ({sample_ratio:.1f} < 5)")
+        elif sample_ratio < 15:
+            sample_factor = 0.85
+        else:
+            sample_factor = 1.0
+        factors["sample_size"] = sample_factor
+
+        # 3. Model Stability / Cross-Validation Variance
+        cv_factor = 1.0
+        if cv_scores and len(cv_scores) >= 2:
+            cv_std = float(np.std(cv_scores))
+            if cv_std > 0.20:
+                cv_factor = max(0.60, 1.0 - cv_std)
+                penalties.append(f"High cross-validation variance (std = {cv_std:.3f})")
+            factors["cv_stability"] = cv_factor
+
+        # 4. Missingness Penalty
+        miss_factor = max(0.70, 1.0 - missing_rate)
+        factors["completeness"] = miss_factor
+
+        # Combine
+        raw_conf = perf_factor * sample_factor * cv_factor * miss_factor
+        final_conf = cls._clamp(raw_conf, min_val=0.10, max_val=0.98)
+
+        return ConfidenceReport(
+            confidence=final_conf,
+            confidence_level=confidence_level,
+            validation_score=val_score,
+            factors=factors,
+            penalties=penalties,
+            explanations=explanations,
+        )
+
+    @classmethod
+    def calculate_classification_confidence(
+        cls,
+        accuracy: Optional[float] = None,
+        f1_score: Optional[float] = None,
+        n_samples: int = 0,
+        n_features: int = 1,
+        is_imbalanced: bool = False,
+        confidence_level: float = 0.80,
+    ) -> ConfidenceReport:
+        """Calculate confidence for supervised classification models."""
+        penalties: List[str] = []
+        explanations: List[str] = []
+        factors: Dict[str, float] = {}
+
+        primary_metric = f1_score if (f1_score is not None and is_imbalanced) else (accuracy or 0.0)
+        val_score = cls._clamp(primary_metric, min_val=0.0, max_val=1.0)
+        perf_factor = 0.40 + 0.50 * val_score
+        factors["performance"] = perf_factor
+        explanations.append(f"Classification performance score = {val_score:.3f}")
+
+        sample_ratio = n_samples / max(1, n_features)
+        sample_factor = 0.70 if sample_ratio < 10 else 1.0
+        factors["sample_size"] = sample_factor
+
+        if is_imbalanced:
+            factors["class_balance"] = 0.88
+            penalties.append("Class distribution exhibits significant imbalance")
+
+        raw_conf = perf_factor * sample_factor * (0.88 if is_imbalanced else 1.0)
+        final_conf = cls._clamp(raw_conf, min_val=0.10, max_val=0.98)
+
+        return ConfidenceReport(
+            confidence=final_conf,
+            confidence_level=confidence_level,
+            validation_score=val_score,
+            factors=factors,
+            penalties=penalties,
+            explanations=explanations,
+        )
+
+    @classmethod
+    def calculate_forecast_confidence(
+        cls,
+        validation_metrics: Dict[str, float],
+        baseline_metrics: Dict[str, float],
+        horizon: int = 5,
+        n_obs: int = 20,
+        confidence_level: float = 0.80,
+    ) -> ConfidenceReport:
+        """Calculate confidence for time-series forecasting models."""
+        penalties: List[str] = []
+        explanations: List[str] = []
+        factors: Dict[str, float] = {}
+
+        # 1. Baseline outperformance ratio (Model MAE vs Naive MAE)
+        model_mae = validation_metrics.get("MAE", 1.0)
+        base_mae = baseline_metrics.get("MAE", model_mae or 1.0)
+
+        if base_mae > 1e-9:
+            mae_ratio = model_mae / base_mae
+            if mae_ratio < 0.85:
+                perf_factor = 0.92
+                explanations.append(f"Selected candidate outperforms naive baseline by {((1 - mae_ratio) * 100):.1f}%")
+            elif mae_ratio <= 1.05:
+                perf_factor = 0.82
+            else:
+                perf_factor = 0.65
+                penalties.append("Candidate model exhibits higher error than naive baseline")
+        else:
+            perf_factor = 0.80
+        factors["baseline_comparison"] = perf_factor
+
+        # 2. Sample size sufficiency
+        if n_obs < 10:
+            sample_factor = 0.70
+            penalties.append(f"Short historical series (N={n_obs} < 10)")
+        elif n_obs < 30:
+            sample_factor = 0.88
+        else:
+            sample_factor = 1.0
+        factors["sample_size"] = sample_factor
+
+        # 3. Horizon compounding uncertainty
+        horizon_ratio = horizon / max(1, n_obs)
+        if horizon_ratio > 0.40:
+            horizon_factor = 0.75
+            penalties.append(f"Forecast horizon ({horizon}) is large relative to history ({n_obs})")
+        else:
+            horizon_factor = max(0.85, 1.0 - (horizon * 0.015))
+        factors["horizon_decay"] = horizon_factor
+
+        raw_conf = perf_factor * sample_factor * horizon_factor
+        final_conf = cls._clamp(raw_conf, min_val=0.20, max_val=0.95)
+
+        val_score = cls._clamp(1.0 - (validation_metrics.get("sMAPE", 15.0) / 100.0), 0.0, 1.0)
+
+        return ConfidenceReport(
+            confidence=final_conf,
+            confidence_level=confidence_level,
+            validation_score=val_score,
+            factors=factors,
+            penalties=penalties,
+            explanations=explanations,
+        )
+
+    @classmethod
+    def calculate_descriptive_confidence(
+        cls,
+        completeness_pct: float = 100.0,
+        n_samples: int = 10,
+        ambiguity_level: float = 0.0,
+    ) -> ConfidenceReport:
+        """Calculate confidence for descriptive and exploratory analyses."""
+        comp_factor = cls._clamp(completeness_pct / 100.0, 0.5, 1.0)
+        size_factor = 0.75 if n_samples < 5 else 1.0
+        amb_factor = max(0.50, 1.0 - ambiguity_level)
+
+        final_conf = cls._clamp(comp_factor * size_factor * amb_factor, 0.30, 0.99)
+        return ConfidenceReport(
+            confidence=final_conf,
+            confidence_level=1.0,
+            validation_score=comp_factor,
+            factors={"completeness": comp_factor, "sample_size": size_factor, "clarity": amb_factor},
+        )
