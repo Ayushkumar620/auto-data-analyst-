@@ -169,6 +169,20 @@ class IntentClassificationResult(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Precompiled Regexes for Fast Intent Parsing
+# ---------------------------------------------------------------------------
+RE_TOP_RANKING = re.compile(r"\b(top|first|highest|largest)\s+(\d+)\b", re.IGNORECASE)
+RE_BOT_RANKING = re.compile(r"\b(bottom|lowest|smallest)\s+(\d+)\b", re.IGNORECASE)
+RE_CLEAN_PREFIX = re.compile(r"^(?:the|an|a)\s+", re.IGNORECASE)
+RE_BETWEEN = re.compile(r"\bbetween\s+([a-zA-Z0-9_\s]+?)\s+and\s+([a-zA-Z0-9_\s]+?)(?:\s+in|\s+by|\s+for|$|\.)", re.IGNORECASE)
+RE_VS = re.compile(r"\b(?:vs|versus)\b", re.IGNORECASE)
+RE_REGION = re.compile(r"\b(?:in|region\s*==?)\s+(north|south|east|west|central|apac|emea|latam)\b", re.IGNORECASE)
+RE_CLEAN_WORDS = re.compile(r"[^\w\s]")
+RE_QUARTER = re.compile(r"\b(q[1-4])\b(?:\s+(\d{4}))?", re.IGNORECASE)
+RE_MONTH = re.compile(r"\b(january|february|march|april|may|june|july|august|september|october|november|december)\b(?:\s+(\d{4}))?", re.IGNORECASE)
+
+
+# ---------------------------------------------------------------------------
 # Command Intelligence Agent
 # ---------------------------------------------------------------------------
 
@@ -467,60 +481,15 @@ class CommandIntelligenceAgent(BaseAgent):
         if any(w in text for w in ("max", "maximum", "highest", "largest")):
             return "max"
         if any(w in text for w in ("min", "minimum", "lowest", "smallest")):
-            return "min"
-        return None
+RE_TOP_RANKING = re.compile(r"\b(top|first|highest|largest)\s+(\d+)\b", re.IGNORECASE)
+RE_BOT_RANKING = re.compile(r"\b(bottom|lowest|smallest)\s+(\d+)\b", re.IGNORECASE)
+RE_CLEAN_PREFIX = re.compile(r"^(?:the|an|a)\s+", re.IGNORECASE)
+RE_BETWEEN = re.compile(r"\bbetween\s+([a-zA-Z0-9_\s]+?)\s+and\s+([a-zA-Z0-9_\s]+?)(?:\s+in|\s+by|\s+for|$|\.)", re.IGNORECASE)
+RE_VS = re.compile(r"\b(?:vs|versus)\b", re.IGNORECASE)
+RE_REGION = re.compile(r"\b(?:in|region\s*==?)\s+(north|south|east|west|central|apac|emea|latam)\b", re.IGNORECASE)
 
-    def _extract_ranking(self, text: str) -> Optional[Dict[str, Any]]:
-        # Match "top 10", "top 5", "first 10", "bottom 3"
-        top_match = re.search(r"\b(top|first|highest|largest)\s+(\d+)\b", text)
-        if top_match:
-            return {"type": "top", "limit": int(top_match.group(2)), "order": "desc"}
-        bot_match = re.search(r"\b(bottom|lowest|smallest)\s+(\d+)\b", text)
-        if bot_match:
-            return {"type": "bottom", "limit": int(bot_match.group(2)), "order": "asc"}
-        return None
 
-    def _clean_entity_name(self, raw_entity: str) -> str:
-        cleaned = re.sub(r"^(?:the|an|a)\s+", "", raw_entity.strip(), flags=re.IGNORECASE).strip()
-        if cleaned.lower() in ("us", "usa", "uk", "uae"):
-            return cleaned.upper()
-        return cleaned.title()
-
-    def _extract_comparison(self, text: str) -> Optional[Dict[str, Any]]:
-        # Match "between X and Y"
-        between_match = re.search(r"\bbetween\s+([a-zA-Z0-9_\s]+?)\s+and\s+([a-zA-Z0-9_\s]+?)(?:\s+in|\s+by|\s+for|$|\.)", text, flags=re.IGNORECASE)
-        if between_match:
-            left = self._clean_entity_name(between_match.group(1))
-            right = self._clean_entity_name(between_match.group(2))
-            return {"type": "between_entities", "entities": [left, right], "entity_a": left, "entity_b": right}
-        if "vs" in text or "versus" in text:
-            parts = re.split(r"\b(?:vs|versus)\b", text, flags=re.IGNORECASE)
-            if len(parts) >= 2:
-                left = self._clean_entity_name(parts[0])
-                right = self._clean_entity_name(parts[1])
-                return {"type": "between_entities", "entities": [left, right], "entity_a": left, "entity_b": right}
-        return None
-
-    def _extract_filters(self, text: str, comparison: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        filters: Dict[str, Any] = {}
-        if comparison and comparison.get("type") == "between_entities":
-            entities = comparison.get("entities", [])
-            filters["entities"] = entities
-            if len(entities) >= 2:
-                filters["comparison_targets"] = entities
-
-        # Status / active filter
-        if "active" in text and "inactive" not in text:
-            filters["status"] = "Active"
-        elif "inactive" in text:
-            filters["status"] = "Inactive"
-
-        # Explicit equality or region matching (e.g. region == North or in North)
-        reg_match = re.search(r"\b(?:in|region\s*==?)\s+(north|south|east|west|central|apac|emea|latam)\b", text)
-        if reg_match:
-            filters["region"] = reg_match.group(1).capitalize()
-
-        return filters
+class CommandIntelligenceAgent(BaseAgent):
 
     # ------------------------------------------------------------------
     # Entity Extraction & DatasetKnowledge Grounding
