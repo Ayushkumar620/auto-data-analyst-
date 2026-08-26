@@ -1,5 +1,5 @@
 """
-Data Predictor - Builds simple ML models using scikit-learn.
+Data Predictor - Builds ML models and time-series forecasts using canonical validation.
 """
 import re
 import pandas as pd
@@ -11,7 +11,7 @@ from sklearn.preprocessing import LabelEncoder
 
 
 class DataPredictor:
-    """Builds simple predictive models from tabular data."""
+    """Builds simple predictive models and forecasts from tabular data using CanonicalDataLayer."""
 
     def __init__(self, data):
         self.data = data
@@ -25,153 +25,165 @@ class DataPredictor:
         return self.data if isinstance(self.data, pd.DataFrame) else None
 
     def forecast(self, target=None, periods=5):
-        """Simple time-series forecast for a numeric column ordered by a date column.
-
-        Uses linear regression on position (time index) to predict future values.
-        """
+        """Autonomous time-series forecast delegating to AutonomousForecastEngine as single source of truth."""
         df = self._get_main_df()
-        if df is None:
+        if df is None or df.empty:
             return {"error": "No tabular data available for forecasting."}
 
-        # Find date column and target using TimeSeriesDetector
+        from agent.autonomous_forecast_engine import AutonomousForecastEngine
+        from agent.forecasting_schemas import ForecastRequest
         from agent.timeseries_detector import TimeSeriesDetector
+        from agent.canonical_data_layer import CanonicalDataLayer
+
         detector = TimeSeriesDetector()
         date_col = detector.detect_time_column(df)
 
-        # Determine numeric target
         numeric = df.select_dtypes(include=[np.number])
-        if numeric.empty:
+        if numeric.empty and not any(pd.to_numeric(df[c], errors="coerce").notna().sum() >= 5 for c in df.columns):
             return {"error": "No numeric column available for forecasting."}
 
-        # User explicit target wins if provided, otherwise generic statistical ranking
-        if target and target in df.columns and pd.api.types.is_numeric_dtype(df[target]):
-            chosen_target = target
-        else:
-            chosen_target = detector.detect_target_column(df, time_col=date_col) or numeric.columns[0]
+        chosen_target = target if (target and target in df.columns and pd.api.types.is_numeric_dtype(df[target])) else (
+            detector.detect_target_column(df, time_col=date_col) or (numeric.columns[0] if not numeric.empty else df.columns[-1])
+        )
 
-        target = chosen_target
+        audit, target_clean, time_clean = CanonicalDataLayer.audit_dataset_for_target(
+            df,
+            target_column=chosen_target,
+            time_column=date_col,
+            minimum_required_rows=5,
+        )
 
-        # Get the target series
-        y = pd.to_numeric(df[target], errors="coerce").dropna()
-        if len(y) < 5:
-            return {"error": "Need at least 5 valid data points for forecasting."}
+        if audit.valid_rows < 5:
+            diag_reasons = audit.removal_reasons or ["Insufficient historical records with valid target and time values."]
+            return {
+                "error": f"Need at least 5 valid data points for forecasting. Found {audit.valid_rows}.",
+                "original_rows": audit.original_rows,
+                "parsed_rows": audit.parsed_rows,
+                "valid_rows": audit.valid_rows,
+                "target_column": chosen_target,
+                "time_column": date_col,
+                "target_valid_rows": audit.target_valid_rows,
+                "time_series_valid_rows": audit.time_series_valid_rows,
+                "rows_removed": audit.rows_removed,
+                "removal_reasons": diag_reasons,
+                "minimum_required_rows": 5,
+            }
 
-        # Sort by date if available
-        if date_col:
-            try:
-                dates = pd.to_datetime(df[date_col], errors="coerce")
-                combined = pd.DataFrame({"_date": dates, "_value": y})
-                combined = combined.dropna().sort_values("_date")
-                y = combined["_value"].reset_index(drop=True)
-            except Exception:
-                pass
+        req = ForecastRequest(
+            dataset=df,
+            target_column=chosen_target,
+            time_column=date_col,
+            forecast_horizon=periods,
+        )
+        engine = AutonomousForecastEngine()
+        res = engine.run_forecast(req)
 
-        # Simple position-based linear regression
-        X = np.arange(len(y)).reshape(-1, 1)
-        model = LinearRegression()
-        model.fit(X, y)
+        if res.status != "SUCCESS":
+            error_msg = res.warnings[0] if res.warnings else "Forecasting not supported for this dataset."
+            return {
+                "error": error_msg,
+                "original_rows": audit.original_rows,
+                "parsed_rows": audit.parsed_rows,
+                "valid_rows": audit.valid_rows,
+                "target_column": chosen_target,
+                "time_column": date_col,
+                "target_valid_rows": audit.target_valid_rows,
+                "time_series_valid_rows": audit.time_series_valid_rows,
+                "rows_removed": audit.rows_removed,
+                "removal_reasons": audit.removal_reasons or res.warnings,
+                "minimum_required_rows": 5,
+            }
 
-        # In-sample predictions
-        in_sample = model.predict(X)
-
-        # Future predictions
-        future_X = np.arange(len(y), len(y) + periods).reshape(-1, 1)
-        future = model.predict(future_X)
-
-        # Compute trend
-        slope = float(model.coef_[0])
-        trend = "upward" if slope > 0 else "downward"
-
-        # Build forecast records
-        forecast_records = []
-        for i, val in enumerate(future):
-            forecast_records.append({
-                "period": len(y) + i + 1,
-                "forecast": round(float(val), 4),
-            })
+        y_valid = target_clean.dropna()
 
         # Build history records
-        history = []
-        for i, val in enumerate(y):
-            history.append({
-                "index": i + 1,
-                "actual": round(float(val), 4),
-            })
+        history = [{"index": i + 1, "actual": round(float(val), 4)} for i, val in enumerate(y_valid)]
 
-        last_value = float(y.iloc[-1])
-        projected_change = ((future[-1] - last_value) / last_value * 100) if last_value != 0 else 0
+        # Build forecast records
+        forecast_records = [
+            {"period": len(y_valid) + i + 1, "forecast": round(float(pt.prediction), 4), "timestamp": pt.timestamp}
+            for i, pt in enumerate(res.predictions)
+        ]
+
+        slope_val = res.slope if res.slope is not None else 0.0
+        trend = "upward" if slope_val > 0 else ("downward" if slope_val < 0 else "flat")
+        last_val = float(y_valid.iloc[-1]) if not y_valid.empty else 0.0
 
         return {
-            "target": target,
-            "target_column": target,
-            "date_col": date_col,
-            "time_column": date_col,
-            "history_points": int(len(y)),
-            "forecast_periods": periods,
-            "forecast_horizon": periods,
+            "target": res.target,
+            "target_column": res.target,
+            "date_col": res.time_column,
+            "time_column": res.time_column,
+            "history_points": int(len(y_valid)),
+            "forecast_periods": res.forecast_horizon,
+            "forecast_horizon": res.forecast_horizon,
             "forecast_values": [r["forecast"] for r in forecast_records],
-            "slope": round(slope, 4),
+            "slope": round(float(slope_val), 4),
             "trend": trend,
-            "last_value": round(last_value, 4),
-            "projected_change_percent": round(projected_change, 2),
+            "last_value": round(last_val, 4),
+            "projected_change_percent": res.projected_change_pct,
+            "projected_change_pct": res.projected_change_pct,
             "history": history,
             "forecast": forecast_records,
+            "model_name": res.model_name,
+            "model_family": res.model_family,
+            "validation_metrics": res.validation_metrics,
+            "confidence_level": res.confidence_level,
+            "original_rows": audit.original_rows,
+            "valid_rows": audit.valid_rows,
         }
 
     def predict(self, target=None):
-        """Train a model to predict a target column."""
+        """Train a model to predict a target column with canonical non-destructive validation."""
         df = self._get_main_df()
-        if df is None:
+        if df is None or df.empty:
             return {"error": "No tabular data available for prediction."}
 
-        numeric = df.select_dtypes(include=[np.number])
-        if numeric.shape[1] < 2:
-            cat = df.select_dtypes(include=["object"])
-            if target and target in df.columns:
-                features = [c for c in df.columns if c != target]
-            elif len(cat.columns) >= 1:
-                target = cat.columns[0]
-                features = [c for c in df.columns if c != target]
-            else:
-                return {"error": "Not enough columns for prediction."}
+        from agent.canonical_data_layer import CanonicalDataLayer
+        from agent.timeseries_detector import TimeSeriesDetector
+
+        # Resolve target
+        if target and target in df.columns:
+            chosen_target = target
         else:
-            # Choose target if valid, else use last numeric column
-            if not target or target not in df.columns:
-                target = numeric.columns[-1]
-            features = [c for c in df.columns if c != target]
+            detector = TimeSeriesDetector()
+            date_col = detector.detect_time_column(df)
+            chosen_target = detector.detect_target_column(df, time_col=date_col) or df.columns[-1]
 
-        # Prepare data
-        X = df[features].copy()
-        y = df[target].copy()
+        # Use canonical data layer to prepare features and target safely
+        X, y, audit = CanonicalDataLayer.prepare_tabular_prediction_data(
+            df,
+            target_column=chosen_target,
+            minimum_required_rows=10,
+        )
 
-        # Handle datetime columns in X
-        for col in X.columns:
-            if pd.api.types.is_datetime64_any_dtype(X[col]):
-                X[col] = pd.to_datetime(X[col]).astype("int64") // 10**9
+        if X is None or y is None or len(X) < 10:
+            diag_reasons = audit.removal_reasons or ["Insufficient valid observations for tabular prediction."]
+            return {
+                "error": f"Need at least 10 valid rows for prediction. Found {audit.valid_rows}.",
+                "original_rows": audit.original_rows,
+                "parsed_rows": audit.parsed_rows,
+                "valid_rows": audit.valid_rows,
+                "target_column": chosen_target,
+                "time_column": audit.time_column,
+                "target_valid_rows": audit.target_valid_rows,
+                "time_series_valid_rows": audit.time_series_valid_rows,
+                "rows_removed": audit.rows_removed,
+                "removal_reasons": diag_reasons,
+                "minimum_required_rows": 10,
+            }
 
-        # Encode categorical features
-        for col in X.select_dtypes(include=["object", "string", "category"]).columns:
-            le = LabelEncoder()
-            X[col] = le.fit_transform(X[col].astype(str))
+        is_classification = df[chosen_target].dtype == object or df[chosen_target].nunique() <= 10
 
-        # Handle target
-        is_classification = df[target].dtype == object or df[target].nunique() <= 10
         if is_classification:
             le = LabelEncoder()
-            y_series = pd.Series(le.fit_transform(y.astype(str)), index=X.index)
+            y_train_full = pd.Series(le.fit_transform(y.astype(str)), index=y.index)
         else:
-            y_series = pd.to_numeric(y, errors="coerce")
+            y_train_full = y
 
-        # Drop rows with NaN
-        mask = X.notna().all(axis=1) & y_series.notna()
-        X = X[mask]
-        y = y_series[mask]
-
-        if len(X) < 10:
-            return {"error": "Need at least 10 valid rows for prediction."}
-
+        features = list(X.columns)
         X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42
+            X, y_train_full, test_size=0.2, random_state=42
         )
 
         if is_classification:
@@ -197,16 +209,17 @@ class DataPredictor:
                 "mean_squared_error": round(mean_squared_error(y_test, preds), 4),
             }
 
-        # Feature importance-ish (coefficients)
         coefs = {}
         if hasattr(model, "coef_"):
             coefs = {f: round(float(c), 4) for f, c in zip(features, model.coef_.flatten())}
 
         return {
-            "target": target,
+            "target": chosen_target,
             "features": features,
             "metric": metric,
             "coefficients": coefs,
             "train_size": int(len(X_train)),
             "test_size": int(len(X_test)),
+            "original_rows": audit.original_rows,
+            "valid_rows": audit.valid_rows,
         }
