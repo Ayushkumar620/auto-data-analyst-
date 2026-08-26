@@ -4,7 +4,6 @@ import { PageContainer } from '../components/layout/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { getAnalysisById } from '../services/analysisHistoryService';
 import type { AnalysisRecord } from '../types';
-import HorizontalAnalysisTimeline, { type TimelineStage } from '../components/analyst/HorizontalAnalysisTimeline';
 import { IconBarChart, IconChevronRight, IconCheck, IconAnalyst } from '../components/ui/Icons';
 
 export default function AnalysisDetailPage() {
@@ -28,61 +27,6 @@ export default function AnalysisDetailPage() {
       </PageContainer>
     );
   }
-
-  const timelineStages: TimelineStage[] = [
-    {
-      id: 'detail-stage-1',
-      stepNumber: 1,
-      title: 'Intent & Planning',
-      agentName: 'IntentAnalyzer',
-      status: 'completed',
-      durationMs: Math.round((analysis.duration_ms || 300) * 0.15),
-      summary: `User Intent: ${analysis.user_intent || 'General Analysis'}`,
-      details: [
-        `Parsed command: "${analysis.command}"`,
-        `Decomposed into ${analysis.required_operations?.length || 1} required operation steps`,
-      ],
-    },
-    {
-      id: 'detail-stage-2',
-      stepNumber: 2,
-      title: 'Data Quality & Schema',
-      agentName: 'DataValidationAgent',
-      status: 'completed',
-      durationMs: Math.round((analysis.duration_ms || 300) * 0.2),
-      summary: `Verified dataset schema and integrity: ${analysis.dataset_name || 'Active Dataset'}`,
-      details: [
-        'Checked null value concentrations and numerical distributions',
-        'Verified temporal date sequences and data types',
-      ],
-    },
-    ...(analysis.required_operations || []).map((op, idx) => ({
-      id: `detail-stage-${idx + 3}`,
-      stepNumber: idx + 3,
-      title: op.replace(/([A-Z])/g, ' $1').trim(),
-      agentName: op.includes('Forecast') ? 'TimeseriesForecaster' : op.includes('Model') ? 'ModelSelectionAgent' : 'AutonomousAnalysisEngine',
-      status: 'completed' as const,
-      durationMs: Math.round(((analysis.duration_ms || 300) * 0.45) / Math.max(analysis.required_operations?.length || 1, 1)),
-      summary: op,
-      details: [
-        `Executed analytical pipeline step: ${op}`,
-        'Generated verifiable statistical evidence items',
-      ],
-    })),
-    {
-      id: `detail-stage-final`,
-      stepNumber: (analysis.required_operations?.length || 0) + 3,
-      title: 'Executive Synthesis',
-      agentName: 'DecisionExplainer',
-      status: 'completed',
-      durationMs: Math.round((analysis.duration_ms || 300) * 0.2),
-      summary: 'Synthesized findings and evidence chain',
-      details: [
-        `Recorded ${analysis.evidence?.length || 0} audited evidence items`,
-        'Compiled executive findings and business explanations',
-      ],
-    },
-  ];
 
   return (
     <PageContainer>
@@ -126,15 +70,6 @@ export default function AnalysisDetailPage() {
             New Query
           </Link>
         </div>
-      </div>
-
-      {/* Horizontal Analysis Stepper / Timeline */}
-      <div className="glass-card glass-card--padded">
-        <HorizontalAnalysisTimeline
-          stages={timelineStages}
-          userIntent={analysis.user_intent}
-          totalDurationMs={analysis.duration_ms}
-        />
       </div>
 
       {/* Main explanation card */}

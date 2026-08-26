@@ -3,7 +3,6 @@ import { executeCommand } from '../services/chatService';
 import type { CommandExecutionResponse } from '../services/chatService';
 import PlotlyChart from '../components/PlotlyChart';
 import AnalysisResponseRenderer from '../components/analyst/AnalysisResponseRenderer';
-import HorizontalAnalysisTimeline, { type TimelineStage } from '../components/analyst/HorizontalAnalysisTimeline';
 import { useDataset } from '../context/DatasetContext';
 import { PageContainer, PageHeader, Card } from '../components/layout/PageContainer';
 import EmptyState from '../components/ui/EmptyState';
@@ -219,7 +218,6 @@ export default function ChatPage() {
           {activeResult ? (
             <>
               {/* Autonomous Agent Execution Graph Card */}
-              {/* Autonomous Agent Execution Timeline Panel */}
               <Card className="execution-graph-card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
                   <div>
@@ -327,66 +325,6 @@ export default function ChatPage() {
                     </div>
                   </div>
                 </div>
-                <HorizontalAnalysisTimeline
-                  stages={[
-                    {
-                      id: 'step-intent',
-                      stepNumber: 1,
-                      title: 'Intent & Planning',
-                      agentName: 'IntentAnalyzer',
-                      status: 'completed',
-                      durationMs: Math.round(activeResult.duration_ms * 0.15),
-                      summary: `Detected Intent: ${activeResult.user_intent}`,
-                      details: [
-                        `Decomposed into ${activeResult.required_operations.length} specialized analytical operations`,
-                        'Target pipeline formulated with dynamic dependency resolution',
-                      ],
-                    },
-                    {
-                      id: 'step-data-quality',
-                      stepNumber: 2,
-                      title: 'Data Quality & Schema',
-                      agentName: 'DataValidationAgent',
-                      status: activeResult.validation_summary.status === 'PASSED' ? 'completed' : 'warning',
-                      durationMs: Math.round(activeResult.duration_ms * 0.2),
-                      summary: `Validation Audit: ${activeResult.validation_summary.status} (${activeResult.validation_summary.critical_issues} issues)`,
-                      details: [
-                        `Schema integrity verified with ${activeResult.validation_summary.warnings} non-critical warnings`,
-                        'Verified data types, temporal column roles, and null concentration',
-                      ],
-                    },
-                    ...activeResult.selected_agents.map((agent, i) => ({
-                      id: `step-agent-${i}`,
-                      stepNumber: i + 3,
-                      title: agent.replace(/([A-Z])/g, ' $1').trim(),
-                      agentName: agent,
-                      status: 'completed' as const,
-                      durationMs: Math.round((activeResult.duration_ms * 0.45) / Math.max(activeResult.selected_agents.length, 1)),
-                      summary: activeResult.required_operations[i] || 'Executed specialized statistical calculation',
-                      details: [
-                        `Operation: ${activeResult.required_operations[i] || 'Autonomous analytical execution'}`,
-                        activeResult.model_selection_summary
-                          ? `Champion Model: ${activeResult.model_selection_summary.model_name} (Score: ${Number(activeResult.model_selection_summary.primary_metric_value).toFixed(4)})`
-                          : 'Computed model evaluation metrics and regression projections',
-                      ],
-                    })),
-                    {
-                      id: 'step-synthesis',
-                      stepNumber: activeResult.selected_agents.length + 3,
-                      title: 'Executive Synthesis',
-                      agentName: 'DecisionExplainer',
-                      status: 'completed',
-                      durationMs: Math.round(activeResult.duration_ms * 0.2),
-                      summary: 'Synthesized evidence-backed findings and actionable decisions',
-                      details: [
-                        'Structured final analytical findings and visual projections',
-                        'Verified factual claims against mathematical data proof',
-                      ],
-                    },
-                  ]}
-                  userIntent={activeResult.user_intent}
-                  totalDurationMs={activeResult.duration_ms}
-                />
               </Card>
 
               {/* Best Model Selection (if applicable) */}
