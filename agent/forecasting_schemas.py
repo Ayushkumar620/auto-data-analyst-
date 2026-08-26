@@ -23,9 +23,11 @@ class ForecastModelFamily(str, Enum):
     NAIVE_LAST = "naive_last"
     SEASONAL_NAIVE = "seasonal_naive"
     MOVING_AVERAGE = "moving_average"
+    LINEAR_TREND = "linear_trend"
     EXPONENTIAL_SMOOTHING = "exponential_smoothing"
     AUTOREGRESSIVE_ML = "autoregressive_ml"
     HOLT_WINTERS = "holt_winters"
+    ARIMA_STATISTICAL = "arima_statistical"
 
 
 class ForecastRequest(BaseModel):

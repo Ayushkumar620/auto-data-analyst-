@@ -318,7 +318,7 @@ def test_end_to_end_user_intent_priority(fixture_1_monthly_sales):
     dk = ssa.analyze_dataset(fixture_1_monthly_sales)
 
     cia = CommandIntelligenceAgent()
-    intent = cia.analyze_intent("forecast volume_units for 8 periods", knowledge=dk)
+    intent = cia.analyze_intent("forecast volume_units for 8 periods", dataset_knowledge=dk)
     assert intent.intent_type == IntentType.FORECASTING
     assert "volume_units" in intent.metrics or any(m in "volume_units" for m in intent.metrics)
 
