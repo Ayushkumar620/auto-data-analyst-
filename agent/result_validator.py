@@ -1,4 +1,4 @@
-﻿"""
+"""
 Universal Agent Result Validator & Metric Verifier.
 
 Validates every AgentResult produced by an analytical agent before it is returned:
@@ -376,7 +376,22 @@ class ResultValidator:
                 data = context.get("dataframe") if context.get("dataframe") is not None else context.get("data")
                 if isinstance(data, pd.DataFrame):
                     ref = ev.data_ref or {}
-                    names = ref.get("column_names") or ref.get("columns") or []
+                    names = ref.get("column_names")
+                    if names is None:
+                        cols_val = ref.get("columns")
+                        if isinstance(cols_val, (list, tuple)):
+                            names = list(cols_val)
+                        elif isinstance(cols_val, str):
+                            names = [cols_val]
+                        else:
+                            names = []
+                    elif isinstance(names, str):
+                        names = [names]
+                    elif not isinstance(names, (list, tuple)):
+                        names = []
+                    single_col = ref.get("column") or ref.get("col")
+                    if isinstance(single_col, str):
+                        names = list(names) + [single_col]
                     if any(isinstance(n, str) and n not in data.columns for n in names):
                         actions.append("Dropped evidence referencing hallucinated column.")
                         changed = True

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Universal Canonical Agent Result Contract & Error Architecture.
 
 Defines standardized Pydantic data contracts for all analytical agents,
@@ -507,11 +507,79 @@ class AgentResult(BaseModel):
             "execution_time": round(float(self.execution_time_ms), 2),
             "model_used": self.model_used,
             "metadata": self.metadata,
+            "validation": self.validation.to_dict() if self.validation else None,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "finished_at": self.finished_at.isoformat() if self.finished_at else None,
+            "retry_count": self.retry_count,
         }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "AgentResult":
+        """Deserialize AgentResult from dictionary representation."""
+        return cls.model_validate(data)
 
     # ------------------------------------------------------------------
     # Standardized Factory Methods
     # ------------------------------------------------------------------
+
+    @classmethod
+    def create_success(
+        cls,
+        agent_name: str,
+        result: Dict[str, Any],
+        task_type: Optional[str] = None,
+        target: Optional[str] = None,
+        metrics: Optional[Dict[str, Any]] = None,
+        evidence: Optional[List[Evidence]] = None,
+        confidence: float = 1.0,
+        warnings: Optional[List[str]] = None,
+        assumptions: Optional[List[str]] = None,
+        limitations: Optional[List[str]] = None,
+        diagnostics: Optional[Dict[str, Any]] = None,
+        model_info: Optional[Dict[str, Any]] = None,
+        execution_time_ms: float = 0.0,
+        message: str = "",
+    ) -> "AgentResult":
+        return cls(
+            status=AgentStatus.SUCCESS,
+            task_type=task_type,
+            agent_name=agent_name,
+            target=target,
+            result=result,
+            metrics=metrics or {},
+            evidence=evidence or [],
+            confidence=confidence,
+            warnings=warnings or [],
+            assumptions=assumptions or [],
+            limitations=limitations or [],
+            diagnostics=diagnostics or {},
+            model_info=model_info,
+            execution_time_ms=execution_time_ms,
+            message=message or f"{agent_name} completed successfully.",
+        )
+
+    @classmethod
+    def create_error(
+        cls,
+        agent_name: str,
+        error: AgentError,
+        task_type: Optional[str] = None,
+        target: Optional[str] = None,
+        diagnostics: Optional[Dict[str, Any]] = None,
+        execution_time_ms: float = 0.0,
+    ) -> "AgentResult":
+        return cls(
+            status=AgentStatus.ERROR,
+            task_type=task_type,
+            agent_name=agent_name,
+            target=target,
+            result={"error": error.user_message or error.message},
+            errors=[error],
+            confidence=0.0,
+            diagnostics=diagnostics or error.technical_details,
+            execution_time_ms=execution_time_ms,
+            message=error.user_message or error.message,
+        )
 
     @classmethod
     def success(

@@ -72,8 +72,7 @@ class BaseAgent:
         self.messages.append(msg)
 
         return AgentResult(
-            success=True,
-            status=AgentStatus.SUCCESS,
+            status=AgentStatus.COMPLETED,
             agent=self.name,
             agent_name=self.name,
             role=self.role,
@@ -81,6 +80,7 @@ class BaseAgent:
             task_id=self.agent_id,
             execution_id=self.agent_id,
             started_at=self.started_at,
+            finished_at=self.finished_at or datetime.now(),
             timestamp=self.started_at or datetime.now(),
             output=result,
             data=result,
