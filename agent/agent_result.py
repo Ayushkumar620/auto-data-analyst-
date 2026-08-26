@@ -458,6 +458,12 @@ class AgentResult(BaseModel):
     def has_errors(self) -> bool:
         return len(self.errors) > 0
 
+    @property
+    def error_message(self) -> Optional[str]:
+        if self.errors:
+            return self.errors[0].user_message or self.errors[0].message
+        return None
+
     def add_error(self, error: AgentError) -> None:
         self.errors.append(error)
         self.status = AgentStatus.ERROR
