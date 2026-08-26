@@ -133,6 +133,8 @@ class ForecastResult(BaseModel):
             "confidence_level": self.confidence_level,
             "validation_metrics": {k: round(float(v), 4) for k, v in self.validation_metrics.items()},
             "baseline_metrics": {k: round(float(v), 4) for k, v in self.baseline_metrics.items()},
+            "slope": round(float(self.slope), 4) if self.slope is not None else None,
+            "projected_change_pct": self.projected_change_pct,
             "assumptions": self.assumptions,
             "warnings": self.warnings,
             "limitations": self.limitations,

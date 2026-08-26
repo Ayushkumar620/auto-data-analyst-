@@ -237,15 +237,25 @@ class TimeSeriesDetector:
             )
 
         # Ingest and prepare series
-        clean_df = df[[time_col, target_col]].dropna().copy()
-        clean_df[time_col] = pd.to_datetime(clean_df[time_col])
-        clean_df = clean_df.sort_values(time_col)
+        dt_series = pd.to_datetime(df[time_col], errors="coerce")
+        num_series = pd.to_numeric(df[target_col], errors="coerce")
+        clean_df = pd.DataFrame({"__time": dt_series, "__target": num_series}).dropna().sort_values("__time")
         n_obs = len(clean_df)
 
-        freq_str, is_regular = self.infer_frequency(clean_df[time_col])
+        if n_obs == 0:
+            return ForecastSuitabilityResult(
+                suitable=False,
+                score=0.0,
+                detected_time_column=time_col,
+                detected_target=target_col,
+                reasons=["No valid timestamp and numeric target pairs found."],
+                warnings=["Observations could not be parsed into chronological numbers."],
+            )
+
+        freq_str, is_regular = self.infer_frequency(clean_df["__time"])
         time_range = {
-            "start": str(clean_df[time_col].iloc[0]),
-            "end": str(clean_df[time_col].iloc[-1]),
+            "start": str(clean_df["__time"].iloc[0]),
+            "end": str(clean_df["__time"].iloc[-1]),
         }
 
         # Check sample size constraints
@@ -258,18 +268,21 @@ class TimeSeriesDetector:
                 detected_frequency=freq_str,
                 observation_count=n_obs,
                 time_range=time_range,
-                reasons=[f"Insufficient historical observations (N={n_obs} < 5)."],
-                warnings=["Minimum 5 historical data points required for baseline forecasting."],
-                limitations=["Insufficient sample size prevents chronological backtesting."],
+                reasons=[f"Dataset has only {n_obs} observations; minimum required is 5."],
+                warnings=["Insufficient historical data to detect temporal autocorrelation or trend."],
+                limitations=["Statistical forecasts with N < 5 are mathematically unidentifiable."],
             )
 
-        # Assess Trend and Seasonality
+        # Statistical suitability scoring
+        y = clean_df["__target"].to_numpy()
+        var_y = float(np.var(y))
+        mean_y = float(np.mean(y))
         has_trend = False
         has_seasonality = False
         score = 0.70
 
         if n_obs >= 8:
-            y = clean_df[target_col].to_numpy(dtype=float)
+            y = clean_df["__target"].to_numpy(dtype=float)
             x = np.arange(len(y))
             slope, intercept = np.polyfit(x, y, 1)
             corr = np.corrcoef(x, y)[0, 1]

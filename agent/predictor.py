@@ -1,4 +1,4 @@
-﻿"""
+"""
 Data Predictor - Builds ML models and time-series forecasts using canonical validation.
 """
 import re
@@ -40,13 +40,11 @@ class DataPredictor:
         detector = TimeSeriesDetector()
         date_col = detector.detect_time_column(df)
 
-        numeric = df.select_dtypes(include=[np.number])
-        if numeric.empty and not any(pd.to_numeric(df[c], errors="coerce").notna().sum() >= 5 for c in df.columns):
-            return {"error": "No numeric column available for forecasting."}
-
-        chosen_target = target if (target and target in df.columns and pd.api.types.is_numeric_dtype(df[target])) else (
-            detector.detect_target_column(df, time_col=date_col) or (numeric.columns[0] if not numeric.empty else df.columns[-1])
-        )
+        if target and target in df.columns:
+            chosen_target = target
+        else:
+            numeric = df.select_dtypes(include=[np.number])
+            chosen_target = detector.detect_target_column(df, time_col=date_col) or (numeric.columns[0] if not numeric.empty else df.columns[-1])
 
         audit, target_clean, time_clean = CanonicalDataLayer.audit_dataset_for_target(
             df,

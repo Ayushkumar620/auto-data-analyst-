@@ -34,13 +34,14 @@ class TimeSeriesDetector:
                             elif pd.to_datetime(series.head(20), errors="coerce").notna().mean() >= 0.7:
                                 parsed = c
                                 break
-            # Fallback parse any column
+            # Fallback parse string/object columns only (numeric columns are not arbitrary epoch dates)
             if not parsed:
                 for c in dataframe.columns:
-                    series = dataframe[c].dropna()
-                    if len(series) >= 3 and pd.to_datetime(series.head(20), errors="coerce").notna().mean() >= 0.8:
-                        parsed = c
-                        break
+                    if dataframe[c].dtype == object or str(dataframe[c].dtype).startswith("str"):
+                        series = dataframe[c].dropna()
+                        if len(series) >= 3 and pd.to_datetime(series.head(20), errors="coerce").notna().mean() >= 0.8:
+                            parsed = c
+                            break
 
         # 2. Detect Target Metric Column
         numeric = list(dataframe.select_dtypes(include="number").columns)
