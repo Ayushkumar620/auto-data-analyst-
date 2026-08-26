@@ -486,7 +486,13 @@ class AgentResult(BaseModel):
         if key in ("output", "data", "result"):
             return self.result if self.result is not None else (self.data or {})
         if hasattr(self, key):
-            return getattr(self, key)
+            val = getattr(self, key)
+            if val is not None:
+                return val
+        if isinstance(self.result, dict) and key in self.result:
+            return self.result[key]
+        if isinstance(self.data, dict) and key in self.data:
+            return self.data[key]
         return default
 
     def __getitem__(self, key: str) -> Any:
@@ -496,7 +502,13 @@ class AgentResult(BaseModel):
         raise KeyError(key)
 
     def __contains__(self, key: str) -> bool:
-        return hasattr(self, key) or key in ("success", "status", "output", "data", "result")
+        if hasattr(self, key) or key in ("success", "status", "output", "data", "result"):
+            return True
+        if isinstance(self.result, dict) and key in self.result:
+            return True
+        if isinstance(self.data, dict) and key in self.data:
+            return True
+        return False
 
     def to_dict(self) -> Dict[str, Any]:
         st_val = self.status.value if isinstance(self.status, AgentStatus) else str(self.status)

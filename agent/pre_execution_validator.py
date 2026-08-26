@@ -437,6 +437,14 @@ class PreExecutionValidator:
             )
             return PreExecutionValidationReport(is_valid=False, task_type="anomaly_detection", error=err)
 
+        if all(df[c].nunique(dropna=True) <= 1 for c in df.columns):
+            err = AgentError.create(
+                category=ErrorCategory.DATA_INVALID,
+                user_message="All candidate feature columns have zero variance (constant values). Cannot detect anomalies in uniform data.",
+                agent_name=agent_name,
+            )
+            return PreExecutionValidationReport(is_valid=False, task_type="anomaly_detection", error=err)
+
         if not profile.numeric_columns:
             err = AgentError.create(
                 category=ErrorCategory.DATA_INVALID,
