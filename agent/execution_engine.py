@@ -118,7 +118,7 @@ class ExecutionEngine:
                 params = getattr(step, "inputs", getattr(step, "parameters", {}))
                 task_inputs = {"data": current_data, **params}
 
-                if tool_name in ("reporting", "ReportAgent", "InsightAgent"):
+                if tool_name.lower() in ("reporting", "report", "reportagent", "insightagent", "decisionexplainer") or "agent_outputs" in params:
                     task_inputs["agent_outputs"] = list(step_results.values())
 
                 if self.tool_registry.has_tool(tool_name):
