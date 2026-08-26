@@ -1,4 +1,4 @@
-﻿"""
+"""
 Universal Agent Reliability & Validation Layer Test Suite.
 
 Comprehensive verification of:
@@ -294,6 +294,28 @@ def test_T_invalid_command_error_safety():
     assert not res.is_success
     assert "Traceback" not in res.message
     assert "Traceback" in str(res.diagnostics.get("traceback"))
+
+
+def test_U_model_failure_and_retry_recovery():
+    """Verify recoverable errors trigger retry and record recovery diagnostics."""
+    from agent.base import BaseAgent
+    class FlakyAgent(BaseAgent):
+        name = "FlakyAgent"
+        def __init__(self):
+            super().__init__()
+            self.attempts = 0
+        def run(self, task):
+            self._start()
+            self.attempts += 1
+            if self.attempts < 2:
+                return self._error("Transient model timeout", code="TIMEOUT", category=ErrorCategory.COMPUTATION, recoverable=True)
+            return self._finish({"recovered": True, "attempts": self.attempts})
+
+    agent = FlakyAgent()
+    res = agent.execute_with_retry({"data": None}, max_retries=2, retry_delay_ms=10)
+    assert res.is_success
+    assert res.retry_count == 1
+    assert res.result.get("recovered") is True
 
 
 def test_V_nan_infinity_sanitization():

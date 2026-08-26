@@ -1,4 +1,4 @@
-﻿"""
+"""
 Universal Agent Result Validator & Metric Verifier.
 
 Validates every AgentResult produced by an analytical agent before it is returned:
@@ -175,6 +175,27 @@ class ResultValidator:
 
     def _mathematical_metrics_check(self, result: AgentResult, vr: ValidationResult) -> None:
         """Verify finite numbers and mathematical bounds on reported metrics."""
+        # 0. Check for non-finite NaN/Inf in result and metrics
+        def _contains_non_finite(obj: Any) -> bool:
+            if isinstance(obj, float):
+                return math.isnan(obj) or math.isinf(obj)
+            elif isinstance(obj, np.floating):
+                val = float(obj)
+                return math.isnan(val) or math.isinf(val)
+            elif isinstance(obj, dict):
+                return any(_contains_non_finite(v) for v in obj.values())
+            elif isinstance(obj, (list, tuple)):
+                return any(_contains_non_finite(item) for item in obj)
+            return False
+
+        if _contains_non_finite(result.result) or _contains_non_finite(result.data) or _contains_non_finite(result.metrics):
+            vr.add_issue(
+                ValidationSeverity.ERROR, "NON_FINITE_NUMERIC_VALUE",
+                "Agent result or metrics contains non-finite NaN or Infinity value.",
+                field="result",
+                repair_hint="Sanitize non-finite values into None or bounded numbers.",
+            )
+
         metrics = result.metrics or result.data.get("metrics") or result.data.get("metric") or {}
         if isinstance(metrics, dict):
             # 1. R2 Score check (must be <= 1.0)
