@@ -441,17 +441,17 @@ class ModelTrainingEngine:
             if "logistic" in name_lower or "linear" in name_lower:
                 return LogisticRegression(max_iter=500, random_state=random_state), "Logistic Regression", "linear"
             elif "random forest" in name_lower or "rf" in name_lower:
-                return RandomForestClassifier(n_estimators=100, random_state=random_state), "Random Forest Classifier", "ensemble"
+                return RandomForestClassifier(n_estimators=100, random_state=random_state, n_jobs=-1), "Random Forest Classifier", "ensemble"
             elif "gradient boosting" in name_lower or "gbm" in name_lower or "boost" in name_lower:
                 return GradientBoostingClassifier(n_estimators=100, random_state=random_state), "Gradient Boosting Classifier", "ensemble"
             elif "extra trees" in name_lower:
-                return ExtraTreesClassifier(n_estimators=100, random_state=random_state), "Extra Trees Classifier", "ensemble"
+                return ExtraTreesClassifier(n_estimators=100, random_state=random_state, n_jobs=-1), "Extra Trees Classifier", "ensemble"
             elif "decision tree" in name_lower or "tree" in name_lower:
                 return DecisionTreeClassifier(max_depth=5, random_state=random_state), "Decision Tree Classifier", "tree"
             elif "svc" in name_lower or "svm" in name_lower:
                 return SVC(probability=True, random_state=random_state), "Support Vector Classifier", "kernel"
             elif "knn" in name_lower or "neighbor" in name_lower:
-                return KNeighborsClassifier(n_neighbors=5), "K-Nearest Neighbors", "neighbors"
+                return KNeighborsClassifier(n_neighbors=5, n_jobs=-1), "K-Nearest Neighbors", "neighbors"
             elif "cnn" in name_lower or "convolutional" in name_lower:
                 filters = hyperparams.get("filters", [16, 32])
                 conv_blocks = [CNNLayerConfig(filters=f) for f in filters] if isinstance(filters, list) else None
@@ -489,11 +489,11 @@ class ModelTrainingEngine:
             elif "linear" in name_lower:
                 return LinearRegression(), "Linear Regression", "linear"
             elif "random forest" in name_lower or "rf" in name_lower:
-                return RandomForestRegressor(n_estimators=100, random_state=random_state), "Random Forest Regressor", "ensemble"
+                return RandomForestRegressor(n_estimators=100, random_state=random_state, n_jobs=-1), "Random Forest Regressor", "ensemble"
             elif "gradient boosting" in name_lower or "gbm" in name_lower or "boost" in name_lower:
                 return GradientBoostingRegressor(n_estimators=100, random_state=random_state), "Gradient Boosting Regressor", "ensemble"
             elif "extra trees" in name_lower:
-                return ExtraTreesRegressor(n_estimators=100, random_state=random_state), "Extra Trees Regressor", "ensemble"
+                return ExtraTreesRegressor(n_estimators=100, random_state=random_state, n_jobs=-1), "Extra Trees Regressor", "ensemble"
             elif "decision tree" in name_lower or "tree" in name_lower:
                 return DecisionTreeRegressor(max_depth=5, random_state=random_state), "Decision Tree Regressor", "tree"
             elif "svr" in name_lower or "svm" in name_lower:
