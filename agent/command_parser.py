@@ -242,6 +242,10 @@ class CommandParser:
             result = self.insights.text_analysis()
             return {"type": "text", "result": result}
 
+        if intent.action == "forecast":
+            result = self.predictor.forecast(target=intent.target or None)
+            return {"type": "forecast", "result": result}
+
         if intent.action == "predict":
             result = self.predictor.predict(target=intent.target or None)
             return {"type": "predict", "result": result}

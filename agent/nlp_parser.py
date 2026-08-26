@@ -58,7 +58,8 @@ class NLPCommandParser:
     }
 
     # Action indicators
-    PREDICT_KEYWORDS = ["predict", "forecast", "prediction", "machine learning", "ml"]
+    FORECAST_KEYWORDS = ["forecast", "future", "next periods", "what will happen", "next month", "next quarter", "projection", "project"]
+    PREDICT_KEYWORDS = ["predict", "prediction", "classify", "classification", "machine learning", "ml", "estimate"]
     SUMMARY_KEYWORDS = ["summary", "summarize", "overview", "describe", "info", "statistics", "stats"]
     HEAD_KEYWORDS = ["head", "first", "show", "view", "display", "table", "rows", "sample"]
     UNIQUE_KEYWORDS = ["unique", "distinct", "categories", "category list"]
@@ -103,7 +104,9 @@ class NLPCommandParser:
         return self.intent
 
     def _detect_action(self, text):
-        if any(kw in text for kw in self.PREDICT_KEYWORDS):
+        if any(kw in text for kw in self.FORECAST_KEYWORDS):
+            self.intent.action = "forecast"
+        elif any(kw in text for kw in self.PREDICT_KEYWORDS):
             self.intent.action = "predict"
         elif any(kw in text for kw in self.SUMMARY_KEYWORDS):
             self.intent.action = "summary"
