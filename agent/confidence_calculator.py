@@ -295,3 +295,59 @@ class ConfidenceCalculator:
             explanations=explanations,
         )
 
+    @classmethod
+    def calculate_clustering_confidence(
+        cls,
+        silhouette_score: float = 0.5,
+        davies_bouldin_score: float = 1.0,
+        n_samples: int = 10,
+        n_features: int = 2,
+        k_clusters: int = 2,
+        noise_ratio: float = 0.0,
+        missing_rate: float = 0.0,
+    ) -> ConfidenceReport:
+        """Calculate confidence for clustering and segmentation outcomes."""
+        penalties: List[str] = []
+        explanations: List[str] = []
+        factors: Dict[str, float] = {}
+
+        # 1. Silhouette score quality (mapped from [-1, 1] to [0.2, 0.95])
+        sil_clamped = cls._clamp((silhouette_score + 1.0) / 2.0, 0.0, 1.0)
+        sil_factor = 0.30 + 0.65 * sil_clamped
+        factors["silhouette_quality"] = sil_factor
+        explanations.append(f"Holdout Silhouette Score = {silhouette_score:.3f}")
+
+        # 2. Sample size adequacy
+        sample_ratio = n_samples / max(1, n_features * k_clusters)
+        if sample_ratio < 3:
+            sample_factor = 0.65
+            penalties.append(f"Low sample-to-parameter ratio ({sample_ratio:.1f} < 3)")
+        elif sample_ratio < 10:
+            sample_factor = 0.85
+        else:
+            sample_factor = 1.0
+        factors["sample_size"] = sample_factor
+
+        # 3. Noise penalty (if DBSCAN has >20% noise)
+        noise_factor = max(0.60, 1.0 - (noise_ratio * 1.5))
+        if noise_ratio > 0.20:
+            penalties.append(f"Significant noise observations ({noise_ratio*100:.1f}%)")
+        factors["density_coherence"] = noise_factor
+
+        # 4. Missingness factor
+        comp_factor = max(0.70, 1.0 - missing_rate)
+        factors["completeness"] = comp_factor
+
+        raw_conf = sil_factor * sample_factor * noise_factor * comp_factor
+        final_conf = cls._clamp(raw_conf, min_val=0.20, max_val=0.95)
+
+        return ConfidenceReport(
+            confidence=final_conf,
+            confidence_level=1.0,
+            validation_score=sil_clamped,
+            factors=factors,
+            penalties=penalties,
+            explanations=explanations,
+        )
+
+

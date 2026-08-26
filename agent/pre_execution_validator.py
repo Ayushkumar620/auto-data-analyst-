@@ -402,19 +402,35 @@ class PreExecutionValidator:
         features: Optional[List[str]],
         agent_name: str,
     ) -> PreExecutionValidationReport:
+        if len(df) < 5:
+            err = AgentError.create(
+                category=ErrorCategory.INSUFFICIENT_DATA,
+                user_message=f"Clustering requires at least 5 sample observations. Found {len(df)}.",
+                agent_name=agent_name,
+            )
+            return PreExecutionValidationReport(is_valid=False, task_type="clustering", error=err)
+
+        if all(df[c].nunique(dropna=True) <= 1 for c in df.columns):
+            err = AgentError.create(
+                category=ErrorCategory.DATA_INVALID,
+                user_message="All candidate feature columns have zero variance (constant values). Cannot partition uniform data.",
+                agent_name=agent_name,
+            )
+            return PreExecutionValidationReport(is_valid=False, task_type="clustering", error=err)
+
+        if len(profile.identifier_columns) == len(df.columns) and len(df.columns) > 0:
+            err = AgentError.create(
+                category=ErrorCategory.DATA_INVALID,
+                user_message="Dataset contains only identifier columns. Clustering requires quantitative or categorical feature dimensions.",
+                agent_name=agent_name,
+            )
+            return PreExecutionValidationReport(is_valid=False, task_type="clustering", error=err)
+
         n_features = len(features) if features else (len(profile.numeric_columns) + len(profile.categorical_columns))
         if n_features < 2:
             err = AgentError.create(
                 category=ErrorCategory.INSUFFICIENT_DATA,
                 user_message="Clustering requires at least 2 distinct feature columns.",
-                agent_name=agent_name,
-            )
-            return PreExecutionValidationReport(is_valid=False, task_type="clustering", error=err)
-
-        if len(df) < 5:
-            err = AgentError.create(
-                category=ErrorCategory.INSUFFICIENT_DATA,
-                user_message=f"Clustering requires at least 5 sample observations. Found {len(df)}.",
                 agent_name=agent_name,
             )
             return PreExecutionValidationReport(is_valid=False, task_type="clustering", error=err)
