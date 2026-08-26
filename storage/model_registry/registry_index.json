@@ -2163,5 +2163,47 @@
     },
     "reference_profile": {},
     "feature_importances": {}
+  },
+  "mod_f5564f0d7c": {
+    "model_id": "mod_f5564f0d7c",
+    "name": "Linear Regression",
+    "version": 25,
+    "model_family": "linear",
+    "algorithm": "Linear Regression",
+    "problem_type": "regression",
+    "target_column": "target",
+    "feature_columns": [
+      "x1",
+      "x2"
+    ],
+    "feature_dtypes": {},
+    "hyperparameters": {},
+    "training_metrics": {
+      "r2": 0.9974,
+      "mae": 1.4078,
+      "rmse": 1.8407,
+      "mape": 1.652
+    },
+    "validation_metrics": {
+      "r2": 0.9971,
+      "mae": 1.474,
+      "rmse": 1.8961,
+      "mape": 1.738
+    },
+    "primary_metric_name": "r2",
+    "primary_metric_value": 0.9971,
+    "loss_curve": [],
+    "created_at": "2026-08-26T19:06:07.422601",
+    "status": "active",
+    "tags": [
+      "regression",
+      "5_fold_cv",
+      "auto_selected"
+    ],
+    "preprocessor_meta": {
+      "has_preprocessor": true
+    },
+    "reference_profile": {},
+    "feature_importances": {}
   }
 }
