@@ -1427,7 +1427,7 @@
   max-width: 100%;
 }
 
-/* Agent Execution Graph / DAG Container */
+/* Agent Execution Graph / Internal Horizontal Workspace Scroll Container */
 .execution-graph-card {
   width: 100%;
   min-width: 0;
@@ -1435,48 +1435,60 @@
   overflow: hidden;
 }
 
+.agent-workspace-scroll,
 .graph-wrapper {
   width: 100%;
   min-width: 0;
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 0.5rem 0.25rem 0.75rem;
+  padding: 0.5rem 0.25rem 0.85rem;
   scrollbar-width: thin;
-  scrollbar-color: rgba(99, 102, 241, 0.3) transparent;
+  scrollbar-color: rgba(99, 102, 241, 0.4) rgba(241, 245, 249, 0.7);
   -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
 }
 
+.agent-workspace-scroll::-webkit-scrollbar,
 .graph-wrapper::-webkit-scrollbar {
-  height: 6px;
+  height: 7px;
 }
 
-.graph-wrapper::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.3);
-  border-radius: 3px;
-}
-
+.agent-workspace-scroll::-webkit-scrollbar-track,
 .graph-wrapper::-webkit-scrollbar-track {
-  background: rgba(241, 245, 249, 0.5);
-  border-radius: 3px;
+  background: rgba(241, 245, 249, 0.7);
+  border-radius: 9999px;
 }
 
+.agent-workspace-scroll::-webkit-scrollbar-thumb,
+.graph-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.35);
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.agent-workspace-scroll::-webkit-scrollbar-thumb:hover,
+.graph-wrapper::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+.agent-workspace-content,
 .dag-flow {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.65rem;
   min-width: max-content;
-  padding: 0.25rem 0;
+  padding: 0.25rem 0.2rem 0.4rem;
 }
 
 .dag-card {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  min-width: 160px;
-  max-width: 220px;
+  min-width: 180px;
+  max-width: 240px;
   flex-shrink: 0;
-  padding: 0.75rem 0.85rem;
+  padding: 0.8rem 0.95rem;
   background: #ffffff;
   border: 1px solid rgba(226, 232, 240, 0.9);
   border-radius: 12px;

@@ -270,9 +270,9 @@ export default function ChatPage() {
                   </div>
                 </div>
 
-                {/* Horizontal Scrollable DAG Graph Wrapper */}
-                <div className="graph-wrapper" aria-label="Agent execution graph flow">
-                  <div className="dag-flow">
+                {/* Internal Horizontal Scrollable Agent Workspace */}
+                <div className="agent-workspace-scroll graph-wrapper" aria-label="Agent execution graph flow">
+                  <div className="agent-workspace-content dag-flow">
                     {/* Step 1: Intent & Planning */}
                     <div className="dag-card dag-card--completed">
                       <div className="dag-card-header">
