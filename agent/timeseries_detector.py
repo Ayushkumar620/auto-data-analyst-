@@ -79,6 +79,9 @@ class TimeSeriesDetector:
 
         return None
 
+    def detect_target_column(self, df: pd.DataFrame, time_col: Optional[str] = None, hint: Optional[str] = None) -> Optional[str]:
+        """Identify primary numeric forecasting target."""
+        # 1. User explicit target ALWAYS wins
     def rank_target_candidates(self, df: pd.DataFrame, time_col: Optional[str] = None, hint: Optional[str] = None) -> List[Tuple[str, float]]:
         """
         Rank candidate numeric targets based on statistical properties without hardcoded column names.
@@ -86,12 +89,20 @@ class TimeSeriesDetector:
         """
         # 1. User explicit target ALWAYS has highest priority
         if hint and hint in df.columns and pd.api.types.is_numeric_dtype(df[hint]):
+            return hint
             return [(hint, 100.0)]
 
+        # 2. Filter available numeric columns
         num_cols = [c for c in df.select_dtypes(include=[np.number]).columns if c != time_col]
         if not num_cols:
+            return None
             return []
 
+        # Filter out temporal years/quarters, IDs, constant, and high-null columns
+        candidate_cols = []
+        for c in num_cols:
+            series = df[c].dropna()
+            if len(series) < 3:
         scored_candidates: List[Tuple[str, float]] = []
 
         for col in num_cols:
@@ -99,28 +110,56 @@ class TimeSeriesDetector:
             n = len(series)
             if n < 3:
                 continue
+            # Exclude if constant
+            if series.nunique() <= 1:
 
             # Check 1: Exclude zero-variance / constant columns
             unique_count = series.nunique()
             if unique_count <= 1:
                 continue
+            # Exclude temporal year columns unless explicitly requested
+            c_low = c.lower()
+            tokens = re.sub(r"[^\w]", " ", re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", c)).lower().split()
+            if any(t in tokens for t in ("year", "fy", "cy", "yr", "quarter", "qtr", "date", "timestamp", "month")):
+                if series.between(1800, 2150).all() or (series.between(1, 4).all() and "q" in c_low):
 
             # Check 2: Exclude temporal year columns (e.g., 1800-2150 with uniform/discrete steps)
             if pd.api.types.is_integer_dtype(df[col]) and series.between(1800, 2150).all():
                 # If values are sorted year spans like 2020..2025, treat as temporal index
                 if series.is_monotonic_increasing or series.std() < 50:
                     continue
+            # Exclude identifier columns
+            if any(t in tokens for t in ("id", "key", "code", "uuid", "guid", "sku", "ref", "serial")) and series.nunique() / len(series) > 0.8:
 
             # Check 3: Exclude quarter/month integers (1..4 or 1..12 discrete codes)
             if pd.api.types.is_integer_dtype(df[col]) and unique_count <= 4 and series.between(1, 4).all():
                 continue
+            candidate_cols.append(c)
 
+        if not candidate_cols:
+            return None
             # Check 4: Exclude identifier columns (monotonic sequence or unique ratio ~ 1.0 on integer IDs)
             if pd.api.types.is_integer_dtype(df[col]) and unique_count / n > 0.95 and series.min() >= 0:
                 diffs = series.diff().dropna()
                 if not diffs.empty and (diffs == 1).mean() > 0.8:
                     continue
 
+        # Prefer primary business metric keywords
+        metric_keywords = [
+            "actual", "revenue", "sales", "demand", "profit", "budget", "volume",
+            "usd", "amount", "spend", "units", "quantity", "price", "cost", "value", "count"
+        ]
+        scored_candidates = []
+        for c in candidate_cols:
+            score = 0
+            c_low = c.lower()
+            tokens = re.sub(r"[^\w]", " ", re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", c)).lower().split()
+            for idx, kw in enumerate(metric_keywords):
+                if kw in tokens or kw in c_low:
+                    score += (len(metric_keywords) - idx) * 10
+            # Bonus for valid non-null ratio & variance
+            score += min(10, df[c].dropna().nunique())
+            scored_candidates.append((c, score))
             # Compute Dataset-Agnostic Statistical Suitability Score
             score = 50.0
 
@@ -159,6 +198,7 @@ class TimeSeriesDetector:
             scored_candidates.append((col, round(score, 2)))
 
         scored_candidates.sort(key=lambda x: x[1], reverse=True)
+        return scored_candidates[0][0]
         return scored_candidates
 
     def detect_target_column(self, df: pd.DataFrame, time_col: Optional[str] = None, hint: Optional[str] = None) -> Optional[str]:

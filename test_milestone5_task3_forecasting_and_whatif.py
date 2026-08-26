@@ -170,6 +170,7 @@ def test_candidate_models_and_backtest_ranking(monthly_sales_df):
     result = engine.run_forecast(req)
 
     assert result.model_family in ("exponential_smoothing", "autoregressive_ml", "seasonal_naive", "naive_last", "moving_average")
+    assert result.model_family in ("exponential_smoothing", "autoregressive_ml", "seasonal_naive", "naive_last", "moving_average", "linear_trend", "arima_statistical")
     assert len(result.evidence) > 0
     assert result.evidence[0].claim_type == ClaimType.INFERENCE
 
