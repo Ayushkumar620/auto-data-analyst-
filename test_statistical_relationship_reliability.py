@@ -261,3 +261,85 @@ class TestUniversalOrchestrator:
         assert len(exec_res.evidence) >= 5
         assert "synthesis" in exec_res.output
         assert "key_insights" in exec_res.output
+
+
+class TestStatisticalRelationshipTraceabilityAndEdgeCases:
+    def test_evidence_ids_traceable(self, relationship_dataset):
+        agent = StatisticalAnalysisAgent()
+        res = agent.run({"data": relationship_dataset})
+        assert res.is_success
+        relationships = res.data.get("relationships", [])
+        assert len(relationships) > 0
+        for r in relationships:
+            assert "evidence_id" in r
+            assert r["evidence_id"] is not None
+
+    def test_sample_size_per_pair_recorded_with_missing_values(self):
+        df_missing = pd.DataFrame({
+            "var_1": [1.0, 2.0, 3.0, None, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
+            "var_2": [2.0, None, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0],
+            "var_3": [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0],
+        })
+        engine = StatisticalAnalysisEngine()
+        result = engine.analyze(data=df_missing)
+        v1_v2 = next(
+            r for r in result["relationships"]
+            if (r["feature_x"] == "var_1" and r["feature_y"] == "var_2") or (r["feature_x"] == "var_2" and r["feature_y"] == "var_1")
+        )
+        assert v1_v2["valid_rows"] == 8
+        assert v1_v2["valid_sample_size"] == 8
+
+    def test_conversational_analyst_returns_relationship_table(self, relationship_dataset):
+        from agent.conversational_analyst import ConversationalAnalystAgent
+        agent = ConversationalAnalystAgent()
+        resp, evidence, meta = agent.chat(
+            "Calculate Pearson and Spearman correlations between numeric variables.",
+            session_id="test_stats_session",
+            dataset=relationship_dataset,
+        )
+        assert "| Relationship | Pearson r | Spearman ρ |" in resp
+        assert len(evidence) > 0
+        assert "result" in meta
+        assert "relationships" in meta["result"]
+
+    def test_chat_agent_legacy_compatibility(self, relationship_dataset):
+        from backend.app.chat.agent import ChatAgent
+        from backend.app.chat.executor import DataExecutor
+        executor = DataExecutor()
+        ev = executor.calculate_correlation(relationship_dataset, "marketing_spend", "revenue")
+        assert "correlation" in ev
+        assert "pearson_r" in ev
+        assert "spearman_rho" in ev
+        assert "raw_p_value" in ev
+        assert "adjusted_p_value" in ev
+        assert "valid_rows" in ev
+
+        chat_agent = ChatAgent()
+        res = chat_agent.respond(relationship_dataset, "Show me correlations in this dataset", {"dataset_id": "test_ds"})
+        assert res.intent == "correlation"
+        assert "| Relationship | Pearson r | Spearman ρ |" in res.message
+        assert "relationships" in res.evidence
+
+    def test_zero_division_and_constant_columns_safe(self):
+        df_constant = pd.DataFrame({
+            "const_col": [5.0] * 50,
+            "varying_col": list(range(50)),
+            "cat_col": ["A", "B"] * 25,
+        })
+        engine = StatisticalAnalysisEngine()
+        result = engine.analyze(data=df_constant)
+        assert "error" not in result
+        assert result["task_type"] == "statistical_analysis"
+
+    def test_orchestrator_returns_structured_relationships_in_result(self, relationship_dataset):
+        orch = AutonomousCommandOrchestrator()
+        result = orch.execute_command(
+            "Calculate Pearson and Spearman correlations between all suitable numeric variables.",
+            relationship_dataset,
+        )
+        res_dict = result.to_dict()
+        assert "relationships" in res_dict
+        assert len(res_dict["relationships"]) > 0
+        assert "top_relationships" in res_dict
+        assert "correlation_matrix" in res_dict
+        assert "| Relationship | Pearson r | Spearman ρ |" in res_dict["final_explanation"]
