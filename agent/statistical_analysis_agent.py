@@ -44,6 +44,12 @@ class StatisticalAnalysisAgent(BaseAgent):
             alpha = task.get("alpha", 0.05)
             max_pairs = task.get("max_pairs", 250)
 
+            if target and features and isinstance(features, list) and target not in features:
+                features = list(features) + [target]
+
+            if (not features or len(features) < 2) and isinstance(data, pd.DataFrame) and len(data.columns) >= 2:
+                features = list(data.columns)
+
             # 1. Pre-execution validation
             pre_audit = PreExecutionValidator.validate(
                 data,

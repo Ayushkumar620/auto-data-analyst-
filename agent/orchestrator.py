@@ -469,10 +469,9 @@ class UniversalOrchestrator:
             dependencies[t_trans.task_id] = [eda_task_id] if eda_task_id else []
 
         if needs_stats:
-            if any(w in cmd_lower for w in ("all", "dataset", "comprehensively", "relationships", "correlations", "matrix", "identify the strongest", "strongest")) or len(effective_features) < 4:
-                stats_cols = [c for c in df.columns if c not in profile.identifier_columns and c not in profile.constant_columns]
-            else:
-                stats_cols = effective_features if len(effective_features) >= 2 else list(df.columns)
+            stats_cols = [c for c in df.columns if c not in profile.identifier_columns and c not in profile.constant_columns]
+            if len(stats_cols) < 2:
+                stats_cols = list(df.columns)
             t_stats = PlanTask(
                 task_id=f"task_stats_{uuid.uuid4().hex[:6]}",
                 task_type="statistical_analysis",

@@ -499,7 +499,10 @@ class InsightSynthesisEngine:
                     adj_p = self._safe_float(rel.get("adjusted_p_value", p_val))
                     effect = self._safe_float(rel.get("effect_size", abs(stat_val)), abs(stat_val))
                     method = rel.get("primary_method", rel.get("method", "correlation"))
-                    strength = rel.get("strength", "moderate")
+                    strength = rel.get("strength")
+                    if not strength:
+                        eff_val = abs(effect if effect is not None else stat_val)
+                        strength = "very strong" if eff_val >= 0.70 else ("strong" if eff_val >= 0.50 else ("moderate" if eff_val >= 0.30 else "weak"))
                     outlier_sens = rel.get("outlier_sensitivity", False)
 
                     p_info = rel.get("pearson", {})
