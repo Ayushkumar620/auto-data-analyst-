@@ -133,6 +133,7 @@ class ConversationalAnalystAgent(BaseAgent):
         session_id: str = "default_session",
         data: Optional[Any] = None,
         dataset: Optional[Any] = None,
+        **kwargs: Any,
     ) -> Tuple[str, List[Evidence], Dict[str, Any]]:
         """
         Process a single natural language conversational turn.
