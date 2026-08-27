@@ -216,8 +216,6 @@ class StatisticalAnalysisEngine:
                 excluded.append(str(col))
                 continue
 
-            # 1. Identifier exclusion
-            if not is_explicit and (col in profile.identifier_columns or (series.nunique(dropna=True) == len(df) and len(df) >= 5 and not pd.api.types.is_numeric_dtype(series))):
                 excluded.append(str(col))
                 continue
 

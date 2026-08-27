@@ -270,9 +270,6 @@ class AutonomousCommandOrchestrator:
         if is_rel_request:
             from agent.statistical_analysis_agent import StatisticalAnalysisAgent
             stats_agent_res = StatisticalAnalysisAgent().run({"data": dataframe})
-            if stats_agent_res.is_success and stats_agent_res.evidence:
-                for ev in stats_agent_res.evidence:
-                    evidence_list.append(ev.to_dict() if hasattr(ev, "to_dict") else ev)
             if stats_agent_res.is_success:
                 if stats_agent_res.evidence:
                     for ev in stats_agent_res.evidence:
@@ -543,7 +540,6 @@ class AutonomousCommandOrchestrator:
 
             lines = ["📊 **Statistical Relationship & Correlation Analysis**:"]
 
-            top_rels = stats_res.get("top_relationships", [])
             top_rels = stats_res.get("top_relationships", []) or stats_res.get("relationships", [])
             if top_rels:
                 lines.append("\n| Relationship | Pearson r | Spearman ρ | Raw p-value | FDR-adjusted p-value | Effect Strength | Valid N | Outlier Sensitivity |")
@@ -568,8 +564,6 @@ class AutonomousCommandOrchestrator:
                 for i, r in enumerate(top_rels[:5], 1):
                     fx = r.get("feature_x")
                     fy = r.get("feature_y")
-                    p_info = r.get("pearson", {})
-                    s_info = r.get("spearman", {})
                     p_info = r.get("pearson", {}) or {}
                     s_info = r.get("spearman", {}) or {}
                     p_r = p_info.get("r", r.get("statistic", 0.0))
