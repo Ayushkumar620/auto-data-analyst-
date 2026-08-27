@@ -584,68 +584,6 @@ class ConfidenceCalculator:
             explanations=explanations,
         )
 
-    @classmethod
-    def calculate_quality_gate_confidence(
-        cls,
-        status: str,
-        n_rows: int,
-        n_usable_features: int,
-        quality_score: float = 1.0,
-    ) -> ConfidenceReport:
-        """
-        Calculate DataQualityGate decision confidence.
-        Bounded in [0.30, 0.98].
-        """
-        penalties: List[str] = []
-        explanations: List[str] = []
-        factors: Dict[str, float] = {}
-
-        st_upper = (status or "READY").upper()
-        if st_upper == "BLOCKED":
-            base_status_factor = 0.35
-            penalties.append("Task is blocked due to missing or invalid required assets")
-        elif st_upper == "NEEDS_CLARIFICATION":
-            base_status_factor = 0.55
-            penalties.append("Task requires user clarification for target or temporal selection")
-        elif st_upper == "NEEDS_TRANSFORMATION":
-            base_status_factor = 0.85
-        elif st_upper == "READY_WITH_WARNINGS":
-            base_status_factor = 0.88
-        else:
-            base_status_factor = 0.96
-
-        factors["status_factor"] = base_status_factor
-
-        # Sample size factor
-        if n_rows < 10:
-            sample_factor = 0.70
-            penalties.append("Small sample size (N < 10)")
-        elif n_rows < 50:
-            sample_factor = 0.88
-        else:
-            sample_factor = 1.0
-        factors["sample_size"] = sample_factor
-
-        # Usable features factor
-        feat_factor = 1.0 if n_usable_features >= 1 else 0.50
-        factors["feature_adequacy"] = feat_factor
-
-        # Data quality factor
-        qual_factor = max(0.60, min(1.0, float(quality_score)))
-        factors["data_quality"] = qual_factor
-
-        raw_conf = base_status_factor * sample_factor * feat_factor * qual_factor
-        final_conf = cls._clamp(raw_conf, min_val=0.30, max_val=0.98)
-
-        return ConfidenceReport(
-            confidence=final_conf,
-            confidence_level=1.0,
-            validation_score=base_status_factor,
-            factors=factors,
-            penalties=penalties,
-            explanations=explanations,
-        )
-
 
 
 

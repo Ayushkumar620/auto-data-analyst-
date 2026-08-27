@@ -72,7 +72,6 @@ from backend.app.api.v1.statistical_analysis import router as statistical_analys
 from backend.app.api.v1.eda import router as eda_router
 from backend.app.api.v1.hypothesis_testing import router as hypothesis_testing_router
 from backend.app.api.v1.transformation import router as transformation_router
-from backend.app.api.v1.data_quality import router as data_quality_router
 
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(analysis_router, prefix=settings.api_v1_prefix)
@@ -96,7 +95,6 @@ app.include_router(statistical_analysis_router, prefix=settings.api_v1_prefix)
 app.include_router(eda_router, prefix=settings.api_v1_prefix)
 app.include_router(hypothesis_testing_router, prefix=settings.api_v1_prefix)
 app.include_router(transformation_router, prefix=settings.api_v1_prefix)
-app.include_router(data_quality_router, prefix=settings.api_v1_prefix)
 app.include_router(sql_router, prefix=settings.api_v1_prefix)
 app.include_router(sandbox_router, prefix=settings.api_v1_prefix)
 app.include_router(vision_router, prefix=settings.api_v1_prefix)
