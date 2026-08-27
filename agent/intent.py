@@ -144,6 +144,7 @@ class IntentClassificationResult(BaseModel):
     confidence: float = 0.9
     target_column: Optional[str] = None
     feature_columns: List[str] = Field(default_factory=list)
+    time_column: Optional[str] = None
     group_by: Optional[str] = None
     time_horizon: Optional[int] = None
     chart_type: Optional[str] = None

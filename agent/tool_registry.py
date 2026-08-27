@@ -94,13 +94,18 @@ class ToolRegistry:
         from agent.agents import (
             AnalysisAgent,
             ANNAgent,
+            AnomalyDetectionAgent,
             AutonomousAnalystAgent,
             AutonomousForecasterAgent,
             CleaningAgent,
+            ClusteringAgent,
             CNNAgent,
             ConversationalAnalystAgent,
+            DataQualityAgent,
             DataValidationAgent,
+            EDAAgent,
             ForecastAgent,
+            HypothesisTestingAgent,
             InsightAgent,
             ModelMonitorAgent,
             ModelOrchestratorAgent,
@@ -110,6 +115,8 @@ class ToolRegistry:
             PredictionAgent,
             RecommendationAgent,
             ReportAgent,
+            StatisticalAnalysisAgent,
+            TransformationAgent,
             VisualizationAgent,
         )
 

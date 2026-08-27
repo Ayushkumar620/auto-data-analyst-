@@ -41,7 +41,6 @@ from agent.confidence_calculator import ConfidenceCalculator
 from agent.intent import AnalyticalIntent, CommandIntelligenceAgent, IntentAnalyzer, IntentClassificationResult, IntentType
 from agent.pre_execution_validator import PreExecutionValidator
 from agent.result_validator import ResultValidator
-from agent.tool_registry import DEFAULT_TOOL_REGISTRY, ToolRegistry
 
 
 class TaskStatus(str, Enum):
@@ -282,7 +281,7 @@ class UniversalOrchestrator:
                     break
 
         # Time Column Resolution
-        effective_time_col = time_column or classification.time_column
+        effective_time_col = time_column or getattr(classification, "time_column", None)
         if not effective_time_col and profile.datetime_candidates:
             effective_time_col = profile.datetime_candidates[0]
 
