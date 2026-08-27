@@ -445,19 +445,22 @@
          * with an actionable hint.
          */
         async function parseJson(resp) {
-            const ctype = (resp.headers.get('content-type') || '').toLowerCase();
+            // Read the body as text FIRST, then parse it. Reading resp.json() first
+            // consumes the response stream, so a failed parse (e.g. HTML debug page)
+            // leaves resp.text() unusable and we'd lose the actual error body.
+            const raw = await resp.text()
+                .catch(() => '<unreadable>');
             let data;
             try {
-                data = await resp.json();
+                data = JSON.parse(raw);
             } catch (e) {
-                const snippet = await resp.text()
-                    .then(t => (t || '<empty>').replace(/\s+/g, ' ').trim().slice(0, 200))
-                    .catch(() => '<unreadable>');
+                const ctype = (resp.headers.get('content-type') || '').toLowerCase();
                 const kind = (ctype && ctype !== 'application/json') ? ctype : 'non-JSON';
+                const snippet = (raw || '<empty>').replace(/\s+/g, ' ').trim().slice(0, 300);
                 throw new Error(
                     'The server returned "' + kind + '" (HTTP ' + resp.status + ') for "' + resp.url +
                     '" — expected JSON. This page must be served by the backend at the same origin ' +
-                    '(run: python app.py). Body: ' + snippet
+                    '(run: python app.py). Response body: ' + snippet
                 );
             }
             if (!resp.ok && data && (data.detail || data.message)) {

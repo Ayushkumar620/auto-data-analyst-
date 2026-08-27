@@ -194,7 +194,11 @@ def analyze():
         return jsonify({"type": "error", "message": f"Failed to load file: {str(e)}"})
 
     parser = CommandParser(data)
-    result = parser.parse(command)
+    try:
+        result = parser.parse(command)
+    except Exception as e:
+        app.logger.exception("Command parsing failed for command=%r", command)
+        return jsonify({"type": "error", "message": f"Analysis failed: {str(e)}"})
     result["filename"] = filename
     result["file_type"] = os.path.splitext(filename)[1].lstrip(".")
 
@@ -211,7 +215,11 @@ def analyze():
     except Exception:
         pass
 
-    return jsonify(result)
+    try:
+        return jsonify(result)
+    except Exception as e:
+        app.logger.exception("Response serialization failed")
+        return jsonify({"type": "error", "message": f"Failed to serialize result: {str(e)}"})
 
 
 @app.route("/api/report", methods=["POST"])
