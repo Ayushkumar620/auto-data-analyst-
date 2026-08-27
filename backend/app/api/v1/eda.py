@@ -17,6 +17,7 @@ router = APIRouter(tags=["EDA & Data Profiling"])
 class EDARequest(BaseModel):
     dataset: Optional[List[Dict[str, Any]]] = Field(None, description="Tabular dataset records")
     columns: Optional[List[str]] = Field(None, description="Optional column subset to profile")
+    target: Optional[str] = Field(None, description="Optional target column to profile")
     max_categories: Optional[int] = Field(10, description="Maximum categorical frequency levels to report")
 
 
@@ -38,6 +39,7 @@ def run_eda_profile(req: EDARequest) -> Dict[str, Any]:
     task = {
         "data": df,
         "columns": req.columns,
+        "target": req.target,
         "max_categories": req.max_categories if req.max_categories is not None else 10,
     }
     result: AgentResult = agent.run(task)

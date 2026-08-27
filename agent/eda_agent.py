@@ -42,10 +42,13 @@ class EDAAgent(BaseAgent):
             selected_columns = task.get("columns") or task.get("selected_columns") or task.get("features")
             max_categories = task.get("max_categories", 10)
 
+            target = task.get("target")
+
             # 1. Pre-execution validation
             pre_audit = PreExecutionValidator.validate(
                 data,
                 task_type="eda",
+                target=target,
                 feature_columns=selected_columns,
                 agent_name=self.name,
             )
@@ -63,6 +66,7 @@ class EDAAgent(BaseAgent):
             result = engine.profile(
                 data=data,
                 selected_columns=selected_columns,
+                target=target,
                 max_categories=max_categories,
             )
 
