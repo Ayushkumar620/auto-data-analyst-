@@ -45,6 +45,9 @@ from backend.app.core.root_cause_engine import RootCauseDecompositionEngine, glo
 from agent.conversational_memory import ConversationalMemoryEngine, global_conversational_memory
 
 
+from agent.json_utils import sanitize_for_json
+
+
 @dataclass
 class CommandExecutionResult:
     """Standardized result of a command-driven autonomous execution."""
@@ -66,7 +69,7 @@ class CommandExecutionResult:
     execution_graph: Optional[List[Dict[str, Any]]] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        return sanitize_for_json({
             "command": self.command,
             "resolved_command": self.resolved_command or self.command,
             "session_id": self.session_id,
@@ -83,7 +86,7 @@ class CommandExecutionResult:
             "duration_ms": round(float(self.duration_ms), 2),
             "context_metadata": self.context_metadata,
             "execution_graph": self.execution_graph or [],
-        }
+        })
 
 
 class AutonomousCommandOrchestrator:

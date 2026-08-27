@@ -13,28 +13,9 @@ from backend.app.profilers.dataset_profiler import DatasetProfiler
 from backend.app.services.dataset_service import DatasetService
 from backend.app.services.workspace_service import WorkspaceService
 
+from agent.json_utils import sanitize_for_json
+
 upload_bp = Blueprint("upload_bp", __name__, url_prefix="/api")
-
-
-def _json_safe(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {str(key): _json_safe(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple, set)):
-        return [_json_safe(item) for item in value]
-    if isinstance(value, (str, int, float, bool)) or value is None:
-        return value
-    if isinstance(value, np.generic):
-        return _json_safe(value.item())
-    if isinstance(value, (pd.Timestamp, pd.Timedelta)):
-        return str(value)
-    if pd.isna(value):
-        return None
-    if hasattr(value, "tolist"):
-        try:
-            return [_json_safe(item) for item in value.tolist()]
-        except TypeError:
-            pass
-    return str(value)
 
 
 @upload_bp.route("/upload", methods=["POST"])
@@ -110,4 +91,4 @@ def upload_dataset():
     except Exception as exc:
         return jsonify({"error": f"Upload failed: {exc}"}), 500
 
-    return jsonify(_json_safe(result))
+    return jsonify(sanitize_for_json(result))

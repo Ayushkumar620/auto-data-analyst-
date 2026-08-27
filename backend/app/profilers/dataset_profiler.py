@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 import pandas as pd
+from agent.json_utils import sanitize_for_json
 
 
 class DatasetProfiler:
@@ -21,7 +22,7 @@ class DatasetProfiler:
         quality_score = self._score_quality(dataframe, missing_summary, duplicate_analysis)
         recommendations = self._build_recommendations(missing_summary, duplicate_analysis, dataframe, date_columns)
 
-        return {
+        payload = {
             "dataset": {
                 "name": filename,
                 "file_type": file_type,
@@ -43,6 +44,7 @@ class DatasetProfiler:
             "recommendations": recommendations,
             "preview": dataframe.head(20).to_dict(orient="records"),
         }
+        return sanitize_for_json(payload)
 
     def _profile_column(self, series: pd.Series, column_name: str) -> Dict[str, Any]:
         return {
