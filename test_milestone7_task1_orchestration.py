@@ -42,7 +42,6 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from agent.agent_result import AgentError, AgentResult, AgentStatus, ClaimType, ErrorCategory
 from agent.agent_result import AgentError, AgentResult, AgentStatus, ClaimType, ErrorCategory, Evidence
 from agent.orchestrator import AnalyticalPlan, PlanTask, TaskStatus, UniversalOrchestrator
 from agent.tool_registry import DEFAULT_TOOL_REGISTRY
