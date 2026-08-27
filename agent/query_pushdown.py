@@ -79,15 +79,22 @@ class QueryPushdownEngine:
     ) -> Dict[str, Any]:
         """Stream / chunk execute large DataFrame metrics to reduce memory peak."""
         if dimension and dimension in df.columns:
-            grouped = df.groupby(dimension)[metric].agg(["count", "mean", "sum", "min", "max"])
+            metric_series = pd.to_numeric(df[metric], errors="coerce")
+            if metric_series.notna().sum() == 0:
+                return {"count": int(len(df)), "mean": 0.0, "sum": 0.0, "min": 0.0, "max": 0.0,
+                        "note": "Metric column has no numeric values."}
+            work = df.copy()
+            work[metric] = metric_series
+            grouped = work.groupby(dimension)[metric].agg(["count", "mean", "sum", "min", "max"])
             return grouped.reset_index().to_dict(orient="records")
 
+        metric_series = pd.to_numeric(df[metric], errors="coerce")
         return {
-            "count": int(df[metric].count()),
-            "mean": float(df[metric].mean()),
-            "sum": float(df[metric].sum()),
-            "min": float(df[metric].min()),
-            "max": float(df[metric].max()),
+            "count": int(metric_series.count()),
+            "mean": float(metric_series.mean()) if metric_series.count() else 0.0,
+            "sum": float(metric_series.sum()) if metric_series.count() else 0.0,
+            "min": float(metric_series.min()) if metric_series.count() else 0.0,
+            "max": float(metric_series.max()) if metric_series.count() else 0.0,
         }
 
 

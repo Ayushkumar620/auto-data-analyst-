@@ -246,7 +246,16 @@ class AutonomousAnalysisEngine:
         if dim_col not in df.columns or metric_col not in df.columns:
             return {}, []
 
-        grouped = df.groupby(dim_col)[metric_col].agg(["sum", "mean", "count"]).sort_values("sum", ascending=False)
+        # Coerce the metric to numeric so a string-formatted numeric column
+        # (e.g. "$1,250.50") doesn't raise "Cannot perform reduction 'mean' with
+        # string dtype". If the column isn't numeric, there is nothing to segment.
+        from agent.canonical_data_layer import CanonicalDataLayer
+        work = df.copy()
+        work[metric_col] = CanonicalDataLayer.coerce_numeric_series(work[metric_col])
+        if work[metric_col].notna().sum() == 0:
+            return {}, []
+
+        grouped = work.groupby(dim_col)[metric_col].agg(["sum", "mean", "count"]).sort_values("sum", ascending=False)
         if grouped.empty:
             return {}, []
 

@@ -555,8 +555,22 @@ class InsightsEngine:
                         target_col = col
                         break
 
-        # Determine numeric columns
+        # Determine numeric columns - including string columns that coerce to
+        # numbers (e.g. "$1,250.50", "75%", "2.5k", "(500.00)") so that computing
+        # a mean/sum on them doesn't raise "Cannot perform reduction 'mean' with
+        # string dtype".
+        from agent.canonical_data_layer import CanonicalDataLayer
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        for col in df.columns:
+            if col in numeric_cols:
+                continue
+            try:
+                coerced = CanonicalDataLayer.coerce_numeric_series(df[col])
+                valid_ratio = coerced.notna().mean() if len(coerced) else 0.0
+                if valid_ratio >= 0.60:
+                    numeric_cols.append(col)
+            except Exception:
+                continue
 
         if not target_col and numeric_cols:
             target_col = numeric_cols[0]

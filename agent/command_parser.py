@@ -238,6 +238,12 @@ class CommandParser:
 
     def _parse_natural_language(self, command):
         """Parse a natural language command and execute the appropriate analysis."""
+        try:
+            return self._parse_natural_language_inner(command)
+        except Exception as e:
+            return {"type": "error", "message": f"Could not analyze that request: {str(e)}"}
+
+    def _parse_natural_language_inner(self, command):
         intent = self.nlp.parse(command)
         parsed = getattr(self, "parsed_transactions", None)
 
