@@ -31,7 +31,7 @@ class SafeJSONProvider(DefaultJSONProvider):
     serialization, and refuses to emit any NaN/Infinity token.
 
     JavaScript's `JSON.parse` (used by templates/index.html via `resp.json()`)
-    rejects litteral `NaN`, so responses like a DataFrame `head()` containing
+    rejects literal `NaN`, so responses like a DataFrame `head()` containing
     missing values must be normalized to valid RFC 8259 JSON (null).
     """
     def dumps(self, obj, **kwargs):

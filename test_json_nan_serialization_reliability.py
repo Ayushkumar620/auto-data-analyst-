@@ -216,6 +216,47 @@ def test_K_fastapi_upload_endpoint_strict_json():
         snippet = resp.text[max(0, nan_idx - 30): nan_idx + 30]
         assert False, f"Response contains non-JSON floats (NaN/Infinity). Snippet: {snippet}"
     assert _strict_json_ok(resp.text), f"Response is not strict JSON: {resp.text[:200]}"
+# ---------------------------------------------------------------------------
+# K2: Flask /api/analyze (templates/index.html) with missing values.
+# The standalone web UI calls this endpoint via fetch() + resp.json(), whose
+# underlying JSON.parse rejects a literal `NaN` token. Missing cells in a
+# `head` result like ``sample_notes`` were leaking as ``NaN`` before the app
+# was configured with a sanitizing JSON provider.
+# ---------------------------------------------------------------------------
+
+def test_M_flask_analyze_head_strict_json():
+    """M. /api/analyze 'head' command on a dataset with missing cells must
+    never emit NaN/Infinity tokens (must be strict RFC 8259 JSON)."""
+    from app import app
+
+    csv_content = "id,sample_notes\n1,hello\n2,\n3,world\n"
+    f = io.BytesIO(csv_content.encode())
+
+    client = app.test_client()
+    resp = client.post(
+        "/api/analyze",
+        data={"file": (f, "missing_notes.csv"), "command": "head"},
+        content_type="multipart/form-data",
+    )
+    assert resp.status_code == 200, f"Analyze failed: {resp.text[:300]}"
+    body = resp.get_data(as_text=True)
+
+    # A literal NaN / Infinity token would crash the browser JSON.parse.
+    for token in ("NaN", "Infinity", "-Infinity"):
+        idx = body.find(token)
+        assert idx == -1, (
+            f"Response contains non-JSON float token `{token}`. "
+            f"Snippet: {body[max(0, idx - 40): idx + 40]}"
+        )
+    assert _strict_json_ok(body), f"Response is not strict JSON: {body[:200]}"
+
+    # The missing cell must decode as null (not NaN).
+    parsed = json.loads(body)
+    assert parsed.get("type") == "head", parsed.get("type")
+    reports = parsed.get("reports") or []
+    assert reports, "Expected head reports in response"
+    missing = reports[0]["rows"][1]["sample_notes"] if reports[0].get("rows") else None
+    assert missing is None, f"Missing cell should be null, got {missing!r}"
 
 
 # ---------------------------------------------------------------------------
