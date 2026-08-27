@@ -199,10 +199,20 @@ class TransformationEngine:
                     excluded_cols[col] = "Constant column (zero variance)"
                     continue
                 if col in sem_profile.identifier_columns:
-                    excluded_cols[col] = "Identified as unique identifier / key"
-                    continue
+                    # For small datasets (N < 10), do not aggressively drop regular measures as keys unless name implies it
+                    is_id_name = any(k in str(col).lower() for k in ("id", "uuid", "guid", "key", "pk", "fk"))
+                    if len(raw_df) >= 10 or is_id_name:
+                        excluded_cols[col] = "Identified as unique identifier / key"
+                        continue
 
                 selected_cols.append(col)
+
+            # Fallback: if all candidate features were excluded, retain non-constant and non-100%-missing columns
+            if len(selected_cols) == 0:
+                for col in list(excluded_cols.keys()):
+                    if "Constant" not in excluded_cols[col] and "100%" not in excluded_cols[col]:
+                        selected_cols.append(col)
+                        del excluded_cols[col]
 
         state.selected_features = selected_cols
         state.excluded_features = excluded_cols
