@@ -381,3 +381,48 @@ export type ReportDetail = {
   download_url?: string;
 };
 
+// ==========================================
+// Milestone 7 Task 2: Synthesized Insights
+// ==========================================
+export type SynthesizedInsightItem = {
+  insight_id: string;
+  category: string;
+  title: string;
+  statement: string;
+  evidence_refs?: Array<Record<string, unknown>>;
+  supporting_metrics?: Record<string, unknown>;
+  confidence: number;
+  importance: number;
+  assumptions?: string[];
+  limitations?: string[];
+  provenance?: Record<string, unknown>;
+};
+
+export type ContradictionItem = {
+  contradiction_id: string;
+  involved_insights: string[];
+  conflicting_evidence: Array<Record<string, unknown>>;
+  explanation: string;
+  confidence: number;
+  resolution: string;
+};
+
+export type SynthesisReportData = {
+  executive_summary: string;
+  key_insights: SynthesizedInsightItem[];
+  important_findings: string[];
+  data_quality_findings: SynthesizedInsightItem[];
+  model_findings: SynthesizedInsightItem[];
+  forecast_findings: SynthesizedInsightItem[];
+  anomalies: SynthesizedInsightItem[];
+  segments: SynthesizedInsightItem[];
+  relationships: SynthesizedInsightItem[];
+  cross_analysis_findings: SynthesizedInsightItem[];
+  contradictions: ContradictionItem[];
+  limitations: string[];
+  recommended_next_questions: string[];
+  overall_confidence: number;
+  evidence?: Array<Record<string, unknown>>;
+  metadata?: Record<string, unknown>;
+};
+
