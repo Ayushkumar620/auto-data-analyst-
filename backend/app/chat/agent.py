@@ -66,13 +66,6 @@ class ChatAgent:
                     else:
                         answer = f"Looking at the data, {metric} {self._describe_trend(growth)}. The most recent period changed by {self._format(abs(change))}% compared with the prior period. This describes the observed trend rather than proving a cause."
                     return ChatResponse(answer, "trend", "success", evidence, self._chart_visualization(dataframe, "line", date, metric), self._metric_questions(dataframe))
-        if any(word in text for word in ("correlat", "related", "relationship")) and len(self._numeric_columns(dataframe)) >= 2:
-            left, right = self._numeric_columns(dataframe)[:2]
-            evidence = self.tools.execute("calculate_correlation", dataframe, left=left, right=right)
-            value = evidence.get("correlation")
-            strength = "strong" if abs(value or 0) >= 0.7 else "moderate" if abs(value or 0) >= 0.4 else "weak"
-            answer = f"{left} and {right} show a {strength} {'positive' if (value or 0) > 0 else 'negative'} relationship (correlation {self._format(value)})."
-            return ChatResponse(answer, "correlation", "success", evidence, suggested_questions=self._metric_questions(dataframe))
         if any(word in text for word in ("correlat", "related", "relationship", "association", "pearson", "spearman")) and len(self._numeric_columns(dataframe)) >= 2:
             from agent.statistical_analysis_engine import StatisticalAnalysisEngine
             engine = StatisticalAnalysisEngine()
