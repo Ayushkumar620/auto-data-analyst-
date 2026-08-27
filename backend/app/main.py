@@ -69,6 +69,7 @@ from backend.app.api.v1.model_serving import router as model_serving_router
 from backend.app.api.v1.anomaly import router as anomaly_router
 from backend.app.api.v1.clustering import router as clustering_router
 from backend.app.api.v1.statistical_analysis import router as statistical_analysis_router
+from backend.app.api.v1.eda import router as eda_router
 
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(analysis_router, prefix=settings.api_v1_prefix)
@@ -89,6 +90,7 @@ app.include_router(model_serving_router, prefix=settings.api_v1_prefix)
 app.include_router(anomaly_router, prefix=settings.api_v1_prefix)
 app.include_router(clustering_router, prefix=settings.api_v1_prefix)
 app.include_router(statistical_analysis_router, prefix=settings.api_v1_prefix)
+app.include_router(eda_router, prefix=settings.api_v1_prefix)
 app.include_router(sql_router, prefix=settings.api_v1_prefix)
 app.include_router(sandbox_router, prefix=settings.api_v1_prefix)
 app.include_router(vision_router, prefix=settings.api_v1_prefix)
