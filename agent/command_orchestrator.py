@@ -67,10 +67,6 @@ class CommandExecutionResult:
     resolved_command: Optional[str] = None
     context_metadata: Optional[Dict[str, Any]] = None
     execution_graph: Optional[List[Dict[str, Any]]] = None
-    relationships: Optional[List[Dict[str, Any]]] = None
-    top_relationships: Optional[List[Dict[str, Any]]] = None
-    subgroup_analysis: Optional[Dict[str, Any]] = None
-    correlation_matrix: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return sanitize_for_json({
@@ -90,10 +86,6 @@ class CommandExecutionResult:
             "duration_ms": round(float(self.duration_ms), 2),
             "context_metadata": self.context_metadata,
             "execution_graph": self.execution_graph or [],
-            "relationships": self.relationships or [],
-            "top_relationships": self.top_relationships or [],
-            "subgroup_analysis": self.subgroup_analysis or {},
-            "correlation_matrix": self.correlation_matrix or {},
         })
 
 
@@ -262,23 +254,12 @@ class AutonomousCommandOrchestrator:
 
         # If statistical relationship request or no evidence collected yet, ensure StatisticalAnalysisEngine runs
         is_rel_request = intent_res.primary_intent == AnalyticalIntent.CORRELATION or any(w in q_norm for w in ("correlation", "correlations", "relationship", "relationships", "pearson", "spearman", "effect size", "fdr", "subgroup"))
-        stats_relationships = []
-        stats_top_relationships = []
-        stats_subgroup = {}
-        stats_corr_matrix = {}
-
         if is_rel_request:
             from agent.statistical_analysis_agent import StatisticalAnalysisAgent
             stats_agent_res = StatisticalAnalysisAgent().run({"data": dataframe})
-            if stats_agent_res.is_success:
-                if stats_agent_res.evidence:
-                    for ev in stats_agent_res.evidence:
-                        evidence_list.append(ev.to_dict() if hasattr(ev, "to_dict") else ev)
-                if isinstance(stats_agent_res.data, dict):
-                    stats_relationships = stats_agent_res.data.get("relationships", [])
-                    stats_top_relationships = stats_agent_res.data.get("top_relationships", [])
-                    stats_subgroup = stats_agent_res.data.get("subgroup_analysis", {})
-                    stats_corr_matrix = stats_agent_res.data.get("correlation_matrix", {})
+            if stats_agent_res.is_success and stats_agent_res.evidence:
+                for ev in stats_agent_res.evidence:
+                    evidence_list.append(ev.to_dict() if hasattr(ev, "to_dict") else ev)
 
         # Synthesize final narrative explanation based on user's exact outcome goal
         explanation = self._synthesize_explanation(
@@ -410,10 +391,6 @@ class AutonomousCommandOrchestrator:
             duration_ms=duration,
             context_metadata=context_meta,
             execution_graph=dag_nodes,
-            relationships=stats_relationships,
-            top_relationships=stats_top_relationships,
-            subgroup_analysis=stats_subgroup,
-            correlation_matrix=stats_corr_matrix,
         )
 
     def _determine_required_operations(
@@ -540,32 +517,14 @@ class AutonomousCommandOrchestrator:
 
             lines = ["📊 **Statistical Relationship & Correlation Analysis**:"]
 
-            top_rels = stats_res.get("top_relationships", []) or stats_res.get("relationships", [])
+            top_rels = stats_res.get("top_relationships", [])
             if top_rels:
-                lines.append("\n| Relationship | Pearson r | Spearman ρ | Raw p-value | FDR-adjusted p-value | Effect Strength | Valid N | Outlier Sensitivity |")
-                lines.append("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
-                for r in top_rels[:8]:
-                    fx = r.get("feature_x") or r.get("variable_x")
-                    fy = r.get("feature_y") or r.get("variable_y")
-                    p_info = r.get("pearson", {}) or {}
-                    s_info = r.get("spearman", {}) or {}
-                    p_r = p_info.get("r", r.get("statistic", 0.0))
-                    p_val = p_info.get("p_value", r.get("p_value", 0.0))
-                    rho_val = s_info.get("rho", 0.0)
-                    adj_p = r.get("adjusted_p_value", p_val)
-                    strength = r.get("strength", "moderate").replace("_", " ").title()
-                    outlier_sens = "Yes ⚠️" if r.get("outlier_sensitivity") else "No"
-                    v_n = r.get("valid_rows", len(df))
-                    lines.append(
-                        f"| **{fx}** ↔ **{fy}** | {p_r:.3f} | {rho_val:.3f} | {p_val:.4g} | {adj_p:.4g} | {strength} | {v_n} | {outlier_sens} |"
-                    )
-
                 lines.append("\n**Strongest Statistically Significant Relationships**:")
                 for i, r in enumerate(top_rels[:5], 1):
                     fx = r.get("feature_x")
                     fy = r.get("feature_y")
-                    p_info = r.get("pearson", {}) or {}
-                    s_info = r.get("spearman", {}) or {}
+                    p_info = r.get("pearson", {})
+                    s_info = r.get("spearman", {})
                     p_r = p_info.get("r", r.get("statistic", 0.0))
                     p_val = p_info.get("p_value", r.get("p_value", 0.0))
                     rho_val = s_info.get("rho", 0.0)

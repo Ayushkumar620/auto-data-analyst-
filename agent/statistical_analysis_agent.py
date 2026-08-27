@@ -93,14 +93,13 @@ class StatisticalAnalysisAgent(BaseAgent):
             subgroup_rels = subgroup_analysis.get("subgroup_relationships", [])
 
             # Determine top effect size and min adjusted p-value
-            top_relationships = result.get("top_relationships", [])
             top_eff = top_relationships[0].get("effect_size", 0.5) if top_relationships else 0.0
             min_adj_p = min((r.get("adjusted_p_value", 1.0) for r in relationships), default=1.0)
             has_outlier_sens = any(r.get("outlier_sensitivity", False) for r in relationships)
 
             # 3. Canonical Evidence generation
             evidence_list: List[Evidence] = []
-            for rel in relationships:
+            for rel in top_relationships[:8]:
                 fx = rel.get("feature_x")
                 fy = rel.get("feature_y")
                 stat = rel.get("statistic")
@@ -110,60 +109,59 @@ class StatisticalAnalysisAgent(BaseAgent):
                 eff = rel.get("effect_size")
                 valid_n = rel.get("valid_rows")
                 outlier_sens = rel.get("outlier_sensitivity", False)
-                p_dict = rel.get("pearson", {}) or {}
-                s_dict = rel.get("spearman", {}) or {}
+                p_dict = rel.get("pearson", {})
+                s_dict = rel.get("spearman", {})
 
-                ev = self.make_evidence(
-                    method=f"stats.{rel.get('pair_type', 'bivariate')}.{method}",
-                    data_ref={
-                        "feature_x": fx,
-                        "feature_y": fy,
-                        "method": method,
-                        "statistic": stat,
-                        "p_value": p_val,
-                        "adjusted_p_value": adj_p,
-                        "effect_size": eff,
-                        "valid_rows": valid_n,
-                        "analysis_scope": "global",
-                        "outlier_sensitivity": outlier_sens,
-                        "pearson_r": p_dict.get("r"),
-                        "spearman_rho": s_dict.get("rho"),
-                    },
-                    confidence=0.88,
-                    claim_type=ClaimType.CORRELATION,
-                    raw_value={
-                        "statistic": stat,
-                        "p_value": p_val,
-                        "adjusted_p_value": adj_p,
-                        "effect_size": eff,
-                        "interpretation": rel.get("interpretation"),
-                    },
+                evidence_list.append(
+                    self.make_evidence(
+                        method=f"stats.{rel.get('pair_type', 'bivariate')}.{method}",
+                        data_ref={
+                            "feature_x": fx,
+                            "feature_y": fy,
+                            "method": method,
+                            "statistic": stat,
+                            "p_value": p_val,
+                            "adjusted_p_value": adj_p,
+                            "effect_size": eff,
+                            "valid_rows": valid_n,
+                            "analysis_scope": "global",
+                            "outlier_sensitivity": outlier_sens,
+                            "pearson_r": p_dict.get("r"),
+                            "spearman_rho": s_dict.get("rho"),
+                        },
+                        confidence=0.88,
+                        claim_type=ClaimType.CORRELATION,
+                        raw_value={
+                            "statistic": stat,
+                            "p_value": p_val,
+                            "adjusted_p_value": adj_p,
+                            "effect_size": eff,
+                            "interpretation": rel.get("interpretation"),
+                        },
+                    )
                 )
-                ev_id = getattr(ev, "evidence_id", None) or getattr(ev, "id", None) or f"ev_{len(evidence_list)+1}"
-                rel["evidence_id"] = ev_id
-                if len(evidence_list) < 15:
-                    evidence_list.append(ev)
 
             # Subgroup findings evidence
             for wf in weak_findings[:5]:
-                ev_sub = self.make_evidence(
-                    method="stats.subgroup_analysis.heterogeneity",
-                    data_ref={
-                        "feature_x": wf.get("feature_x"),
-                        "feature_y": wf.get("feature_y"),
-                        "subgroup_dimension": wf.get("subgroup_dimension"),
-                        "subgroup_value": wf.get("subgroup_value"),
-                        "global_r": wf.get("global_r"),
-                        "subgroup_r": wf.get("subgroup_r"),
-                        "p_value": wf.get("subgroup_p_value"),
-                        "valid_rows": wf.get("subgroup_valid_rows"),
-                        "analysis_scope": "subgroup",
-                    },
-                    confidence=0.85,
-                    claim_type=ClaimType.OBSERVATION,
-                    raw_value=wf,
+                evidence_list.append(
+                    self.make_evidence(
+                        method="stats.subgroup_analysis.heterogeneity",
+                        data_ref={
+                            "feature_x": wf.get("feature_x"),
+                            "feature_y": wf.get("feature_y"),
+                            "subgroup_dimension": wf.get("subgroup_dimension"),
+                            "subgroup_value": wf.get("subgroup_value"),
+                            "global_r": wf.get("global_r"),
+                            "subgroup_r": wf.get("subgroup_r"),
+                            "p_value": wf.get("subgroup_p_value"),
+                            "valid_rows": wf.get("subgroup_valid_rows"),
+                            "analysis_scope": "subgroup",
+                        },
+                        confidence=0.85,
+                        claim_type=ClaimType.OBSERVATION,
+                        raw_value=wf,
+                    )
                 )
-                evidence_list.append(ev_sub)
 
             # 4. Confidence calculation
             conf_rep = ConfidenceCalculator.calculate_statistical_relationship_confidence(

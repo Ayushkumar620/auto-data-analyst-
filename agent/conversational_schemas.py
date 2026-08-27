@@ -48,8 +48,6 @@ class ConversationalIntent(str, Enum):
     RECOMMEND = "recommend"
     GENERATE_REPORT = "generate_report"
     CLARIFICATION = "clarification"
-    CORRELATION = "correlation"
-    RELATIONSHIPS = "relationships"
 
 
 # ==============================================================================

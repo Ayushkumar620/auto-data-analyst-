@@ -51,34 +51,8 @@ class DataExecutor:
         return {"column": column, "anomaly_count": int(len(outliers)), "values": [self._number(v) for v in outliers.head(20)]}
 
     def calculate_correlation(self, dataframe: pd.DataFrame, left: str, right: str) -> dict[str, Any]:
-        self._column(dataframe, left)
-        self._column(dataframe, right)
-        data = dataframe[[left, right]].apply(pd.to_numeric, errors="coerce").dropna()
-        if len(data) <= 1:
-            return {"columns": [left, right], "correlation": None, "pearson_r": None, "spearman_rho": None}
-        from agent.statistical_analysis_engine import StatisticalAnalysisEngine
-        engine = StatisticalAnalysisEngine()
-        res = engine.analyze(data=data, features=[left, right])
-        rels = res.get("relationships", [])
-        rel = rels[0] if rels else {}
-        p_val = rel.get("p_value")
-        adj_p = rel.get("adjusted_p_value", p_val)
-        p_r = rel.get("pearson", {}).get("r")
-        rho = rel.get("spearman", {}).get("rho")
-        return {
-            "columns": [left, right],
-            "correlation": self._number(p_r if p_r is not None else data[left].corr(data[right])),
-            "pearson_r": self._number(p_r),
-            "spearman_rho": self._number(rho),
-            "raw_p_value": self._number(p_val),
-            "p_value": self._number(p_val),
-            "adjusted_p_value": self._number(adj_p),
-            "valid_rows": int(len(data)),
-            "effect_size": self._number(rel.get("effect_size")),
-            "effect_strength": rel.get("strength"),
-            "outlier_sensitive": bool(rel.get("outlier_sensitivity", False)),
-            "relationship": rel,
-        }
+        self._column(dataframe, left); self._column(dataframe, right); data = dataframe[[left, right]].apply(pd.to_numeric, errors="coerce").dropna()
+        return {"columns": [left, right], "correlation": self._number(data[left].corr(data[right])) if len(data) > 1 else None}
 
     def create_bar_chart(self, dataframe: pd.DataFrame, x: str, y: str) -> dict[str, Any]: return self._chart(dataframe, "bar", x, y)
     def create_line_chart(self, dataframe: pd.DataFrame, x: str, y: str) -> dict[str, Any]: return self._chart(dataframe, "line", x, y)
