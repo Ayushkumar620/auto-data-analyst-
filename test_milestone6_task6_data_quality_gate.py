@@ -197,9 +197,13 @@ def test_K_L_M_target_issues_and_sample_size():
 # ---------------------------------------------------------------------------
 def test_N_O_P_Q_sparse_dirty_and_duplicates():
     """Verify feature eligibility matrix tracks sparse columns, dirty numeric formats, and duplicates."""
+    n = 50
     n = 60
     df = pd.DataFrame({
         "clean_num": np.random.normal(50, 10, n),
+        "dirty_curr": ["$1,200", "€500", "£300", "(100.0)"] * (n // 4 + 1),
+        "sparse_field": [None if i < 40 else float(i) for i in range(n + 4)],  # >70% null
+        "target": np.linspace(10, 100, n + 4),
         "dirty_curr": ["$1,200", "€500", "£300", "(100.0)"] * (n // 4),
         "sparse_field": [None if i < 45 else float(i) for i in range(n)],  # 75% null
         "target": np.linspace(10, 100, n),
