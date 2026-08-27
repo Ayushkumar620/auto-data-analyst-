@@ -894,6 +894,14 @@ class UniversalOrchestrator:
             "dataset_columns": list(df.columns),
         }
 
+        # Project statistical relationship fields to top-level result
+        if "statistical_analysis" in task_outputs and isinstance(task_outputs["statistical_analysis"], dict):
+            stat_d = task_outputs["statistical_analysis"]
+            aggregated_data["relationships"] = stat_d.get("relationships", [])
+            aggregated_data["top_relationships"] = stat_d.get("top_relationships", [])
+            aggregated_data["correlation_matrix"] = stat_d.get("correlation_matrix", {})
+            aggregated_data["subgroup_analysis"] = stat_d.get("subgroup_analysis", {})
+
         agent_result = AgentResult(
             status=overall_status,
             task_type="orchestration",
