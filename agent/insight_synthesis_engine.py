@@ -303,6 +303,23 @@ class InsightSynthesisEngine:
             },
         )
 
+    @staticmethod
+    def _safe_float(val: Any, default: float = 0.0) -> float:
+        """Safely coerce any value to a finite float."""
+        try:
+            if val is None:
+                return default
+            if isinstance(val, (int, float)):
+                if math.isnan(val) or math.isinf(val):
+                    return default
+                return float(val)
+            if isinstance(val, str):
+                f = float(val)
+                return default if (math.isnan(f) or math.isinf(f)) else f
+        except (ValueError, TypeError):
+            pass
+        return default
+
     # --------------------------------------------------------------------------
     # Specialized Domain Synthesizers
     # --------------------------------------------------------------------------
@@ -315,6 +332,60 @@ class InsightSynthesisEngine:
     ) -> List[SynthesizedInsight]:
         """Synthesize observational data quality and distribution insights."""
         insights: List[SynthesizedInsight] = []
+
+        # Handle direct DataFrame / SemanticProfile if eda_data is absent
+        if (not eda_data or not isinstance(eda_data, dict)) and df is not None:
+            n_rows = len(df)
+            n_cols = len(df.columns)
+            if n_rows > 0:
+                null_counts = {c: int(df[c].isnull().sum()) for c in df.columns}
+                total_nulls = sum(null_counts.values())
+                qs = round(1.0 - (total_nulls / max(1, n_rows * n_cols)), 4)
+                qs_pct = round(qs * 100, 1)
+
+                ev = Evidence(
+                    operation="data_quality.profile",
+                    result={"rows": n_rows, "columns": n_cols, "quality_score": qs},
+                    confidence=0.95,
+                    claim_type=ClaimType.OBSERVATION,
+                )
+                insights.append(
+                    SynthesizedInsight(
+                        category=InsightCategory.DATA_QUALITY.value,
+                        title="Dataset Structure & Data Quality Health",
+                        statement=f"Dataset contains {n_rows:,} observations across {n_cols} attributes with an aggregate data quality index of {qs_pct}%.",
+                        evidence_refs=[ev],
+                        supporting_metrics={"rows": n_rows, "columns": n_cols, "quality_score": qs},
+                        confidence=0.95,
+                        importance=0.75,
+                        provenance={"agent": "CanonicalDataLayer"},
+                    )
+                )
+
+                # Null attributes
+                null_cols = [c for c, cnt in null_counts.items() if cnt > 0]
+                if null_cols:
+                    ev_null = Evidence(
+                        operation="data_quality.missingness",
+                        columns=null_cols,
+                        result={"null_counts": null_counts},
+                        confidence=0.95,
+                        claim_type=ClaimType.OBSERVATION,
+                    )
+                    insights.append(
+                        SynthesizedInsight(
+                            category=InsightCategory.DATA_QUALITY.value,
+                            title="Missing Value Distribution",
+                            statement=f"Identified missing observations in attributes: {', '.join(null_cols[:3])}. Non-destructive pairwise computation preserves observation rows.",
+                            evidence_refs=[ev_null],
+                            supporting_metrics={"null_columns": null_cols},
+                            confidence=0.92,
+                            importance=0.70,
+                            provenance={"agent": "CanonicalDataLayer"},
+                        )
+                    )
+            return insights
+
         if not eda_data or not isinstance(eda_data, dict):
             return insights
 
@@ -328,7 +399,7 @@ class InsightSynthesisEngine:
         # 1. Dataset Scale & Completeness
         if n_rows > 0:
             overall_qs = dq.get("overall_score") or dq.get("quality_score", 1.0)
-            qs_pct = round(float(overall_qs) * 100, 1)
+            qs_pct = round(self._safe_float(overall_qs, 1.0) * 100, 1)
             ev = Evidence(
                 operation="eda.data_quality.assessment",
                 calculation=f"Quality score: {overall_qs}",
@@ -378,10 +449,10 @@ class InsightSynthesisEngine:
         num_stats = statistics.get("numeric", {})
         for col_name, stats_dict in list(num_stats.items())[:3]:
             if isinstance(stats_dict, dict) and "mean" in stats_dict and "std" in stats_dict:
-                v_mean = round(float(stats_dict["mean"]), 2)
-                v_median = round(float(stats_dict.get("median", stats_dict["mean"])), 2)
+                v_mean = round(self._safe_float(stats_dict["mean"]), 2)
+                v_median = round(self._safe_float(stats_dict.get("median", stats_dict["mean"])), 2)
                 v_shape = stats_dict.get("distribution_shape", "symmetric")
-                outlier_c = stats_dict.get("outlier_count", 0)
+                outlier_c = int(self._safe_float(stats_dict.get("outlier_count", 0)))
 
                 stmt = f"Attribute '{col_name}' displays a {v_shape} distribution with median {v_median} and mean {v_mean}."
                 if outlier_c > 0:
@@ -423,12 +494,12 @@ class InsightSynthesisEngine:
                 if isinstance(rel, dict):
                     f1 = rel.get("feature_1") or rel.get("feature") or "Variable 1"
                     f2 = rel.get("feature_2") or rel.get("target") or "Variable 2"
-                    corr_val = rel.get("correlation") or rel.get("coefficient") or rel.get("strength", 0.0)
-                    p_val = rel.get("p_value", 0.0)
-                    effect = rel.get("effect_size", abs(float(corr_val)))
+                    corr_val = self._safe_float(rel.get("correlation", rel.get("coefficient", rel.get("r", 0.0))))
+                    p_val = self._safe_float(rel.get("p_value", 0.0))
+                    effect = self._safe_float(rel.get("effect_size", abs(corr_val)), abs(corr_val))
                     method = rel.get("method", "Pearson correlation")
 
-                    corr_rounded = round(float(corr_val), 3)
+                    corr_rounded = round(corr_val, 3)
                     direction = "positive" if corr_val > 0 else "inverse"
                     strength = "strong" if abs(corr_val) >= 0.60 else ("moderate" if abs(corr_val) >= 0.30 else "weak")
 
@@ -758,19 +829,21 @@ class InsightSynthesisEngine:
     ) -> List[Contradiction]:
         """Detect analytical conflicts between tasks without forcing artificial agreement."""
         contradictions: List[Contradiction] = []
+        if not isinstance(task_outputs, dict):
+            return contradictions
 
         # Check: Forecast Trend vs Historical Trend / Anomaly Spikes
         fc_data = task_outputs.get("forecasting")
         anom_data = task_outputs.get("anomaly_detection")
 
-        if fc_data and anom_data:
-            anom_c = anom_data.get("anomaly_count", 0)
-            fc_conf = fc_data.get("confidence", 0.8)
+        if fc_data and anom_data and isinstance(fc_data, dict) and isinstance(anom_data, dict):
+            anom_c = int(self._safe_float(anom_data.get("anomaly_count", 0)))
+            fc_conf = self._safe_float(fc_data.get("confidence", 0.8), 0.8)
             if anom_c > 10 and fc_conf > 0.85:
                 contra = Contradiction(
                     involved_insights=[i.insight_id for i in insights if i.category in (InsightCategory.FORECAST.value, InsightCategory.ANOMALY.value)],
                     conflicting_evidence=[{"task": "forecasting", "confidence": fc_conf}, {"task": "anomaly_detection", "anomaly_count": anom_c}],
-                    explanation=f"High forecasting confidence ({fc_conf:.2f}) coincides with a significant volume of historical anomalies ({anom_c} outliers), which may affect interval coverage.",
+                    explanation=f"High forecasting confidence ({fc_conf:.2f}) coincides with an elevated anomaly count ({anom_c} outlier observations), which may affect interval coverage.",
                     confidence=0.75,
                     resolution="Maintain wide prediction intervals and monitor post-anomaly stationarity.",
                 )
@@ -828,7 +901,7 @@ class InsightSynthesisEngine:
             raw_imp = 0.50 * cat_weight + 0.50 * ins.confidence
             ins.importance = round(max(0.0, min(1.0, raw_imp)), 4)
 
-        return sorted(insights, key=lambda x: (x.importance, x.confidence), reverse=True)
+        return sorted(insights, key=lambda x: (x.importance, x.confidence, x.title), reverse=True)
 
     def _sanitize_causality(self, text: str) -> str:
         """Sanitize causal phrasing into safe observational language."""
@@ -880,7 +953,7 @@ class InsightSynthesisEngine:
         if command:
             parts.append(f"Comprehensive analytical synthesis for command: '{command}'.")
 
-        n_tasks = len(task_outputs)
+        n_tasks = len(task_outputs) if isinstance(task_outputs, dict) else 0
         parts.append(f"Synthesized evidence from {n_tasks} validated analytical task(s).")
 
         if ranked_insights:
@@ -898,21 +971,21 @@ class InsightSynthesisEngine:
 
     def _extract_task_outputs(self, res: Union[AgentResult, Dict[str, Any]]) -> Dict[str, Any]:
         if isinstance(res, AgentResult):
-            if isinstance(res.data, dict) and "task_outputs" in res.data:
+            if isinstance(res.data, dict) and "task_outputs" in res.data and isinstance(res.data["task_outputs"], dict):
                 return res.data["task_outputs"]
-            if isinstance(res.output, dict) and "task_outputs" in res.output:
+            if isinstance(res.output, dict) and "task_outputs" in res.output and isinstance(res.output["task_outputs"], dict):
                 return res.output["task_outputs"]
-            if isinstance(res.data, dict) and "tasks" in res.data:
+            if isinstance(res.data, dict) and "tasks" in res.data and isinstance(res.data["tasks"], dict):
                 return res.data["tasks"]
             return res.data if isinstance(res.data, dict) else {}
         elif isinstance(res, dict):
-            if "task_outputs" in res:
+            if "task_outputs" in res and isinstance(res["task_outputs"], dict):
                 return res["task_outputs"]
-            if "result" in res and isinstance(res["result"], dict) and "task_outputs" in res["result"]:
+            if "result" in res and isinstance(res["result"], dict) and "task_outputs" in res["result"] and isinstance(res["result"]["task_outputs"], dict):
                 return res["result"]["task_outputs"]
-            if "tasks" in res:
+            if "tasks" in res and isinstance(res["tasks"], dict):
                 return res["tasks"]
-            return res
+            return res if isinstance(res, dict) else {}
         return {}
 
     def _extract_evidence(self, res: Union[AgentResult, Dict[str, Any]]) -> List[Evidence]:

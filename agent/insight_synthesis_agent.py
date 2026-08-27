@@ -38,8 +38,13 @@ class InsightSynthesisAgent(BaseAgent):
     an evidence-backed executive narrative.
     """
 
-    def __init__(self, name: str = "Insight Synthesis Agent"):
-        super().__init__(name=name)
+    name = "Insight Synthesis Agent"
+    description = "Synthesizes multi-agent analytical results into an evidence-backed narrative"
+    role = "insight_synthesis"
+
+    def __init__(self, data=None, name: str = "Insight Synthesis Agent"):
+        super().__init__(data=data)
+        self.name = name
         self.engine = InsightSynthesisEngine()
         self.role = "insight_synthesis"
 
