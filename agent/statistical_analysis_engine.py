@@ -211,7 +211,7 @@ class StatisticalAnalysisEngine:
                 continue
 
             # 1. Identifier exclusion
-            if not is_explicit and col in profile.identifier_columns and len(candidate_cols) > 2:
+            if not is_explicit and (col in profile.identifier_columns or (series.nunique(dropna=True) == len(df) and len(df) >= 5 and not pd.api.types.is_numeric_dtype(series))):
                 excluded.append(str(col))
                 continue
 
@@ -237,9 +237,9 @@ class StatisticalAnalysisEngine:
             if num_valid_ratio >= 0.50 and num_s.nunique(dropna=True) > 1:
                 numeric_cols.append(str(col))
             else:
-                # Categorical candidate (cardinality between 2 and 50)
+                # Categorical candidate (cardinality between 2 and 50 and not 100% unique key)
                 n_uniq = series.nunique(dropna=True)
-                if 2 <= n_uniq <= 50:
+                if 2 <= n_uniq <= 50 and (n_uniq < len(df) or len(df) < 4):
                     cat_cols.append(str(col))
                 else:
                     excluded.append(str(col))
