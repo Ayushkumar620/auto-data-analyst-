@@ -189,6 +189,19 @@ class ToolRegistry:
             )
         )
 
+        # 5b. Hypothesis Testing & Statistical Significance
+        self.register(
+            ToolDefinition(
+                name="hypothesis_testing",
+                description="Performs data-driven statistical hypothesis tests (t-tests, ANOVA, Mann-Whitney, Kruskal-Wallis, Chi-Square, Fisher's Exact) with effect sizes and FDR corrections.",
+                capabilities=["hypothesis_testing", "statistical_significance", "significance_testing", "t_test", "anova", "group_comparison", "diff_testing"],
+                input_schema={"data": "pd.DataFrame", "feature": "str", "group": "str", "alpha": "float"},
+                output_schema={"hypotheses": "list", "findings": "list", "summary": "dict"},
+                execution_fn=lambda data, **kw: HypothesisTestingAgent().run({"data": data, **kw}),
+                validation_requirements=["hypotheses is not empty"],
+            )
+        )
+
         # 6. Anomaly Detection
         self.register(
             ToolDefinition(

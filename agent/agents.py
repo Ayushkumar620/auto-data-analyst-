@@ -30,6 +30,7 @@ from .anomaly_agent import AnomalyDetectionAgent
 from .clustering_agent import ClusteringAgent
 from .statistical_analysis_agent import StatisticalAnalysisAgent
 from .eda_agent import EDAAgent
+from .hypothesis_testing_agent import HypothesisTestingAgent
 from .schemas import ClaimType, Evidence, ErrorCategory
 
 

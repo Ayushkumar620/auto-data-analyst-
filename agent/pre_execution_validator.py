@@ -173,7 +173,11 @@ class PreExecutionValidator:
         elif task_norm in ("eda", "profile", "data_profiling", "data_quality", "descriptive", "describe"):
             return cls._validate_eda(main_df, profile, feature_columns, agent_name)
 
-        # TASK I: GENERAL ANALYSIS
+        # TASK I: HYPOTHESIS TESTING & STATISTICAL SIGNIFICANCE
+        elif task_norm in ("hypothesis_testing", "hypothesis", "significance", "significance_testing", "t_test", "anova", "chi_square", "diff_testing"):
+            return cls._validate_hypothesis_testing(main_df, profile, target, feature_columns, agent_name)
+
+        # TASK J: GENERAL ANALYSIS
         else:
             return PreExecutionValidationReport(
                 is_valid=True,
@@ -568,5 +572,71 @@ class PreExecutionValidator:
             return PreExecutionValidationReport(is_valid=False, task_type="eda", error=err)
 
         return PreExecutionValidationReport(is_valid=True, task_type="eda", diagnostics={"rows": len(df), "columns": list(df.columns)})
+
+    @classmethod
+    def _validate_hypothesis_testing(
+        cls,
+        df: pd.DataFrame,
+        profile: SemanticProfile,
+        target_group: Optional[str],
+        features: Optional[List[str]],
+        agent_name: str,
+    ) -> PreExecutionValidationReport:
+        if len(df) < 3:
+            err = AgentError.create(
+                category=ErrorCategory.INSUFFICIENT_DATA,
+                user_message=f"Dataset has {len(df)} row(s). Hypothesis testing requires at least 3 observations.",
+                agent_name=agent_name,
+            )
+            return PreExecutionValidationReport(is_valid=False, task_type="hypothesis_testing", error=err)
+
+        if len(df.columns) == 0:
+            err = AgentError.create(
+                category=ErrorCategory.DATA_INVALID,
+                user_message="Dataset contains 0 columns. Hypothesis testing requires at least 2 variables or 1 feature and 1 group.",
+                agent_name=agent_name,
+            )
+            return PreExecutionValidationReport(is_valid=False, task_type="hypothesis_testing", error=err)
+
+        if df.isna().all().all():
+            err = AgentError.create(
+                category=ErrorCategory.DATA_INVALID,
+                user_message="Dataset contains only missing/null values across all columns.",
+                agent_name=agent_name,
+            )
+            return PreExecutionValidationReport(is_valid=False, task_type="hypothesis_testing", error=err)
+
+        # If explicit grouping column provided, verify it has at least 2 distinct non-null groups
+        if target_group and target_group in df.columns:
+            n_grp = df[target_group].dropna().nunique()
+            if n_grp < 2:
+                err = AgentError.create(
+                    category=ErrorCategory.CONSTANT_FEATURE,
+                    user_message=f"Grouping column '{target_group}' contains only {n_grp} distinct non-null category. Hypothesis testing requires at least 2 distinct groups.",
+                    field="group",
+                    agent_name=agent_name,
+                )
+                return PreExecutionValidationReport(is_valid=False, task_type="hypothesis_testing", error=err)
+
+        # If explicit feature column provided, verify non-constant
+        if features:
+            for feat in features:
+                if feat in df.columns:
+                    n_unq = df[feat].dropna().nunique()
+                    if n_unq <= 1:
+                        err = AgentError.create(
+                            category=ErrorCategory.CONSTANT_FEATURE,
+                            user_message=f"Feature column '{feat}' has {n_unq} distinct value. Cannot perform hypothesis test on a constant variable.",
+                            field="feature",
+                            agent_name=agent_name,
+                        )
+                        return PreExecutionValidationReport(is_valid=False, task_type="hypothesis_testing", error=err)
+
+        return PreExecutionValidationReport(
+            is_valid=True,
+            task_type="hypothesis_testing",
+            target_column=target_group,
+            diagnostics={"rows": len(df), "columns": list(df.columns)},
+        )
 
 

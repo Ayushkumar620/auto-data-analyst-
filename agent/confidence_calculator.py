@@ -468,6 +468,71 @@ class ConfidenceCalculator:
             explanations=explanations,
         )
 
+    @classmethod
+    def calculate_hypothesis_testing_confidence(
+        cls,
+        n_observations: int,
+        n_tests: int = 1,
+        missing_rate: float = 0.0,
+        assumptions_passed_ratio: float = 1.0,
+        test_suitability: float = 0.90,
+    ) -> ConfidenceReport:
+        """
+        Calculate confidence for hypothesis testing and statistical significance.
+        Explicitly separates epistemic confidence from p-value and effect size.
+        """
+        penalties: List[str] = []
+        explanations: List[str] = []
+        factors: Dict[str, float] = {}
+
+        # 1. Sample Size Adequacy (N observations)
+        if n_observations < 10:
+            sample_factor = 0.60
+            penalties.append(f"Small sample size (N={n_observations} < 10) increases estimation variance")
+        elif n_observations < 30:
+            sample_factor = 0.80
+        elif n_observations < 100:
+            sample_factor = 0.92
+        else:
+            sample_factor = 1.0
+        factors["sample_size"] = sample_factor
+
+        # 2. Assumption Compliance Factor
+        assump_factor = max(0.65, min(1.0, float(assumptions_passed_ratio)))
+        if assumptions_passed_ratio < 0.80:
+            penalties.append("Some distribution or variance assumptions required non-parametric adaptation")
+        factors["assumption_compliance"] = assump_factor
+
+        # 3. Test Suitability
+        suit_factor = max(0.70, min(1.0, float(test_suitability)))
+        factors["test_suitability"] = suit_factor
+
+        # 4. Multiple Testing Burden
+        if n_tests > 20:
+            fdr_factor = 0.85
+            penalties.append(f"High multiple testing burden ({n_tests} comparisons) adjusted via Benjamini-Hochberg FDR")
+        elif n_tests > 5:
+            fdr_factor = 0.92
+        else:
+            fdr_factor = 1.0
+        factors["multiple_testing_penalty"] = fdr_factor
+
+        # 5. Data Completeness
+        comp_factor = max(0.75, 1.0 - (missing_rate * 0.5))
+        factors["completeness"] = comp_factor
+
+        raw_conf = sample_factor * assump_factor * suit_factor * fdr_factor * comp_factor
+        final_conf = cls._clamp(raw_conf, min_val=0.30, max_val=0.98)
+
+        return ConfidenceReport(
+            confidence=final_conf,
+            confidence_level=0.95,
+            validation_score=suit_factor,
+            factors=factors,
+            penalties=penalties,
+            explanations=explanations,
+        )
+
 
 
 

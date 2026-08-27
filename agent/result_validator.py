@@ -310,6 +310,36 @@ class ResultValidator:
                                                  f"Column '{col_name}' IQR violates q25 ({c_q25}) <= median ({c_med}) <= q75 ({c_q75}).",
                                                  field=f"statistics.numeric.{col_name}")
 
+            # 8. Hypothesis testing validation
+            hypotheses = result.data.get("hypotheses") or result.result.get("hypotheses") or []
+            if isinstance(hypotheses, list):
+                for i, hyp in enumerate(hypotheses):
+                    if isinstance(hyp, dict):
+                        p = hyp.get("p_value")
+                        if isinstance(p, (int, float)) and not 0.0 <= float(p) <= 1.0:
+                            vr.add_issue(ValidationSeverity.ERROR, "INVALID_P_VALUE",
+                                         f"Hypothesis[{i}] p-value ({p}) must be within [0, 1].",
+                                         field=f"hypotheses[{i}].p_value")
+                        adj_p = hyp.get("adjusted_p_value")
+                        if isinstance(adj_p, (int, float)) and not 0.0 <= float(adj_p) <= 1.0:
+                            vr.add_issue(ValidationSeverity.ERROR, "INVALID_ADJUSTED_P_VALUE",
+                                         f"Hypothesis[{i}] adjusted p-value ({adj_p}) must be within [0, 1].",
+                                         field=f"hypotheses[{i}].adjusted_p_value")
+                        alpha_val = hyp.get("alpha")
+                        if isinstance(alpha_val, (int, float)) and not 0.0 < float(alpha_val) < 1.0:
+                            vr.add_issue(ValidationSeverity.ERROR, "INVALID_ALPHA",
+                                         f"Hypothesis[{i}] alpha ({alpha_val}) must be within (0, 1).",
+                                         field=f"hypotheses[{i}].alpha")
+
+                        ci_diff = hyp.get("mean_difference_ci")
+                        if isinstance(ci_diff, dict):
+                            l, est, u = ci_diff.get("lower"), ci_diff.get("estimate"), ci_diff.get("upper")
+                            if all(isinstance(x, (int, float)) for x in (l, est, u)):
+                                if l > est + 1e-6 or est > u + 1e-6:
+                                    vr.add_issue(ValidationSeverity.ERROR, "INVALID_CI_BOUNDS",
+                                                 f"Hypothesis[{i}] mean difference CI violates lower ({l}) <= estimate ({est}) <= upper ({u}).",
+                                                 field=f"hypotheses[{i}].mean_difference_ci")
+
     def _forecast_bounds_check(self, result: AgentResult, vr: ValidationResult) -> None:
         """Verify prediction intervals satisfy lower <= prediction <= upper."""
         forecast_pts = result.data.get("forecast") or result.data.get("predictions") or []
