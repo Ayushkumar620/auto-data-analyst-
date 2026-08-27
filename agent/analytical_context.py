@@ -305,20 +305,22 @@ class UniversalReferenceResolver:
         # 5. Relationship References: "the strongest relationship", "that correlation", "that relationship", "second strongest"
         if "second strongest" in cmd_lower and context.latest_second_strongest_relationship:
             rel = context.latest_second_strongest_relationship
-            f1, f2 = rel.get("feature_1"), rel.get("feature_2")
+            f1 = rel.get("feature_1") or rel.get("feature") or rel.get("var1")
+            f2 = rel.get("feature_2") or rel.get("target") or rel.get("var2")
             if f1 and f2:
                 resolved_refs["second_strongest_relationship"] = f"{f1} and {f2}"
                 features = [f1, f2]
                 is_follow_up = True
                 resolved_cmd = f"analyze statistical relationship between {f1} and {f2}"
         elif any(k in cmd_lower for k in ("strongest relationship", "strongest correlation", "most correlated", "that relationship", "that correlation")):
+            is_follow_up = True
             if context.latest_strongest_relationship:
                 rel = context.latest_strongest_relationship
-                f1, f2 = rel.get("feature_1"), rel.get("feature_2")
+                f1 = rel.get("feature_1") or rel.get("feature") or rel.get("var1")
+                f2 = rel.get("feature_2") or rel.get("target") or rel.get("var2")
                 if f1 and f2:
                     resolved_refs["strongest_relationship"] = f"{f1} and {f2}"
                     features = [f1, f2]
-                    is_follow_up = True
                     resolved_cmd = re.sub(
                         r"\b(the strongest relationship|the strongest correlation|that relationship|that correlation|strongest relationship)\b",
                         f"the relationship between {f1} and {f2}",
@@ -359,9 +361,10 @@ class UniversalReferenceResolver:
         # 10. General Deictics: "tell me more about that", "explain that", "why is that important", "show more"
         if any(k in cmd_lower for k in ("explain that", "tell me more about that", "why is that important", "show more", "why?")):
             is_follow_up = True
-            if context.previous_task:
-                resolved_refs["context_task"] = context.previous_task
-                resolved_cmd = f"explain and synthesize findings for {context.previous_task}"
+            task_name = context.active_task or context.previous_task
+            if task_name:
+                resolved_refs["context_task"] = task_name
+                resolved_cmd = f"explain and synthesize findings for {task_name}"
 
         # 11. Intent Mapping
         detected_intent = "eda"
@@ -547,8 +550,8 @@ class SessionContextManager:
             ctx.warnings = result.warnings or []
 
             # Extract specific analytical state from result payload
-            if "tasks" in res_data:
-                tasks_dict = res_data["tasks"]
+            tasks_dict = res_data.get("task_outputs") or res_data.get("tasks", {})
+            if isinstance(tasks_dict, dict):
                 # Forecast state
                 if "forecasting" in tasks_dict and isinstance(tasks_dict["forecasting"], dict):
                     fc = tasks_dict["forecasting"]
