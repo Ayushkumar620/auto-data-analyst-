@@ -275,15 +275,18 @@ class UniversalReferenceResolver:
                 )
 
         # 4. Target Pronoun Resolution: "predict it", "forecast it", "which feature predicts it", "the target", "same target"
-        if re.search(r"(predicts? it|forecasts? it|what predicts it|which feature predicts it|the target|same target|for it)", cmd_lower):
+        if re.search(r"\b(predicts? it|forecasts? it|what predicts it|which feature predicts it|which variables influence the target|the target|same target|for it)\b", cmd_lower):
             if target:
                 resolved_refs["target"] = target
                 is_follow_up = True
-                resolved_cmd = re.sub(r"predicts? it", f"predicts {target}", resolved_cmd, flags=re.IGNORECASE)
-                resolved_cmd = re.sub(r"forecasts? it", f"forecasts {target}", resolved_cmd, flags=re.IGNORECASE)
-                resolved_cmd = re.sub(r"what predicts it", f"which feature predicts {target}", resolved_cmd, flags=re.IGNORECASE)
-                resolved_cmd = re.sub(r"which feature predicts it", f"which feature predicts {target}", resolved_cmd, flags=re.IGNORECASE)
-                resolved_cmd = re.sub(r"(the target|same target)", target, resolved_cmd, flags=re.IGNORECASE)
+                resolved_cmd = re.sub(r"\bpredicts? it\b", f"predicts {target}", resolved_cmd, flags=re.IGNORECASE)
+                resolved_cmd = re.sub(r"\bforecasts? it\b", f"forecasts {target}", resolved_cmd, flags=re.IGNORECASE)
+                resolved_cmd = re.sub(r"\bwhat predicts it\b", f"which feature predicts {target}", resolved_cmd, flags=re.IGNORECASE)
+                resolved_cmd = re.sub(r"\bwhich feature predicts it\b", f"which feature predicts {target}", resolved_cmd, flags=re.IGNORECASE)
+                resolved_cmd = re.sub(r"\bwhich variables influence the target\b", f"which variables influence {target}", resolved_cmd, flags=re.IGNORECASE)
+                resolved_cmd = re.sub(r"\b(the target|same target)\b", target, resolved_cmd, flags=re.IGNORECASE)
+                if "forecast it" in cmd_lower:
+                    resolved_cmd = f"forecast {target}"
             elif active_ds and active_ds.numeric_columns:
                 if len(active_ds.numeric_columns) > 1 and "predict" in cmd_lower:
                     return ContextualResolution(
@@ -305,7 +308,7 @@ class UniversalReferenceResolver:
                 features = [f1, f2]
                 is_follow_up = True
                 resolved_cmd = re.sub(
-                    r"(the second strongest relationship|that relationship|that correlation|second strongest relationship)",
+                    r"\b(the second strongest relationship|that relationship|that correlation|second strongest relationship)\b",
                     f"the relationship between {f1} and {f2}",
                     resolved_cmd,
                     flags=re.IGNORECASE,
@@ -313,15 +316,15 @@ class UniversalReferenceResolver:
                 if f1 not in resolved_cmd:
                     resolved_cmd = f"{resolved_cmd} between {f1} and {f2}"
         elif any(k in cmd_lower for k in ("strongest relationship", "strongest correlation", "most correlated", "that relationship", "that correlation")):
+            is_follow_up = True
             if context.latest_strongest_relationship:
                 rel = context.latest_strongest_relationship
                 f1, f2 = rel.get("feature_1"), rel.get("feature_2")
                 if f1 and f2:
                     resolved_refs["strongest_relationship"] = f"{f1} and {f2}"
                     features = [f1, f2]
-                    is_follow_up = True
                     resolved_cmd = re.sub(
-                        r"(the strongest relationship|the strongest correlation|that relationship|that correlation|strongest relationship)",
+                        r"\b(the strongest relationship|the strongest correlation|that relationship|that correlation|strongest relationship)\b",
                         f"the relationship between {f1} and {f2}",
                         resolved_cmd,
                         flags=re.IGNORECASE,
@@ -330,15 +333,15 @@ class UniversalReferenceResolver:
                         resolved_cmd = f"{resolved_cmd} between {f1} and {f2}"
 
         # 6. Feature References: "those features", "same features", "the features"
-        if re.search(r"(those features|same features|the features|using those features|with those features)", cmd_lower):
+        if re.search(r"\b(those features|same features|the features|using those features|with those features)\b", cmd_lower):
             if features:
                 feat_str = ", ".join(features)
                 resolved_refs["features"] = feat_str
                 is_follow_up = True
-                resolved_cmd = re.sub(r"(those features|same features|the features)", feat_str, resolved_cmd, flags=re.IGNORECASE)
+                resolved_cmd = re.sub(r"\b(those features|same features|the features)\b", feat_str, resolved_cmd, flags=re.IGNORECASE)
 
         # 7. Cluster / Segment References: "cluster 2", "that cluster", "focus on cluster 3", "explain that group"
-        clust_match = re.search(r"(?:cluster|segment|group)\s+(\d+)", cmd_lower)
+        clust_match = re.search(r"\b(?:cluster|segment|group)\s+(\d+)\b", cmd_lower)
         if clust_match:
             c_num = int(clust_match.group(1))
             parameters["cluster_id"] = c_num
@@ -354,11 +357,11 @@ class UniversalReferenceResolver:
                 resolved_refs["anomaly_count"] = str(context.latest_anomaly_count)
 
         # 9. Model References: "the model", "the previous model", "that model", "compare with previous model"
-        if re.search(r"(the model|the previous model|that model|previous model)", cmd_lower):
+        if re.search(r"\b(the model|the previous model|that model|previous model)\b", cmd_lower):
             if context.latest_model_name:
                 resolved_refs["model"] = context.latest_model_name
                 is_follow_up = True
-                resolved_cmd = re.sub(r"(the model|the previous model|that model|previous model)", context.latest_model_name, resolved_cmd, flags=re.IGNORECASE)
+                resolved_cmd = re.sub(r"\b(the model|the previous model|that model|previous model)\b", context.latest_model_name, resolved_cmd, flags=re.IGNORECASE)
 
         # 10. General Deictics: "tell me more about that", "explain that", "why is that important", "show more"
         if any(k in cmd_lower for k in ("explain that", "tell me more about that", "why is that important", "show more", "why?")):
