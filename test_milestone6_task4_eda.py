@@ -181,7 +181,7 @@ def test_H_I_J_missing_sparse_and_all_null_columns():
 # ---------------------------------------------------------------------------
 def test_K_L_M_N_constant_identifier_high_card_and_duplicates():
     """Verify detection of constants, identifiers, high cardinality, and duplicate rows."""
-    n = 50
+    n = 80
     df = pd.DataFrame({
         "const_val": [999.0] * n,
         "uuid_id": [f"usr_{i:05d}" for i in range(n)],
@@ -339,7 +339,7 @@ def test_AC_natural_language_intent_routing():
 def test_AD_no_global_row_loss_from_unrelated_missing():
     """Verify profiling one column does not drop rows because an unrelated column has nulls."""
     df = pd.DataFrame({
-        "clean_feature": list(range(50)),
+        "clean_feature": [float(x * 1.5) for x in range(50)],
         "unrelated_sparse": [None] * 45 + [1.0, 2.0, 3.0, 4.0, 5.0],
     })
 

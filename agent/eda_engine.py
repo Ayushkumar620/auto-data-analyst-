@@ -534,10 +534,17 @@ class EDAEngine:
 
     def _calculate_numeric_stats(self, s: pd.Series, max_histogram_bins: int = 30, n_null: int = 0, null_pct: float = 0.0) -> Dict[str, Any]:
         """Compute exhaustive, robust non-causal numeric distribution statistics."""
-        v = s.dropna().to_numpy(dtype=float)
+        raw_v = s.dropna().to_numpy(dtype=float)
+        non_finite_count = int(np.sum(~np.isfinite(raw_v)))
+        v = raw_v[np.isfinite(raw_v)]
         n = len(v)
         if n == 0:
-            return {}
+            return {
+                "count": 0,
+                "missing_count": n_null + non_finite_count,
+                "missing_percentage": round(float((n_null + non_finite_count) / max(1, len(s))) * 100.0, 2),
+                "non_finite_count": non_finite_count,
+            }
 
         v_mean = float(np.mean(v))
         v_std = float(np.std(v, ddof=1)) if n > 1 else 0.0
