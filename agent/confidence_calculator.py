@@ -533,6 +533,57 @@ class ConfidenceCalculator:
             explanations=explanations,
         )
 
+    @classmethod
+    def calculate_transformation_confidence(
+        cls,
+        n_rows: int,
+        n_features: int,
+        missing_rate: float = 0.0,
+        unusable_ratio: float = 0.0,
+        coercion_success_rate: float = 1.0,
+    ) -> ConfidenceReport:
+        """
+        Calculate transformation and feature engineering confidence.
+        Bounded in [0.30, 0.98].
+        """
+        penalties: List[str] = []
+        explanations: List[str] = []
+        factors: Dict[str, float] = {}
+
+        # 1. Sample Size Adequacy
+        if n_rows < 10:
+            sample_factor = 0.65
+            penalties.append("Very small sample size (N < 10) limits imputation stability")
+        elif n_rows < 50:
+            sample_factor = 0.85
+        else:
+            sample_factor = 1.0
+        factors["sample_size"] = sample_factor
+
+        # 2. Coercion & Parse Success
+        parse_factor = max(0.60, min(1.0, float(coercion_success_rate)))
+        factors["parsing_validity"] = parse_factor
+
+        # 3. Completeness Factor
+        comp_factor = max(0.70, 1.0 - (missing_rate * 0.5))
+        factors["completeness"] = comp_factor
+
+        # 4. Feature Usability Factor
+        usable_factor = max(0.60, 1.0 - (unusable_ratio * 0.4))
+        factors["feature_usability"] = usable_factor
+
+        raw_conf = sample_factor * parse_factor * comp_factor * usable_factor
+        final_conf = cls._clamp(raw_conf, min_val=0.30, max_val=0.98)
+
+        return ConfidenceReport(
+            confidence=final_conf,
+            confidence_level=1.0,
+            validation_score=parse_factor,
+            factors=factors,
+            penalties=penalties,
+            explanations=explanations,
+        )
+
 
 
 

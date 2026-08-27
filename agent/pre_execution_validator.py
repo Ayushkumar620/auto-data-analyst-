@@ -177,7 +177,11 @@ class PreExecutionValidator:
         elif task_norm in ("hypothesis_testing", "hypothesis", "significance", "significance_testing", "t_test", "anova", "chi_square", "diff_testing"):
             return cls._validate_hypothesis_testing(main_df, profile, target, feature_columns, agent_name)
 
-        # TASK J: GENERAL ANALYSIS
+        # TASK J: TRANSFORMATION & FEATURE ENGINEERING
+        elif task_norm in ("transformation", "transform", "feature_engineering", "preprocessing", "clean", "preprocess"):
+            return cls._validate_transformation(main_df, profile, target, feature_columns, agent_name)
+
+        # TASK K: GENERAL ANALYSIS
         else:
             return PreExecutionValidationReport(
                 is_valid=True,
@@ -636,6 +640,66 @@ class PreExecutionValidator:
             is_valid=True,
             task_type="hypothesis_testing",
             target_column=target_group,
+            diagnostics={"rows": len(df), "columns": list(df.columns)},
+        )
+
+    @classmethod
+    def _validate_transformation(
+        cls,
+        df: pd.DataFrame,
+        profile: SemanticProfile,
+        target: Optional[str],
+        features: Optional[List[str]],
+        agent_name: str,
+    ) -> PreExecutionValidationReport:
+        if len(df) == 0:
+            err = AgentError.create(
+                category=ErrorCategory.INSUFFICIENT_DATA,
+                user_message="Dataset contains 0 rows. Cannot perform transformation on an empty dataset.",
+                agent_name=agent_name,
+            )
+            return PreExecutionValidationReport(is_valid=False, task_type="transformation", error=err)
+
+        if len(df.columns) == 0:
+            err = AgentError.create(
+                category=ErrorCategory.DATA_INVALID,
+                user_message="Dataset contains 0 columns. Transformation requires at least one feature column.",
+                agent_name=agent_name,
+            )
+            return PreExecutionValidationReport(is_valid=False, task_type="transformation", error=err)
+
+        if df.isna().all().all():
+            err = AgentError.create(
+                category=ErrorCategory.DATA_INVALID,
+                user_message="Dataset contains only missing/null values across all columns.",
+                agent_name=agent_name,
+            )
+            return PreExecutionValidationReport(is_valid=False, task_type="transformation", error=err)
+
+        if features:
+            for feat in features:
+                if feat not in df.columns:
+                    err = AgentError.create(
+                        category=ErrorCategory.DATA_INVALID,
+                        user_message=f"Requested feature '{feat}' not found in dataset columns: {list(df.columns)}",
+                        field="features",
+                        agent_name=agent_name,
+                    )
+                    return PreExecutionValidationReport(is_valid=False, task_type="transformation", error=err)
+
+        if target and target not in df.columns:
+            err = AgentError.create(
+                category=ErrorCategory.DATA_INVALID,
+                user_message=f"Requested target column '{target}' not found in dataset columns: {list(df.columns)}",
+                field="target",
+                agent_name=agent_name,
+            )
+            return PreExecutionValidationReport(is_valid=False, task_type="transformation", error=err)
+
+        return PreExecutionValidationReport(
+            is_valid=True,
+            task_type="transformation",
+            target_column=target,
             diagnostics={"rows": len(df), "columns": list(df.columns)},
         )
 

@@ -340,6 +340,16 @@ class ResultValidator:
                                                  f"Hypothesis[{i}] mean difference CI violates lower ({l}) <= estimate ({est}) <= upper ({u}).",
                                                  field=f"hypotheses[{i}].mean_difference_ci")
 
+            # 9. Transformation validation
+            trans_plan = result.data.get("transformation_plan") or result.result.get("transformation_plan")
+            if isinstance(trans_plan, dict):
+                sel_f = trans_plan.get("selected_features", [])
+                gen_f = trans_plan.get("generated_features", [])
+                if not isinstance(sel_f, list) or not isinstance(gen_f, list):
+                    vr.add_issue(ValidationSeverity.ERROR, "INVALID_TRANSFORMATION_PLAN",
+                                 "Transformation plan features must be formatted as lists.",
+                                 field="transformation_plan")
+
     def _forecast_bounds_check(self, result: AgentResult, vr: ValidationResult) -> None:
         """Verify prediction intervals satisfy lower <= prediction <= upper."""
         forecast_pts = result.data.get("forecast") or result.data.get("predictions") or []
