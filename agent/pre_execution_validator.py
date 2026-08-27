@@ -173,7 +173,6 @@ class PreExecutionValidator:
         elif task_norm in ("eda", "profile", "data_profiling", "data_quality", "descriptive", "describe"):
             return cls._validate_eda(main_df, profile, feature_columns, agent_name)
 
-        # TASK I: GENERAL ANALYSIS
         # TASK I: HYPOTHESIS TESTING & STATISTICAL SIGNIFICANCE
         elif task_norm in ("hypothesis_testing", "hypothesis", "significance", "significance_testing", "t_test", "anova", "chi_square", "diff_testing"):
             return cls._validate_hypothesis_testing(main_df, profile, target, feature_columns, agent_name)
