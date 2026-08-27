@@ -13,6 +13,9 @@ from agent.command_orchestrator import AutonomousCommandOrchestrator
 from agent.conversational_analyst import ConversationalAnalystAgent
 from agent.json_utils import sanitize_for_json
 
+import logging
+logger = logging.getLogger(__name__)
+
 router = APIRouter(tags=["chat"])
 
 _ANALYSES: dict[str, dict[str, Any]] = {}
@@ -83,7 +86,37 @@ def execute_command_endpoint(
                 raise HTTPException(status_code=400, detail="No dataset provided for command execution.")
 
         result = orchestrator.execute_command(command, dataframe)
-        return result.to_dict()
+        res_dict = result.to_dict()
+        rels = res_dict.get("relationships", [])
+        first_r = rels[0] if rels else {}
+        logger.info(
+            "\n[STATISTICAL_RUNTIME_FORENSICS_V1] (API /api/v1/chat/command)\n"
+            "  received user command: %r\n"
+            "  detected intent: %s\n"
+            "  selected tool: %s\n"
+            "  selected agent: %s\n"
+            "  engine class/function executed: %s\n"
+            "  returned AgentResult.task_type: %s\n"
+            "  top-level AgentResult.result keys: %s\n"
+            "  pearson_r exists: %s\n"
+            "  spearman_rho exists: %s\n"
+            "  p_value exists: %s\n"
+            "  adjusted_p_value exists: %s\n"
+            "  evidence exists: %s\n",
+            command,
+            res_dict.get("user_intent"),
+            "statistical_analysis_tool",
+            "AutonomousCommandOrchestrator",
+            "execute_command",
+            "statistical_analysis",
+            list(res_dict.keys()),
+            "pearson_r" in first_r or "pearson" in first_r,
+            "spearman_rho" in first_r or "spearman" in first_r,
+            "p_value" in first_r,
+            "adjusted_p_value" in first_r,
+            bool(res_dict.get("evidence")),
+        )
+        return res_dict
     except HTTPException:
         raise
     except Exception as exc:

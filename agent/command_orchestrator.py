@@ -280,6 +280,42 @@ class AutonomousCommandOrchestrator:
                     stats_subgroup = stats_agent_res.data.get("subgroup_analysis", {})
                     stats_corr_matrix = stats_agent_res.data.get("correlation_matrix", {})
 
+            # Forensic runtime logging
+            first_rel = stats_relationships[0] if stats_relationships else {}
+            has_pr = "pearson_r" in first_rel or "pearson" in first_rel
+            has_rho = "spearman_rho" in first_rel or "spearman" in first_rel
+            has_p = "p_value" in first_rel
+            has_adj_p = "adjusted_p_value" in first_rel
+            has_ev = bool(stats_agent_res.evidence) if stats_agent_res else False
+            res_keys = list(stats_agent_res.data.keys()) if isinstance(stats_agent_res.data, dict) else []
+            logger.info(
+                "\n[STATISTICAL_RUNTIME_FORENSICS_V1]\n"
+                "  received user command: %r\n"
+                "  detected intent: %s\n"
+                "  selected tool: %s\n"
+                "  selected agent: %s\n"
+                "  engine class/function executed: %s\n"
+                "  returned AgentResult.task_type: %s\n"
+                "  top-level AgentResult.result keys: %s\n"
+                "  pearson_r exists: %s\n"
+                "  spearman_rho exists: %s\n"
+                "  p_value exists: %s\n"
+                "  adjusted_p_value exists: %s\n"
+                "  evidence exists: %s\n",
+                command,
+                intent_res.primary_intent.value,
+                "statistical_analysis_tool",
+                "StatisticalAnalysisAgent",
+                "StatisticalAnalysisEngine.analyze",
+                getattr(stats_agent_res, "task_type", "statistical_analysis"),
+                res_keys,
+                has_pr,
+                has_rho,
+                has_p,
+                has_adj_p,
+                has_ev,
+            )
+
         # Synthesize final narrative explanation based on user's exact outcome goal
         explanation = self._synthesize_explanation(
             command=command,

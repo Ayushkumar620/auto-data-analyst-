@@ -212,8 +212,44 @@ def analyze():
         result["final_explanation"] = orch_res.final_explanation
         result["validation_summary"] = orch_res.validation_summary
         result["duration_ms"] = orch_res.duration_ms
+        result["relationships"] = orch_res.relationships
+        result["top_relationships"] = orch_res.top_relationships
+        result["correlation_matrix"] = orch_res.correlation_matrix
+        result["subgroup_analysis"] = orch_res.subgroup_analysis
     except Exception:
         pass
+
+    import logging
+    logger = logging.getLogger("app")
+    rels = result.get("relationships") or []
+    first_r = rels[0] if rels else {}
+    logger.info(
+        "\n[STATISTICAL_RUNTIME_FORENSICS_V1] (API /api/analyze [Flask app.py])\n"
+        "  received user command: %r\n"
+        "  detected intent: %s\n"
+        "  selected tool: %s\n"
+        "  selected agent: %s\n"
+        "  engine class/function executed: %s\n"
+        "  returned AgentResult.task_type: %s\n"
+        "  top-level AgentResult.result keys: %s\n"
+        "  pearson_r exists: %s\n"
+        "  spearman_rho exists: %s\n"
+        "  p_value exists: %s\n"
+        "  adjusted_p_value exists: %s\n"
+        "  evidence exists: %s\n",
+        command,
+        result.get("type"),
+        "CommandParser.parse -> DataAnalyzer.correlation",
+        "CommandParser / DataAnalyzer",
+        "DataAnalyzer.correlation",
+        result.get("type"),
+        list(result.keys()),
+        "pearson_r" in first_r or "pearson" in first_r,
+        "spearman_rho" in first_r or "spearman" in first_r,
+        "p_value" in first_r,
+        "adjusted_p_value" in first_r,
+        bool(result.get("evidence")),
+    )
 
     try:
         return jsonify(result)

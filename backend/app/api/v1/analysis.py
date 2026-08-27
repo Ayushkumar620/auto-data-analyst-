@@ -59,6 +59,38 @@ def execute_autonomous_command(req: AnalyzeCommandRequest) -> AnalyzeCommandResp
         session_id=req.session_id or "default_session",
     )
 
+    import logging
+    logger = logging.getLogger(__name__)
+    rels = result.relationships or []
+    first_r = rels[0] if rels else {}
+    logger.info(
+        "\n[STATISTICAL_RUNTIME_FORENSICS_V1] (API /api/v1/analyze)\n"
+        "  received user command: %r\n"
+        "  detected intent: %s\n"
+        "  selected tool: %s\n"
+        "  selected agent: %s\n"
+        "  engine class/function executed: %s\n"
+        "  returned AgentResult.task_type: %s\n"
+        "  top-level AgentResult.result keys: %s\n"
+        "  pearson_r exists: %s\n"
+        "  spearman_rho exists: %s\n"
+        "  p_value exists: %s\n"
+        "  adjusted_p_value exists: %s\n"
+        "  evidence exists: %s\n",
+        req.command,
+        result.user_intent,
+        "statistical_analysis_tool",
+        "AutonomousCommandOrchestrator",
+        "execute_command",
+        "statistical_analysis",
+        list(result.to_dict().keys()),
+        "pearson_r" in first_r or "pearson" in first_r,
+        "spearman_rho" in first_r or "spearman" in first_r,
+        "p_value" in first_r,
+        "adjusted_p_value" in first_r,
+        bool(result.evidence),
+    )
+
     return AnalyzeCommandResponse(
         command=result.command,
         user_intent=result.user_intent,
