@@ -45,24 +45,7 @@ def _looks_causal(*texts: Any) -> bool:
     return any(word in blob for word in _CAUSAL_WORDS)
 
 
-def _sanitize_numeric_recursively(obj: Any) -> Any:
-    """Recursively convert NaN, Infinity, -Infinity to None or safe finite values."""
-    if isinstance(obj, float):
-        if math.isnan(obj) or math.isinf(obj):
-            return None
-        return obj
-    elif isinstance(obj, np.floating):
-        val = float(obj)
-        return None if (math.isnan(val) or math.isinf(val)) else val
-    elif isinstance(obj, np.integer):
-        return int(obj)
-    elif isinstance(obj, dict):
-        return {k: _sanitize_numeric_recursively(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [_sanitize_numeric_recursively(item) for item in obj]
-    elif isinstance(obj, tuple):
-        return tuple(_sanitize_numeric_recursively(item) for item in obj)
-    return obj
+from agent.json_utils import sanitize_for_json as _sanitize_numeric_recursively
 
 
 class ResultValidator:

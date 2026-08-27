@@ -69,24 +69,31 @@ class MemoryOptimizer:
 
             # 1. Integer downcasting
             if pd.api.types.is_integer_dtype(df[col]):
-                c_min = df[col].min()
-                c_max = df[col].max()
-                if c_min >= np.iinfo(np.int8).min and c_max <= np.iinfo(np.int8).max:
-                    df[col] = df[col].astype(np.int8)
-                elif c_min >= np.iinfo(np.int16).min and c_max <= np.iinfo(np.int16).max:
-                    df[col] = df[col].astype(np.int16)
-                elif c_min >= np.iinfo(np.int32).min and c_max <= np.iinfo(np.int32).max:
-                    df[col] = df[col].astype(np.int32)
-                else:
-                    df[col] = df[col].astype(np.int64)
+                try:
+                    c_min = clean_series.min()
+                    c_max = clean_series.max()
+                    has_na = df[col].isna().any()
+                    if c_min >= np.iinfo(np.int8).min and c_max <= np.iinfo(np.int8).max:
+                        df[col] = df[col].astype("Int8" if has_na else np.int8)
+                    elif c_min >= np.iinfo(np.int16).min and c_max <= np.iinfo(np.int16).max:
+                        df[col] = df[col].astype("Int16" if has_na else np.int16)
+                    elif c_min >= np.iinfo(np.int32).min and c_max <= np.iinfo(np.int32).max:
+                        df[col] = df[col].astype("Int32" if has_na else np.int32)
+                    else:
+                        df[col] = df[col].astype("Int64" if has_na else np.int64)
+                except Exception:
+                    pass
 
             # 2. Float downcasting (float64 -> float32)
             elif pd.api.types.is_float_dtype(df[col]):
-                # Check if float can be represented as int
-                if (clean_series % 1 == 0).all() and clean_series.max() <= np.iinfo(np.int32).max and clean_series.min() >= np.iinfo(np.int32).min:
-                    df[col] = df[col].astype("Int32")  # Nullable integer
-                else:
-                    df[col] = df[col].astype(np.float32)
+                try:
+                    # Check if float can be safely represented as nullable int
+                    if (clean_series % 1 == 0).all() and clean_series.max() <= np.iinfo(np.int32).max and clean_series.min() >= np.iinfo(np.int32).min:
+                        df[col] = df[col].astype("Int32")  # Nullable integer
+                    else:
+                        df[col] = df[col].astype(np.float32)
+                except Exception:
+                    pass
 
             # 3. Low-cardinality strings to Category
             elif (

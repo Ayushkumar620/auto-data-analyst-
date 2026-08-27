@@ -18,6 +18,8 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from agent.json_utils import sanitize_for_json
+
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -145,18 +147,18 @@ class Evidence(BaseModel):
         return {
             "dataset_id": self.dataset_id or self.dataset_name,
             "dataset_name": self.dataset_name or self.dataset_id,
-            "columns": self.columns,
+            "columns": list(self.columns) if self.columns else [],
             "operation": self.operation or self.method,
             "calculation": self.calculation,
             "source_reference": self.source_reference or self.source,
-            "result": self.result if self.result is not None else self.raw_value,
+            "result": sanitize_for_json(self.result if self.result is not None else self.raw_value),
             "confidence": round(float(self.confidence), 4),
             "source": self.source or self.source_reference or "",
             "method": self.method or self.operation or "",
-            "data_ref": self.data_ref,
+            "data_ref": sanitize_for_json(self.data_ref),
             "claim_type": self.claim_type.value if isinstance(self.claim_type, ClaimType) else str(self.claim_type),
-            "raw_value": self.raw_value if self.raw_value is not None else self.result,
-            "metadata": self.metadata,
+            "raw_value": sanitize_for_json(self.raw_value if self.raw_value is not None else self.result),
+            "metadata": sanitize_for_json(self.metadata),
         }
 
 
@@ -512,7 +514,7 @@ class AgentResult(BaseModel):
 
     def to_dict(self) -> Dict[str, Any]:
         st_val = self.status.value if isinstance(self.status, AgentStatus) else str(self.status)
-        return {
+        raw_dict = {
             "success": self.is_success,
             "status": st_val,
             "task_type": self.task_type,
@@ -550,6 +552,7 @@ class AgentResult(BaseModel):
             "finished_at": self.finished_at.isoformat() if self.finished_at else None,
             "retry_count": self.retry_count,
         }
+        return sanitize_for_json(raw_dict)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AgentResult":

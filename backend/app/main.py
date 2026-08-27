@@ -12,6 +12,9 @@ from fastapi.responses import FileResponse
 from backend.app.config import settings
 
 
+from agent.json_utils import SafeJSONResponse
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     yield
@@ -22,6 +25,7 @@ app = FastAPI(
     version="1.0.0",
     description="AI-powered data analysis platform",
     lifespan=lifespan,
+    default_response_class=SafeJSONResponse,
 )
 
 app.add_middleware(
