@@ -146,11 +146,15 @@ class UniversalOrchestrator:
 
     def __init__(
         self,
-        tool_registry: Optional[ToolRegistry] = None,
+        tool_registry: Optional[Any] = None,
         max_workers: int = 4,
         random_state: int = 42,
     ):
-        self.tool_registry = tool_registry or DEFAULT_TOOL_REGISTRY
+        if tool_registry is not None:
+            self.tool_registry = tool_registry
+        else:
+            from agent.tool_registry import DEFAULT_TOOL_REGISTRY
+            self.tool_registry = DEFAULT_TOOL_REGISTRY
         self.max_workers = max_workers
         self.random_state = random_state
         self.intent_analyzer = IntentAnalyzer()
