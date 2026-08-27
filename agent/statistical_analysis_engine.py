@@ -142,7 +142,11 @@ class StatisticalAnalysisEngine:
         # 6. Rank Relationships & Build Leaderboard
         ranked_relationships = self._rank_relationships(relationships)
 
-        # 7. Summary Diagnostics & Correlation Matrix
+        # 7. Subgroup Consistency & Weak-Global-Strong-Subgroup Analysis
+        subgroup_cols = self._detect_subgroup_dimensions(df, profile, set(numeric_cols + dt_cols))
+        subgroup_analysis = self._analyze_subgroups(df, ranked_relationships[:10], subgroup_cols, sig_alpha)
+
+        # 8. Summary Diagnostics & Correlation Matrix
         corr_matrix = self._build_correlation_matrix(df, numeric_cols)
 
         return {
@@ -162,12 +166,14 @@ class StatisticalAnalysisEngine:
             "ranked_relationships": ranked_relationships,
             "top_relationships": ranked_relationships[:10],
             "correlation_matrix": corr_matrix,
+            "subgroup_analysis": subgroup_analysis,
             "warnings": ["All reported statistical relationships reflect observational associations and do not prove causal influence."],
             "assumptions": [
                 "Pearson correlation measures linear association between continuous variables.",
                 "Spearman and Kendall measure monotonic rank association.",
                 "ANOVA and Kruskal-Wallis measure group-mean/rank differences.",
                 "Chi-square measures independence in categorical contingency tables.",
+                "Subgroup analyses evaluate relationship stability across low-cardinality cohorts.",
             ],
             "limitations": [
                 "Observational statistical association does not establish cause and effect.",
