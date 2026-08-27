@@ -13,26 +13,10 @@ from backend.app.forecasting import Forecaster
 from backend.app.services.dataset_service import DatasetService
 from agent.autonomous_forecaster_agent import AutonomousForecasterAgent
 from agent.forecasting_schemas import ForecastRequest, WhatIfRequest
+from agent.json_utils import sanitize_for_json
 
 router = APIRouter(prefix="/forecast", tags=["forecasting"])
 _forecaster_agent = AutonomousForecasterAgent()
-
-
-def _json_default(value: Any) -> Any:
-    if isinstance(value, (np.integer, np.floating, np.bool_)):
-        return value.item()
-    if isinstance(value, np.ndarray):
-        return value.tolist()
-    if isinstance(value, (pd.Timestamp, pd.Timedelta)):
-        return str(value)
-    if pd.isna(value):
-        return None
-    if hasattr(value, "isoformat"):
-        try:
-            return value.isoformat()
-        except TypeError:
-            pass
-    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
 
 class ForecastRunRequest(BaseModel):
