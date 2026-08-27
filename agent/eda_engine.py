@@ -3,14 +3,14 @@ Universal, Dataset-Agnostic EDA, Data Profiling & Data Quality Intelligence Engi
 
 Single source of truth for:
 1. Universal Dataset Profiling & Schema Inference
-2. Dirty Value & Coercion Intelligence
-3. Missing Data Analysis & Severity Classification
+2. Dirty Value & Coercion Intelligence (Currencies, %, Parens, Suffixes)
+3. Missing Data Analysis & Severity Classification (Non-destructive)
 4. Duplicate Row & Key Analysis
-5. Numeric Distribution Analysis & Outlier Detection (Non-causal)
-6. Categorical Cardinality, Dominance & Entropy Analysis
-7. Datetime Span, Frequency & Regularity Analysis
+5. Numeric Distribution Analysis & Outlier Detection (Tukey IQR, Robust Z-Score, Non-causal)
+6. Categorical Cardinality, Dominance, Rare Categories & Shannon Entropy Analysis
+7. Datetime Span, Inferred Frequency & Regularity Analysis
 8. Statistical Identifier & Sequence Detection
-9. Decomposed Overall Data Quality Scoring [0.0, 1.0]
+9. Decomposed Overall Data Quality Scoring [0.0, 1.0] (Completeness, Uniqueness, Validity, Consistency, Usability)
 10. Actionable Data Quality Findings & Remediation Recommendations
 """
 from __future__ import annotations
@@ -45,39 +45,53 @@ class EDAEngine:
     # Public API
     # --------------------------------------------------------------------------
 
-    def profile(
+    def analyze(
         self,
-        data: Union[pd.DataFrame, Dict[str, Any], Any],
-        selected_columns: Optional[List[str]] = None,
-        max_categories: int = 10,
+        df: Union[pd.DataFrame, Dict[str, Any], Any],
+        features: Optional[List[str]] = None,
+        include_distributions: bool = True,
+        include_quality: bool = True,
+        include_relationships: bool = False,
+        max_categories: int = 20,
+        max_histogram_bins: int = 30,
     ) -> Dict[str, Any]:
         """
         Execute comprehensive dataset profiling and data quality assessment.
+        Single source of truth for EDA.
 
         Parameters:
-        - data: Tabular DataFrame or dictionary containing DataFrames
-        - selected_columns: Optional column subset to profile
+        - df: Tabular DataFrame or dictionary containing DataFrames
+        - features: Optional column subset to profile
+        - include_distributions: Include numeric and categorical distribution metrics
+        - include_quality: Include decomposed data quality scoring
+        - include_relationships: Include high-level correlation/association summary
         - max_categories: Top category frequency display count
+        - max_histogram_bins: Maximum histogram bins for numeric features
         """
-        df = self._extract_dataframe(data)
-        if df is None or df.empty:
+        raw_df = self._extract_dataframe(df)
+        if raw_df is None or raw_df.empty:
             return {
                 "error": "Dataset is empty or invalid. EDA requires tabular data.",
                 "category": ErrorCategory.DATA_INVALID,
             }
 
-        n_rows, n_cols = df.shape
+        n_rows, n_cols = raw_df.shape
         if n_rows == 0:
             return {
                 "error": "Dataset contains 0 rows. Cannot perform exploratory data analysis on an empty dataset.",
                 "category": ErrorCategory.INSUFFICIENT_DATA,
             }
+        if n_cols == 0:
+            return {
+                "error": "Dataset contains 0 columns. Cannot perform exploratory data analysis on an empty schema.",
+                "category": ErrorCategory.DATA_INVALID,
+            }
 
         # 1. Canonical Ingestion & Semantic Profiling
-        dataset: CanonicalDataset = CanonicalDataLayer.ingest(df)
+        dataset: CanonicalDataset = CanonicalDataLayer.ingest(raw_df)
         sem_profile: SemanticProfile = dataset.profile
 
-        cols_to_profile = [c for c in selected_columns if c in df.columns] if selected_columns else list(df.columns)
+        cols_to_profile = [c for c in features if c in raw_df.columns] if features else list(raw_df.columns)
         if not cols_to_profile:
             return {
                 "error": "None of the requested columns were found in the dataset.",
@@ -85,9 +99,9 @@ class EDAEngine:
             }
 
         # 2. Overall Structural Diagnostics
-        dup_count = int(df.duplicated().sum())
+        dup_count = int(raw_df.duplicated().sum())
         dup_pct = round(float((dup_count / n_rows) * 100.0), 2) if n_rows > 0 else 0.0
-        empty_rows = int(df.isna().all(axis=1).sum())
+        empty_rows = int(raw_df.isna().all(axis=1).sum())
 
         empty_cols: List[str] = []
         constant_cols: List[str] = []
@@ -98,23 +112,32 @@ class EDAEngine:
         datetime_cols: List[str] = []
         boolean_cols: List[str] = []
         text_cols: List[str] = []
+        parseable_numeric_cols: List[str] = []
+        parseable_datetime_cols: List[str] = []
 
         # 3. Column-Level Deep Dive
         columns_profile: Dict[str, Dict[str, Any]] = {}
         dirty_coercion_summary: Dict[str, Any] = {"total_dirty_columns": 0, "columns": {}}
 
         for col in cols_to_profile:
-            col_prof = self._profile_column(df, col, sem_profile, max_categories=max_categories)
+            col_prof = self._profile_column(
+                raw_df,
+                col,
+                sem_profile,
+                max_categories=max_categories,
+                include_distributions=include_distributions,
+                max_histogram_bins=max_histogram_bins,
+            )
             columns_profile[str(col)] = col_prof
 
             inferred_t = col_prof["inferred_type"]
             if inferred_t == "empty":
                 empty_cols.append(str(col))
-            if col_prof.get("is_constant"):
+            if col_prof.get("is_constant") or col_prof.get("constant"):
                 constant_cols.append(str(col))
             if col_prof.get("is_identifier"):
                 identifier_cols.append(str(col))
-            if col_prof.get("is_high_cardinality"):
+            if col_prof.get("is_high_cardinality") or col_prof.get("high_cardinality"):
                 high_card_cols.append(str(col))
 
             if inferred_t == "numeric":
@@ -128,12 +151,18 @@ class EDAEngine:
             elif inferred_t == "text":
                 text_cols.append(str(col))
 
+            if col_prof.get("parseability", {}).get("numeric"):
+                parseable_numeric_cols.append(str(col))
+            if col_prof.get("parseability", {}).get("datetime"):
+                parseable_datetime_cols.append(str(col))
+
             if col_prof.get("dirty_coercion"):
                 dirty_coercion_summary["total_dirty_columns"] += 1
                 dirty_coercion_summary["columns"][str(col)] = col_prof["dirty_coercion"]
 
         # 4. Missing Data Deep Dive & Severity
-        missing_analysis = self._analyze_missingness(df, cols_to_profile, columns_profile)
+        missing_analysis = self._analyze_missingness(raw_df, cols_to_profile, columns_profile)
+        sparse_cols = missing_analysis["columns_by_severity"][">90%"] + missing_analysis["columns_by_severity"][">60-90%"] + missing_analysis["columns_by_severity"][">30-60%"]
 
         # 5. Duplicate Data Analysis
         duplicate_analysis = {
@@ -141,6 +170,7 @@ class EDAEngine:
             "duplicate_percentage": dup_pct,
             "has_duplicates": dup_count > 0,
             "empty_rows_count": empty_rows,
+            "unique_rows_count": n_rows - dup_count,
         }
 
         # 6. Overall Data Quality Score & Component Breakdown
@@ -153,11 +183,11 @@ class EDAEngine:
             empty_cols=empty_cols,
             constant_cols=constant_cols,
             dirty_summary=dirty_coercion_summary,
-        )
+        ) if include_quality else {}
 
         # 7. Actionable Data Quality Findings & Recommendations
         findings = self._generate_quality_findings(
-            df=df,
+            df=raw_df,
             n_rows=n_rows,
             columns_profile=columns_profile,
             missing_analysis=missing_analysis,
@@ -167,37 +197,50 @@ class EDAEngine:
 
         # 8. Memory Usage
         try:
-            mem_bytes = int(df[cols_to_profile].memory_usage(deep=True).sum())
+            mem_bytes = int(raw_df[cols_to_profile].memory_usage(deep=True).sum())
             mem_mb = round(mem_bytes / (1024.0 * 1024.0), 2)
         except Exception:
             mem_bytes = 0
             mem_mb = 0.0
 
-        return {
+        # Summary structure with all canonical and alias keys
+        summary_dict = {
+            "row_count": n_rows,
+            "column_count": len(cols_to_profile),
+            "original_rows": n_rows,
+            "original_columns": n_cols,
+            "analyzed_rows": n_rows,
+            "analyzed_columns": len(cols_to_profile),
+            "total_dataset_columns": n_cols,
+            "memory_usage_bytes": mem_bytes,
+            "memory_usage_mb": mem_mb,
+            "duplicate_rows": dup_count,
+            "duplicate_percentage": dup_pct,
+            "total_missing_cells": missing_analysis.get("total_missing_cells", 0),
+            "missing_cell_percentage": missing_analysis.get("overall_missing_percentage", 0.0),
+            "empty_rows": empty_rows,
+            "empty_columns": empty_cols,
+            "constant_columns": constant_cols,
+            "identifier_columns": identifier_cols,
+            "high_cardinality_columns": high_card_cols,
+            "sparse_columns": sparse_cols,
+            "numeric_columns": numeric_cols,
+            "categorical_columns": categorical_cols,
+            "datetime_columns": datetime_cols,
+            "boolean_columns": boolean_cols,
+            "text_columns": text_cols,
+            "parseable_numeric_columns": parseable_numeric_cols,
+            "parseable_datetime_columns": parseable_datetime_cols,
+        }
+
+        result_payload: Dict[str, Any] = {
             "task_type": "eda",
-            "summary": {
-                "row_count": n_rows,
-                "column_count": len(cols_to_profile),
-                "total_dataset_columns": n_cols,
-                "memory_usage_bytes": mem_bytes,
-                "memory_usage_mb": mem_mb,
-                "duplicate_rows": dup_count,
-                "duplicate_percentage": dup_pct,
-                "empty_rows": empty_rows,
-                "empty_columns": empty_cols,
-                "constant_columns": constant_cols,
-                "identifier_columns": identifier_cols,
-                "high_cardinality_columns": high_card_cols,
-                "numeric_columns": numeric_cols,
-                "categorical_columns": categorical_cols,
-                "datetime_columns": datetime_cols,
-                "boolean_columns": boolean_cols,
-                "text_columns": text_cols,
-            },
+            "summary": summary_dict,
             "statistics": {
                 "numeric": {c: columns_profile[c]["numeric_stats"] for c in numeric_cols if columns_profile[c].get("numeric_stats")},
                 "categorical": {c: columns_profile[c]["categorical_stats"] for c in categorical_cols if columns_profile[c].get("categorical_stats")},
                 "datetime": {c: columns_profile[c]["datetime_stats"] for c in datetime_cols if columns_profile[c].get("datetime_stats")},
+                "text": {c: columns_profile[c]["text_stats"] for c in text_cols if columns_profile[c].get("text_stats")},
             },
             "columns": columns_profile,
             "missing_analysis": missing_analysis,
@@ -205,7 +248,8 @@ class EDAEngine:
             "dirty_data_analysis": dirty_coercion_summary,
             "data_quality": quality_assessment,
             "findings": findings,
-            "warnings": [f["description"] for f in findings if f["severity"] in ("CRITICAL", "HIGH")],
+            "warnings": [f["description"] for f in findings if f.get("severity") in ("CRITICAL", "HIGH")],
+            "recommendations": [f["suggested_action"] for f in findings if f.get("suggested_action")],
             "assumptions": [
                 "Profiling is computed across non-null pairwise observations without destructive row dropping.",
                 "Semantic roles are inferred statistically from uniqueness, value distributions, and parseability.",
@@ -217,6 +261,29 @@ class EDAEngine:
             ],
         }
 
+        # Optional high-level relationship summary
+        if include_relationships and len(numeric_cols) >= 2:
+            try:
+                corr_matrix = raw_df[numeric_cols].corr(method="pearson").round(4).to_dict()
+                result_payload["relationships"] = {"pearson_correlation": corr_matrix}
+            except Exception:
+                pass
+
+        return result_payload
+
+    def profile(
+        self,
+        data: Union[pd.DataFrame, Dict[str, Any], Any],
+        selected_columns: Optional[List[str]] = None,
+        max_categories: int = 10,
+    ) -> Dict[str, Any]:
+        """Backward-compatible alias for analyze."""
+        return self.analyze(
+            df=data,
+            features=selected_columns,
+            max_categories=max_categories,
+        )
+
     # --------------------------------------------------------------------------
     # Column-Level Profiling
     # --------------------------------------------------------------------------
@@ -226,7 +293,9 @@ class EDAEngine:
         df: pd.DataFrame,
         col: str,
         sem_profile: SemanticProfile,
-        max_categories: int = 10,
+        max_categories: int = 20,
+        include_distributions: bool = True,
+        max_histogram_bins: int = 30,
     ) -> Dict[str, Any]:
         """Profile a single column with comprehensive statistical and semantic properties."""
         series = df[col]
@@ -235,7 +304,9 @@ class EDAEngine:
         n_valid = n_total - n_null
         null_pct = round(float((n_null / n_total) * 100.0), 2) if n_total > 0 else 0.0
         n_uniq = int(series.nunique(dropna=True))
-        uniq_pct = round(float((n_uniq / n_valid) * 100.0), 2) if n_valid > 0 else 0.0
+        uniq_ratio = round(float(n_uniq / n_valid), 4) if n_valid > 0 else 0.0
+        uniq_pct = round(float(uniq_ratio * 100.0), 2)
+        dup_count = max(0, n_valid - n_uniq)
 
         # Sample values (JSON-serializable)
         sample_vals: List[Any] = []
@@ -256,7 +327,6 @@ class EDAEngine:
             if dt_series.notna().mean() >= 0.60:
                 is_dt_candidate = True
         elif not is_empty and not is_constant and series.dtype == object:
-            # Test datetime parseability on a sample without converting integers
             sample_str = series.dropna().astype(str).iloc[:30]
             if any("/" in s or "-" in s or ":" in s or "T" in s for s in sample_str):
                 try:
@@ -294,10 +364,20 @@ class EDAEngine:
                     if dirty_count > 0 or coercion_rate < 1.0:
                         dirty_info = {
                             "original_dtype": str(series.dtype),
+                            "detected_numeric": True,
                             "coercion_success_rate": round(float(coercion_rate), 4),
                             "values_cleaned_count": dirty_count,
+                            "coercion_failure_count": n_valid - valid_coerced,
                             "remaining_invalid_count": n_valid - valid_coerced,
+                            "transformation_applied": "currency_symbol_comma_percentage_and_bracket_stripping",
                         }
+
+        # Near constant check (top category dominance >= 95%)
+        is_near_constant = False
+        if not is_empty and n_uniq > 1:
+            top_val_count = int(series.dropna().value_counts().iloc[0])
+            if (top_val_count / n_valid) >= 0.95:
+                is_near_constant = True
 
         # Determine Inferred Type & Semantic Role
         if is_empty:
@@ -331,42 +411,69 @@ class EDAEngine:
         num_stats: Optional[Dict[str, Any]] = None
         cat_stats: Optional[Dict[str, Any]] = None
         dt_stats: Optional[Dict[str, Any]] = None
+        txt_stats: Optional[Dict[str, Any]] = None
 
-        if inferred_type == "numeric" and num_series is not None:
-            num_stats = self._calculate_numeric_stats(num_series)
-        elif inferred_type in ("categorical", "boolean", "text", "constant"):
+        if inferred_type == "numeric" and num_series is not None and include_distributions:
+            num_stats = self._calculate_numeric_stats(num_series, max_histogram_bins=max_histogram_bins)
+        elif inferred_type in ("categorical", "boolean", "constant") and include_distributions:
             cat_stats = self._calculate_categorical_stats(series, n_valid, n_uniq, max_categories)
-        elif inferred_type == "datetime" and dt_series is not None:
+        elif inferred_type == "text" and include_distributions:
+            cat_stats = self._calculate_categorical_stats(series, n_valid, n_uniq, max_categories)
+            txt_stats = self._calculate_text_stats(series)
+        elif inferred_type == "datetime" and dt_series is not None and include_distributions:
             dt_stats = self._calculate_datetime_stats(dt_series)
+
+        # Calculate Column-Level Quality Score [0.0, 1.0]
+        col_comp_score = max(0.0, 1.0 - (null_pct / 100.0))
+        col_valid_score = dirty_info["coercion_success_rate"] if dirty_info else 1.0
+        col_distinct_score = 0.20 if is_constant else (0.50 if is_near_constant else 1.0)
+        col_quality_score = round(0.40 * col_comp_score + 0.30 * col_valid_score + 0.30 * col_distinct_score, 4)
 
         return {
             "name": str(col),
+            "column_name": str(col),
             "original_dtype": str(series.dtype),
             "inferred_type": inferred_type,
+            "inferred_role": semantic_role,
             "semantic_role": semantic_role,
             "total_count": n_total,
+            "row_count": n_total,
             "non_null_count": n_valid,
             "null_count": n_null,
             "null_percentage": null_pct,
+            "missing_percentage": null_pct,
             "unique_count": n_uniq,
             "unique_percentage": uniq_pct,
+            "uniqueness_ratio": uniq_ratio,
+            "duplicate_count": dup_count,
             "is_constant": is_constant,
+            "constant": is_constant,
+            "is_near_constant": is_near_constant,
+            "near_constant": is_near_constant,
             "is_identifier": is_identifier,
             "identifier_likelihood": round(float(id_likelihood), 2),
             "identifier_reason": id_reason if is_identifier else None,
             "is_high_cardinality": is_high_card,
+            "high_cardinality": is_high_card,
             "sample_values": sample_vals,
             "dirty_coercion": dirty_info,
+            "parseability": {
+                "numeric": is_num_candidate,
+                "datetime": is_dt_candidate,
+            },
+            "transformation": dirty_info.get("transformation_applied") if dirty_info else None,
+            "quality_score": col_quality_score,
             "numeric_stats": num_stats,
             "categorical_stats": cat_stats,
             "datetime_stats": dt_stats,
+            "text_stats": txt_stats,
         }
 
     # --------------------------------------------------------------------------
     # Specialized Statistical Calculators
     # --------------------------------------------------------------------------
 
-    def _calculate_numeric_stats(self, s: pd.Series) -> Dict[str, Any]:
+    def _calculate_numeric_stats(self, s: pd.Series, max_histogram_bins: int = 30) -> Dict[str, Any]:
         """Compute exhaustive, robust non-causal numeric distribution statistics."""
         v = s.dropna().to_numpy(dtype=float)
         n = len(v)
@@ -396,6 +503,25 @@ class EDAEngine:
         if math.isnan(kurt_val) or math.isinf(kurt_val):
             kurt_val = 0.0
 
+        # Distribution shape classification
+        if abs(skew_val) < 0.5 and abs(kurt_val) < 1.0:
+            dist_shape = "approximately_normal" if n >= 30 else "symmetric"
+        elif skew_val >= 1.0:
+            dist_shape = "right_skewed"
+        elif skew_val <= -1.0:
+            dist_shape = "left_skewed"
+        elif kurt_val >= 2.0:
+            dist_shape = "heavy_tailed"
+        else:
+            dist_shape = "symmetric"
+
+        # Sign counts
+        zero_cnt = int(np.sum(v == 0.0))
+        neg_cnt = int(np.sum(v < 0.0))
+        pos_cnt = int(np.sum(v > 0.0))
+        if zero_cnt / n >= 0.30 and n >= 20:
+            dist_shape = "zero_inflated"
+
         # Percentiles
         pcts = {
             "1%": round(float(np.percentile(v, 1)), 4),
@@ -417,21 +543,49 @@ class EDAEngine:
         outlier_pct = round(float((outlier_count / n) * 100.0), 2)
         sample_outliers = [float(x) for x in v[outlier_mask][:5]]
 
+        # Robust Z-score (MAD-based)
+        if mad > 1e-9:
+            robust_z = 0.6745 * (v - q50) / mad
+            mad_outliers_cnt = int(np.sum(np.abs(robust_z) > 3.5))
+        else:
+            mad_outliers_cnt = 0
+
+        # Histogram calculation
+        n_bins = min(max_histogram_bins, max(5, int(np.sqrt(n))))
+        counts, bin_edges = np.histogram(v, bins=n_bins)
+        hist_bins = [
+            {"bin_start": round(float(bin_edges[i]), 4), "bin_end": round(float(bin_edges[i + 1]), 4), "count": int(counts[i])}
+            for i in range(len(counts))
+        ]
+
         return {
             "count": n,
+            "min": round(v_min, 4),
+            "max": round(v_max, 4),
             "mean": round(v_mean, 4),
             "median": round(q50, 4),
             "std": round(v_std, 4),
             "variance": round(v_var, 4),
-            "min": round(v_min, 4),
-            "max": round(v_max, 4),
+            "q1": round(q25, 4),
+            "q3": round(q75, 4),
             "q25": round(q25, 4),
             "q75": round(q75, 4),
             "iqr": round(iqr, 4),
+            "IQR": round(iqr, 4),
             "mad": round(mad, 4),
             "skewness": round(skew_val, 4),
             "kurtosis": round(kurt_val, 4),
+            "distribution_shape": dist_shape,
+            "zero_count": zero_cnt,
+            "negative_count": neg_cnt,
+            "positive_count": pos_cnt,
             "percentiles": pcts,
+            "histogram": hist_bins,
+            "outlier_count": outlier_count,
+            "outlier_percentage": outlier_pct,
+            "lower_bound": round(lower_fence, 4),
+            "upper_bound": round(upper_fence, 4),
+            "method": "tukey_iqr_1.5",
             "outliers": {
                 "count": outlier_count,
                 "percentage": outlier_pct,
@@ -440,6 +594,11 @@ class EDAEngine:
                 "sample_outliers": sample_outliers,
                 "method": "tukey_iqr_1.5",
             },
+            "robust_zscore_outliers": {
+                "count": mad_outliers_cnt,
+                "percentage": round(float((mad_outliers_cnt / n) * 100.0), 2),
+                "threshold": 3.5,
+            },
         }
 
     def _calculate_categorical_stats(
@@ -447,13 +606,14 @@ class EDAEngine:
         s: pd.Series,
         n_valid: int,
         n_uniq: int,
-        max_categories: int = 10,
+        max_categories: int = 20,
     ) -> Dict[str, Any]:
-        """Compute frequency, dominance, and Shannon entropy for categorical series."""
+        """Compute frequency, dominance, rare categories, and Shannon entropy for categorical series."""
         val_counts = s.dropna().astype(str).value_counts()
         cardinality_ratio = round(float(n_uniq / n_valid), 4) if n_valid > 0 else 0.0
 
         top_cats: List[Dict[str, Any]] = []
+        top_val_dict: Dict[str, int] = {}
         for cat_name, count in val_counts.iloc[:max_categories].items():
             pct = round(float((count / n_valid) * 100.0), 2) if n_valid > 0 else 0.0
             top_cats.append({
@@ -461,6 +621,7 @@ class EDAEngine:
                 "count": int(count),
                 "percentage": pct,
             })
+            top_val_dict[str(cat_name)] = int(count)
 
         dominant_pct = top_cats[0]["percentage"] if top_cats else 0.0
         is_imbalanced = dominant_pct >= 85.0 and n_uniq > 1
@@ -479,10 +640,29 @@ class EDAEngine:
             "unique_count": n_uniq,
             "cardinality_ratio": cardinality_ratio,
             "top_categories": top_cats,
+            "top_values": [c["value"] for c in top_cats],
+            "top_value_counts": top_val_dict,
             "dominant_category_percentage": round(dominant_pct, 2),
             "is_imbalanced": is_imbalanced,
+            "rare_category_count": rare_count,
             "rare_categories_count": rare_count,
+            "category_distribution": {c["value"]: c["percentage"] for c in top_cats},
             "entropy": round(float(entropy), 4),
+        }
+
+    def _calculate_text_stats(self, s: pd.Series) -> Dict[str, Any]:
+        """Compute text length properties for free-form string columns."""
+        str_series = s.dropna().astype(str)
+        if str_series.empty:
+            return {}
+        lengths = str_series.str.len().to_numpy(dtype=float)
+        return {
+            "average_length": round(float(np.mean(lengths)), 2),
+            "median_length": round(float(np.median(lengths)), 2),
+            "min_length": int(np.min(lengths)),
+            "max_length": int(np.max(lengths)),
+            "empty_string_count": int((str_series.str.strip() == "").sum()),
+            "unique_ratio": round(float(str_series.nunique() / len(str_series)), 4),
         }
 
     def _calculate_datetime_stats(self, dt_s: pd.Series) -> Dict[str, Any]:
@@ -507,11 +687,16 @@ class EDAEngine:
             inferred_freq = None
 
         return {
+            "min_date": min_dt.isoformat(),
+            "max_date": max_dt.isoformat(),
             "min_timestamp": min_dt.isoformat(),
             "max_timestamp": max_dt.isoformat(),
+            "date_span": f"{span_days} days",
             "date_span_days": span_days,
             "unique_timestamps": n_uniq_dt,
             "duplicate_timestamps": dup_timestamps,
+            "duplicate_timestamp_count": dup_timestamps,
+            "missing_timestamp_count": 0,
             "inferred_frequency": str(inferred_freq) if inferred_freq else "irregular",
             "timezone": str(valid_dt.dt.tz) if hasattr(valid_dt.dt, "tz") and valid_dt.dt.tz else None,
         }
@@ -688,6 +873,11 @@ class EDAEngine:
 
         return {
             "quality_score": round(overall, 4),
+            "overall_quality_score": round(overall, 4),
+            "completeness_score": round(float(comp_score), 4),
+            "uniqueness_score": round(float(uniqueness_score), 4),
+            "validity_score": round(float(validity_score), 4),
+            "consistency_score": round(float(consistency_score), 4),
             "quality_rating": rating,
             "components": {
                 "completeness": round(float(comp_score), 4),
@@ -695,6 +885,13 @@ class EDAEngine:
                 "uniqueness": round(float(uniqueness_score), 4),
                 "consistency": round(float(consistency_score), 4),
                 "structural_usability": round(float(structural_score), 4),
+            },
+            "explanations": {
+                "completeness": f"{round(float(comp_score)*100, 1)}% complete (non-missing values).",
+                "validity": f"{round(float(validity_score)*100, 1)}% valid formatting across columns.",
+                "uniqueness": f"{round(float(uniqueness_score)*100, 1)}% unique non-duplicate observations.",
+                "consistency": f"{round(float(consistency_score)*100, 1)}% informative non-constant columns.",
+                "structural_usability": f"{round(float(structural_score)*100, 1)}% usable analytical features.",
             },
         }
 
@@ -718,11 +915,15 @@ class EDAEngine:
         sparse_cols = missing_analysis["columns_by_severity"][">90%"] + missing_analysis["columns_by_severity"][">60-90%"]
         if sparse_cols:
             findings.append({
+                "code": "HIGH_MISSINGNESS",
                 "category": "MISSING_DATA",
                 "severity": "HIGH",
                 "column": sparse_cols,
+                "affected_columns": sparse_cols,
+                "message": f"{len(sparse_cols)} column(s) contain over 60% missing values.",
                 "description": f"{len(sparse_cols)} column(s) contain over 60% missing values.",
                 "evidence": {"sparse_columns": sparse_cols},
+                "suggested_action": "Consider imputing or dropping sparse columns before building supervised learning models.",
                 "recommended_action": "Consider imputing or dropping sparse columns before building supervised learning models.",
             })
 
@@ -730,38 +931,50 @@ class EDAEngine:
         dup_cnt = duplicate_analysis.get("exact_duplicate_rows", 0)
         if dup_cnt > 0:
             findings.append({
+                "code": "DUPLICATE_ROWS",
                 "category": "DUPLICATES",
                 "severity": "MEDIUM" if duplicate_analysis["duplicate_percentage"] < 10.0 else "HIGH",
                 "column": None,
+                "affected_columns": [],
+                "message": f"Found {dup_cnt} exact duplicate rows ({duplicate_analysis['duplicate_percentage']}%) in the dataset.",
                 "description": f"Found {dup_cnt} exact duplicate rows ({duplicate_analysis['duplicate_percentage']}%) in the dataset.",
                 "evidence": {"duplicate_count": dup_cnt, "duplicate_percentage": duplicate_analysis["duplicate_percentage"]},
+                "suggested_action": "Verify if repeated observations reflect legitimate multiple occurrences or data ingestion artifacts.",
                 "recommended_action": "Verify if repeated observations reflect legitimate multiple occurrences or data ingestion artifacts.",
             })
 
         # 3. Constant Columns Finding
-        const_cols = [c for c, p in columns_profile.items() if p.get("is_constant")]
+        const_cols = [c for c, p in columns_profile.items() if p.get("is_constant") or p.get("constant")]
         if const_cols:
             findings.append({
+                "code": "CONSTANT_COLUMN",
                 "category": "CONSTANT_COLUMN",
                 "severity": "MEDIUM",
                 "column": const_cols,
+                "affected_columns": const_cols,
+                "message": f"{len(const_cols)} column(s) have zero variance (single unique value).",
                 "description": f"{len(const_cols)} column(s) have zero variance (single unique value).",
                 "evidence": {"constant_columns": const_cols},
+                "suggested_action": "Exclude zero-variance columns from downstream statistical analysis and predictive modeling.",
                 "recommended_action": "Exclude zero-variance columns from downstream statistical analysis and predictive modeling.",
             })
 
         # 4. Dirty Data Finding
-        for c, p in columns_profile.items():
-            if p.get("dirty_coercion"):
-                dc = p["dirty_coercion"]
-                findings.append({
-                    "category": "INVALID_VALUES",
-                    "severity": "LOW" if dc["coercion_success_rate"] >= 0.90 else "MEDIUM",
-                    "column": c,
-                    "description": f"Column '{c}' contains string-formatted numbers requiring cleaning (cleaned: {dc['values_cleaned_count']}).",
-                    "evidence": dc,
-                    "recommended_action": "Apply automatic CanonicalDataLayer numeric coercion during preprocessing.",
-                })
+        dirty_cols = [c for c, p in columns_profile.items() if p.get("dirty_coercion")]
+        for c in dirty_cols:
+            dc = columns_profile[c]["dirty_coercion"]
+            findings.append({
+                "code": "DIRTY_NUMERIC_STRINGS",
+                "category": "INVALID_VALUES",
+                "severity": "LOW" if dc["coercion_success_rate"] >= 0.90 else "MEDIUM",
+                "column": c,
+                "affected_columns": [c],
+                "message": f"Column '{c}' contains string-formatted numbers requiring cleaning (cleaned: {dc['values_cleaned_count']}).",
+                "description": f"Column '{c}' contains string-formatted numbers requiring cleaning (cleaned: {dc['values_cleaned_count']}).",
+                "evidence": dc,
+                "suggested_action": "Apply automatic CanonicalDataLayer numeric coercion during preprocessing.",
+                "recommended_action": "Apply automatic CanonicalDataLayer numeric coercion during preprocessing.",
+            })
 
         # 5. Outliers Finding
         for c, p in columns_profile.items():
@@ -770,11 +983,15 @@ class EDAEngine:
                 out_info = num_st["outliers"]
                 if out_info["percentage"] >= 5.0:
                     findings.append({
+                        "code": "OUTLIERS_DETECTED",
                         "category": "OUTLIER",
                         "severity": "LOW",
                         "column": c,
+                        "affected_columns": [c],
+                        "message": f"Column '{c}' contains {out_info['count']} statistically extreme values ({out_info['percentage']}%).",
                         "description": f"Column '{c}' contains {out_info['count']} statistically extreme values ({out_info['percentage']}%).",
                         "evidence": {"outlier_count": out_info["count"], "lower_bound": out_info["lower_bound"], "upper_bound": out_info["upper_bound"]},
+                        "suggested_action": "Inspect distribution skewness and consider robust scaling (e.g. RobustScaler) or rank-based transforms.",
                         "recommended_action": "Inspect distribution skewness and consider robust scaling (e.g. RobustScaler) or rank-based transforms.",
                     })
 
@@ -783,11 +1000,15 @@ class EDAEngine:
             cat_st = p.get("categorical_stats")
             if cat_st and cat_st.get("is_imbalanced"):
                 findings.append({
+                    "code": "CATEGORY_IMBALANCE",
                     "category": "IMBALANCE",
                     "severity": "LOW",
                     "column": c,
+                    "affected_columns": [c],
+                    "message": f"Column '{c}' is heavily imbalanced (dominant category represents {cat_st['dominant_category_percentage']}% of records).",
                     "description": f"Column '{c}' is heavily imbalanced (dominant category represents {cat_st['dominant_category_percentage']}% of records).",
                     "evidence": {"dominant_percentage": cat_st["dominant_category_percentage"]},
+                    "suggested_action": "Consider stratified sampling or class rebalancing if using this column as a classification target.",
                     "recommended_action": "Consider stratified sampling or class rebalancing if using this column as a classification target.",
                 })
 

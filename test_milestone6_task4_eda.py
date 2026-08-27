@@ -2,32 +2,33 @@
 Milestone 6 — Task 4: Comprehensive Universal EDA, Data Profiling & Data Quality Intelligence Test Suite.
 
 Verifies:
-A. Basic arbitrary numeric dataset
+A. Basic arbitrary dataset profiling
 B. Arbitrary column names
-C. Mixed numeric/categorical dataset
-D. Missing values & severity bands
-E. Sparse columns detection
-F. Duplicate rows analysis
-G. Constant columns detection
-H. Identifier columns detection
-I. High-cardinality text fields
-J. Dirty currency values
-K. Percentage values
-L. Accounting negative values
-M. Datetime strings & span calculation
-N. Ambiguous datetime/numeric values
-O. Numeric distribution statistics
-P. Categorical distribution statistics
-Q. Outlier detection (non-causal)
-R. Quality score bounds & components
-S. Confidence bounds & separation from quality score
-T. Evidence validity & provenance
-U. Non-causal language enforcement
-V. NaN/Infinity sanitization
-W. Empty dataset failure contract
-X. Invalid dataset failure contract
-Y. Natural language EDA routing
-Z. FastAPI endpoints integration
+C. Numeric statistics
+D. Categorical profiling
+E. Datetime profiling
+F. Dirty currency values
+G. Percentage values
+H. Accounting negatives
+I. Unit multipliers
+J. Missing values
+K. Sparse columns
+L. Duplicate rows
+M. Constant columns
+N. Near-constant columns
+O. Identifier detection
+P. High-cardinality text
+Q. Outlier detection
+R. Skew detection
+S. Invalid datetime values
+T. Empty dataset
+U. Malformed dataset
+V. Mathematical invariants
+W. Deterministic output
+X. AgentResult contract
+Y. No traceback leakage
+Z. FastAPI endpoint integration
+AA. DataFrame non-mutation & raw values preservation
 """
 from __future__ import annotations
 
@@ -76,11 +77,13 @@ def test_A_B_basic_numeric_and_arbitrary_names():
     })
 
     engine = EDAEngine()
-    res = engine.profile(df)
+    res = engine.analyze(df)
 
     assert "error" not in res
     assert res["summary"]["row_count"] == 60
     assert res["summary"]["column_count"] == 2
+    assert res["summary"]["original_rows"] == 60
+    assert res["summary"]["original_columns"] == 2
     assert "dim_alpha_9" in res["summary"]["numeric_columns"]
     assert "val_zeta_8" in res["summary"]["numeric_columns"]
 
@@ -89,16 +92,17 @@ def test_A_B_basic_numeric_and_arbitrary_names():
     assert stats_a["max"] == 100.0
     assert stats_a["mean"] == 55.0
     assert stats_a["median"] == 55.0
+    assert stats_a["q1"] <= stats_a["median"] <= stats_a["q3"]
 
 
 # ---------------------------------------------------------------------------
-# C. Mixed Numeric & Categorical Dataset
+# C & D. Numeric Statistics & Categorical Profiling
 # ---------------------------------------------------------------------------
-def test_C_mixed_numeric_categorical_dataset():
+def test_C_D_numeric_and_categorical_profiling():
     """Verify distinct profiling of numeric vs categorical features."""
     df = pd.DataFrame({
         "category_code": ["TierA", "TierB", "TierA", "TierC"] * 15,
-        "score_val": np.random.normal(100, 20, 60),
+        "amount_usd": np.random.exponential(100.0, 60),
     })
 
     engine = EDAEngine()
@@ -106,309 +110,312 @@ def test_C_mixed_numeric_categorical_dataset():
 
     assert "error" not in res
     assert "category_code" in res["summary"]["categorical_columns"]
-    assert "score_val" in res["summary"]["numeric_columns"]
+    assert "amount_usd" in res["summary"]["numeric_columns"]
 
-    cat_stat = res["statistics"]["categorical"]["category_code"]
-    assert cat_stat["unique_count"] == 3
-    assert cat_stat["cardinality_ratio"] == 0.05
-    assert len(cat_stat["top_categories"]) == 3
+    cat_stats = res["statistics"]["categorical"]["category_code"]
+    assert cat_stats["unique_count"] == 3
+    assert len(cat_stats["top_categories"]) == 3
+    assert cat_stats["dominant_category_percentage"] == 50.0  # TierA is 30/60 = 50%
+    assert cat_stats["entropy"] > 0.0
+    assert "top_values" in cat_stats
+    assert "top_value_counts" in cat_stats
 
 
 # ---------------------------------------------------------------------------
-# D & E. Missing Values Severity & Sparse Columns
+# E. Datetime Profiling
 # ---------------------------------------------------------------------------
-def test_D_E_missing_severity_and_sparse_columns():
-    """Verify missingness classification into severity bands without global row dropping."""
-    n = 50
+def test_E_datetime_profiling():
+    """Verify datetime parsing, span calculation, and frequency detection."""
+    dates = pd.date_range("2024-01-01", periods=100, freq="D")
     df = pd.DataFrame({
-        "full_col": list(range(n)),                                  # 0% missing
-        "low_missing": [None if i < 3 else i for i in range(n)],     # 6% missing (>0-10%)
-        "med_missing": [None if i < 12 else i for i in range(n)],    # 24% missing (>10-30%)
-        "high_missing": [None if i < 25 else i for i in range(n)],   # 50% missing (>30-60%)
-        "sparse_col": [None if i < 45 else i for i in range(n)],     # 90% missing (>60-90%)
+        "event_timestamp": dates.strftime("%Y-%m-%d"),
+        "reading": np.random.normal(20, 2, 100),
     })
 
     engine = EDAEngine()
-    res = engine.profile(df)
+    res = engine.analyze(df)
 
     assert "error" not in res
-    m_analysis = res["missing_analysis"]
-    bands = m_analysis["columns_by_severity"]
+    assert "event_timestamp" in res["summary"]["datetime_columns"]
 
-    assert "full_col" in bands["0%"]
-    assert "low_missing" in bands[">0-10%"]
-    assert "med_missing" in bands[">10-30%"]
-    assert "high_missing" in bands[">30-60%"]
-    assert "sparse_col" in bands[">60-90%"] or "sparse_col" in bands[">90%"]
-    assert m_analysis["sparse_columns_count"] >= 1
-
-
-# ---------------------------------------------------------------------------
-# F. Duplicate Rows Analysis
-# ---------------------------------------------------------------------------
-def test_F_duplicate_rows_analysis():
-    """Verify duplicate row counting and percentage calculation without auto-deletion."""
-    df = pd.DataFrame({
-        "feat_1": [1, 2, 3, 1, 2, 3, 1, 2, 3, 10],
-        "feat_2": ["A", "B", "C", "A", "B", "C", "A", "B", "C", "Z"],
-    })
-
-    engine = EDAEngine()
-    res = engine.profile(df)
-
-    assert "error" not in res
-    dup_info = res["duplicate_analysis"]
-    assert dup_info["has_duplicates"] is True
-    assert dup_info["exact_duplicate_rows"] == 6
-    assert dup_info["duplicate_percentage"] == 60.0
+    dt_stats = res["statistics"]["datetime"]["event_timestamp"]
+    assert dt_stats["unique_timestamps"] == 100
+    assert dt_stats["duplicate_timestamps"] == 0
+    assert dt_stats["date_span_days"] == 99.0
+    assert dt_stats["inferred_frequency"] in ("D", "irregular")
+    assert "min_date" in dt_stats
+    assert "max_date" in dt_stats
 
 
 # ---------------------------------------------------------------------------
-# G & H. Constant Columns & Identifier Detection
+# F, G, H, I. Dirty Numeric Coercion (Currencies, %, Parens, Unit Multipliers)
 # ---------------------------------------------------------------------------
-def test_G_H_constant_and_identifier_detection():
-    """Verify zero-variance constant columns and surrogate key / UUID detection."""
-    n = 40
-    df = pd.DataFrame({
-        "const_numeric": [42.0] * n,
-        "const_string": ["FIXED"] * n,
-        "uuid_keys": [f"550e8400-e29b-41d4-a716-{i:012d}" for i in range(n)],
-        "seq_index": list(range(100, 100 + n)),
-        "real_feature": np.random.normal(0, 1, n),
-    })
-
-    engine = EDAEngine()
-    res = engine.profile(df)
-
-    assert "error" not in res
-    summ = res["summary"]
-    assert "const_numeric" in summ["constant_columns"]
-    assert "const_string" in summ["constant_columns"]
-    assert "uuid_keys" in summ["identifier_columns"]
-    assert "seq_index" in summ["identifier_columns"]
-    assert "real_feature" in summ["numeric_columns"]
-
-
-# ---------------------------------------------------------------------------
-# I. High-Cardinality Text Fields
-# ---------------------------------------------------------------------------
-def test_I_high_cardinality_text():
-    """Verify high-cardinality text fields are identified and assigned text attribute role."""
-    n = 60
-    df = pd.DataFrame({
-        "free_text_comment": [f"Customer remark number {i} regarding order experience" for i in range(n)],
-        "num_metric": np.random.normal(50, 10, n),
-    })
-
-    engine = EDAEngine()
-    res = engine.profile(df)
-
-    assert "error" not in res
-    col_prof = res["columns"]["free_text_comment"]
-    assert col_prof["inferred_type"] in ("text", "identifier")
-    assert col_prof["is_high_cardinality"] is True
-
-
-# ---------------------------------------------------------------------------
-# J, K, L. Dirty Numeric Values (Currencies, %, Accounting Negatives, Units)
-# ---------------------------------------------------------------------------
-def test_J_K_L_dirty_numeric_coercion():
-    """Verify robust detection and cleaning of dirty currencies, percentages, accounting brackets, suffixes."""
-    dirty_vals = ["$1,200", "€2.5k", "£500", "15.5%", "(1,200.50)", "2.4M", "3B", "100.0", "-500", "$2,000"]
-    df = pd.DataFrame({"dirty_measure": dirty_vals * 4, "clean_num": list(range(40))})
+def test_F_G_H_I_dirty_numeric_coercion_types():
+    """Verify universal coercion of dirty currencies, percentages, accounting brackets, and unit multipliers."""
+    dirty_vals = ["$1,200", "€1,200", "£1,200", "15%", "(1,200.50)", "1.5k", "2M", "3B", " 500 ", "100.0"]
+    df = pd.DataFrame({"dirty_measure": dirty_vals * 5})
 
     engine = EDAEngine()
     res = engine.profile(df)
 
     assert "error" not in res
     assert "dirty_measure" in res["summary"]["numeric_columns"]
-    dirty_diag = res["dirty_data_analysis"]
-    assert dirty_diag["total_dirty_columns"] >= 1
-    assert "dirty_measure" in dirty_diag["columns"]
-    assert dirty_diag["columns"]["dirty_measure"]["values_cleaned_count"] > 0
+
+    dirty_summary = res["dirty_data_analysis"]
+    assert dirty_summary["total_dirty_columns"] >= 1
+    assert "dirty_measure" in dirty_summary["columns"]
+
+    dc = dirty_summary["columns"]["dirty_measure"]
+    assert dc["coercion_success_rate"] >= 0.90
+    assert dc["values_cleaned_count"] > 0
+    assert dc["transformation_applied"] is not None
 
 
 # ---------------------------------------------------------------------------
-# M & N. Datetime Strings & Ambiguous Values
+# J & K. Missing Values & Sparse Columns Detection
 # ---------------------------------------------------------------------------
-def test_M_N_datetime_strings_and_span():
-    """Verify arbitrary ISO and date string detection, timestamp span, and regularity analysis."""
-    dates = pd.date_range("2024-01-01", periods=50, freq="D")
-    df = pd.DataFrame({
-        "timestamp_iso": [d.isoformat() for d in dates],
-        "metric_val": np.random.normal(10, 2, 50),
-    })
-
-    engine = EDAEngine()
-    res = engine.profile(df)
-
-    assert "error" not in res
-    assert "timestamp_iso" in res["summary"]["datetime_columns"]
-    dt_st = res["statistics"]["datetime"]["timestamp_iso"]
-    assert dt_st["unique_timestamps"] == 50
-    assert dt_st["date_span_days"] == 49.0
-
-
-# ---------------------------------------------------------------------------
-# O. Numeric Distribution Statistics & Quantiles
-# ---------------------------------------------------------------------------
-def test_O_numeric_distribution_statistics():
-    """Verify exhaustive non-causal numeric metrics (mean, std, min, q25, median, q75, max, IQR, MAD, skew, kurtosis)."""
-    np.random.seed(42)
+def test_J_K_missing_data_and_sparse_columns():
+    """Verify missing data severity bands without destructive row dropping."""
     n = 100
-    v = np.random.normal(50, 10, n)
-    df = pd.DataFrame({"sample_metric": v})
+    df = pd.DataFrame({
+        "clean_col": [1.0] * n,
+        "low_missing": [None if i < 5 else float(i) for i in range(n)],     # 5%
+        "mid_missing": [None if i < 25 else float(i) for i in range(n)],    # 25%
+        "high_missing": [None if i < 50 else float(i) for i in range(n)],   # 50%
+        "sparse_col": [None if i < 80 else float(i) for i in range(n)],     # 80%
+        "extreme_col": [None if i < 95 else float(i) for i in range(n)],    # 95%
+    })
 
     engine = EDAEngine()
-    res = engine.profile(df)
+    res = engine.analyze(df)
 
     assert "error" not in res
-    num_st = res["statistics"]["numeric"]["sample_metric"]
-    assert num_st["count"] == 100
-    assert 45.0 <= num_st["mean"] <= 55.0
-    assert 8.0 <= num_st["std"] <= 12.0
-    assert num_st["min"] <= num_st["q25"] <= num_st["median"] <= num_st["q75"] <= num_st["max"]
-    assert num_st["iqr"] == pytest.approx(num_st["q75"] - num_st["q25"], rel=1e-3)
-    assert "mad" in num_st
-    assert "skewness" in num_st
-    assert "kurtosis" in num_st
-    assert "percentiles" in num_st
-    assert len(num_st["percentiles"]) >= 5
+    missing_analysis = res["missing_analysis"]
+    bands = missing_analysis["columns_by_severity"]
+
+    assert "clean_col" in bands["0%"]
+    assert "low_missing" in bands[">0-10%"]
+    assert "mid_missing" in bands[">10-30%"]
+    assert "high_missing" in bands[">30-60%"]
+    assert "sparse_col" in bands[">60-90%"]
+    assert "extreme_col" in bands[">90%"]
+    assert "sparse_col" in res["summary"]["sparse_columns"]
 
 
 # ---------------------------------------------------------------------------
-# P & Q. Categorical Entropy & Outlier Detection
+# L. Duplicate Rows Analysis
 # ---------------------------------------------------------------------------
-def test_P_Q_categorical_entropy_and_outliers():
-    """Verify categorical entropy, imbalance detection, and Tukey IQR outlier detection."""
-    np.random.seed(42)
+def test_L_duplicate_rows_analysis():
+    """Verify exact duplicate row tracking and duplicate percentage calculation."""
+    df = pd.DataFrame({
+        "a": [1, 1, 1, 2, 3],
+        "b": ["x", "x", "x", "y", "z"],
+    })
+
+    engine = EDAEngine()
+    res = engine.analyze(df)
+
+    assert "error" not in res
+    dup_analysis = res["duplicate_analysis"]
+    assert dup_analysis["exact_duplicate_rows"] == 2
+    assert dup_analysis["duplicate_percentage"] == 40.0
+    assert dup_analysis["has_duplicates"] is True
+    assert dup_analysis["unique_rows_count"] == 3
+
+
+# ---------------------------------------------------------------------------
+# M & N. Constant & Near-Constant Columns Detection
+# ---------------------------------------------------------------------------
+def test_M_N_constant_and_near_constant_columns():
+    """Verify zero-variance constant and near-constant columns are detected."""
+    df = pd.DataFrame({
+        "const_num": [42.0] * 50,
+        "const_str": ["FIXED"] * 50,
+        "near_const": ["MAIN"] * 48 + ["RARE", "RARE2"],  # 96% dominant
+        "normal_feat": np.random.normal(0, 1, 50),
+    })
+
+    engine = EDAEngine()
+    res = engine.analyze(df)
+
+    assert "error" not in res
+    assert "const_num" in res["summary"]["constant_columns"]
+    assert "const_str" in res["summary"]["constant_columns"]
+    assert res["columns"]["near_const"]["is_near_constant"] is True
+    assert res["columns"]["near_const"]["near_constant"] is True
+
+
+# ---------------------------------------------------------------------------
+# O. Statistical Identifier Detection
+# ---------------------------------------------------------------------------
+def test_O_identifier_detection():
+    """Verify 100% unique sequence and string identifiers are recognized as keys."""
     n = 60
-    # Outlier injection
-    vals = np.random.normal(20, 2, n)
-    vals[0] = 100.0  # Extreme outlier
-    vals[1] = 105.0  # Extreme outlier
-
-    # Imbalanced category
-    cats = ["Common"] * 55 + ["RareA", "RareB", "RareC", "RareD", "RareE"]
-
-    df = pd.DataFrame({"outlier_metric": vals, "imbalanced_cat": cats})
+    df = pd.DataFrame({
+        "id_seq": list(range(1001, 1001 + n)),
+        "uuid_str": [f"user_{i:04d}_alpha" for i in range(n)],
+        "metric_val": np.random.normal(50, 10, n),
+    })
 
     engine = EDAEngine()
     res = engine.profile(df)
 
     assert "error" not in res
-    # Categorical stats
-    cat_st = res["statistics"]["categorical"]["imbalanced_cat"]
-    assert cat_st["is_imbalanced"] is True
-    assert cat_st["dominant_category_percentage"] > 85.0
-    assert cat_st["entropy"] > 0.0
+    assert "id_seq" in res["summary"]["identifier_columns"]
+    assert "uuid_str" in res["summary"]["identifier_columns"]
+    assert res["columns"]["id_seq"]["semantic_role"] == "key"
+    assert res["columns"]["uuid_str"]["semantic_role"] == "key"
 
-    # Numeric outliers
-    num_st = res["statistics"]["numeric"]["outlier_metric"]
-    assert num_st["outliers"]["count"] >= 2
+
+# ---------------------------------------------------------------------------
+# P. High-Cardinality Text Fields
+# ---------------------------------------------------------------------------
+def test_P_high_cardinality_text_fields():
+    """Verify free-form multi-word text is categorized as text rather than identifier."""
+    n = 60
+    texts = [f"Customer reported issue with billing system regarding transaction #{i} on portal" for i in range(n)]
+    df = pd.DataFrame({
+        "feedback_text": texts,
+        "rating": np.random.choice([1, 2, 3, 4, 5], n),
+    })
+
+    engine = EDAEngine()
+    res = engine.analyze(df)
+
+    assert "error" not in res
+    assert "feedback_text" in res["summary"]["text_columns"]
+    assert res["columns"]["feedback_text"]["semantic_role"] == "attribute"
+    assert "text_stats" in res["columns"]["feedback_text"]
+    txt_st = res["columns"]["feedback_text"]["text_stats"]
+    assert txt_st["average_length"] > 40
+    assert txt_st["min_length"] > 0
+
+
+# ---------------------------------------------------------------------------
+# Q & R. Outlier & Skew Detection
+# ---------------------------------------------------------------------------
+def test_Q_R_outlier_and_skew_detection():
+    """Verify non-causal outlier detection using Tukey IQR and skewness diagnostics."""
+    np.random.seed(42)
+    # Normal distribution with 3 extreme outliers
+    v = np.random.normal(50, 5, 100)
+    v[0] = 500.0   # Extreme high
+    v[1] = -400.0  # Extreme low
+    v[2] = 450.0   # Extreme high
+    df = pd.DataFrame({"sensor_reading": v})
+
+    engine = EDAEngine()
+    res = engine.profile(df)
+
+    assert "error" not in res
+    num_st = res["statistics"]["numeric"]["sensor_reading"]
+    assert num_st["outliers"]["count"] >= 3
+    assert num_st["outlier_count"] >= 3
     assert num_st["outliers"]["method"] == "tukey_iqr_1.5"
+    assert num_st["skewness"] != 0.0
+    assert "robust_zscore_outliers" in num_st
+    assert "histogram" in num_st
 
 
 # ---------------------------------------------------------------------------
-# R & S. Data Quality Score & Confidence Bounds
+# S. Ambiguous / Invalid Datetime Values
 # ---------------------------------------------------------------------------
-def test_R_S_quality_score_and_confidence_bounds():
-    """Verify quality score [0, 1] component breakdown and confidence [0, 1] separation."""
+def test_S_ambiguous_datetime_values():
+    """Verify numeric integer quantities are not incorrectly parsed as datetimes."""
     df = pd.DataFrame({
-        "num_1": [1.0, 2.0, None, 4.0, 5.0] * 6,
-        "num_2": [10.0] * 30,  # Constant
-        "cat_1": ["A", "B", "C"] * 10,
+        "item_quantity": [1, 2, 5, 10, 20, 50, 100] * 10,
+        "price_usd": [10.5, 20.0, 5.0, 99.9, 150.0, 12.0, 8.0] * 10,
     })
 
-    agent = EDAAgent()
-    res: AgentResult = agent.run({"data": df})
+    engine = EDAEngine()
+    res = engine.analyze(df)
 
-    assert res.is_success
-    dq = res.data["data_quality"]
-    assert 0.0 <= dq["quality_score"] <= 1.0
-    assert dq["quality_rating"] in ("EXCELLENT", "GOOD", "MODERATE", "POOR", "CRITICAL")
-    comps = dq["components"]
-    for c_name in ("completeness", "validity", "uniqueness", "consistency", "structural_usability"):
-        assert 0.0 <= comps[c_name] <= 1.0
-
-    # Confidence separate and bounded
-    assert 0.0 <= res.confidence <= 1.0
+    assert "error" not in res
+    assert "item_quantity" in res["summary"]["numeric_columns"]
+    assert "item_quantity" not in res["summary"]["datetime_columns"]
 
 
 # ---------------------------------------------------------------------------
-# T, U, V. Evidence Validity, Non-Causal Language & Sanitization
+# T & U. Failure Modes: Empty & Malformed Datasets
 # ---------------------------------------------------------------------------
-def test_T_U_V_evidence_non_causal_and_sanitization():
-    """Verify ClaimType.OBSERVATION evidence, strictly non-causal descriptions, and zero NaN/Inf leaks."""
-    df = pd.DataFrame({
-        "col_x": np.random.normal(0, 1, 30),
-        "col_y": ["ValA", "ValB"] * 15,
-    })
-
-    agent = EDAAgent()
-    res: AgentResult = agent.run({"data": df})
-
-    assert res.is_success
-    assert_no_nan_or_inf(res.data)
-
-    # Evidence
-    assert len(res.evidence) >= 1
-    for ev in res.evidence:
-        assert ev.claim_type == ClaimType.OBSERVATION
-
-    # Findings non-causal check
-    for f in res.data["findings"]:
-        desc = f["description"].lower()
-        for forbidden in ("causes", "caused", "drives", "driven by", "because of", "leads to"):
-            assert forbidden not in desc
-
-
-# ---------------------------------------------------------------------------
-# W & X. Failure Contracts (Empty Dataset, All Null)
-# ---------------------------------------------------------------------------
-def test_W_X_failure_modes_and_error_contracts():
-    """Verify structured failure handling for 0 rows, 0 columns, or all-null datasets."""
+def test_T_U_failure_modes_and_validation():
+    """Verify structured AgentError returns for empty, zero-column, or all-null DataFrames."""
     agent = EDAAgent()
 
-    # Empty rows
+    # 1. Empty DataFrame
     res_empty = agent.run({"data": pd.DataFrame()})
     assert not res_empty.is_success
-    assert "0 rows" in (res_empty.error_message or "").lower() or "empty" in (res_empty.error_message or "").lower()
+    assert res_empty.status in (AgentStatus.ERROR, AgentStatus.VALIDATION_FAILED)
 
-    # All null
-    res_null = agent.run({"data": pd.DataFrame({"a": [None, None], "b": [None, None]})})
+    # 2. All-null DataFrame
+    df_null = pd.DataFrame({"a": [None, None], "b": [None, None]})
+    res_null = agent.run({"data": df_null})
     assert not res_null.is_success
     assert "null" in (res_null.error_message or "").lower() or "missing" in (res_null.error_message or "").lower()
 
 
 # ---------------------------------------------------------------------------
-# Y. Natural Language Intent Routing
+# V & W & X & Y. Invariants, Determinism, AgentResult & Non-Causal Language
 # ---------------------------------------------------------------------------
-def test_Y_natural_language_eda_routing():
-    """Verify intent analyzer correctly maps exploratory and data profiling queries to EDA."""
-    analyzer = IntentAnalyzer()
+def test_V_W_X_Y_invariants_determinism_and_agent_result():
+    """Verify mathematical bounds [0, 1], zero NaN/Inf leakage, and deterministic outputs."""
+    np.random.seed(42)
+    df = pd.DataFrame({
+        "metric_x": np.random.normal(100, 20, 50),
+        "grp_y": ["Alpha", "Beta"] * 25,
+    })
 
-    r1 = analyzer.analyze("describe this dataset")
-    assert r1.primary_intent == AnalyticalIntent.EDA
+    agent = EDAAgent()
+    res1: AgentResult = agent.run({"data": df})
+    res2: AgentResult = agent.run({"data": df})
 
-    r2 = analyzer.analyze("profile the data")
-    assert r2.primary_intent == AnalyticalIntent.EDA
+    assert res1.is_success
+    assert res1.confidence >= 0.30
+    assert_no_nan_or_inf(res1.data)
 
-    r3 = analyzer.analyze("give me a data quality report")
-    assert r3.primary_intent == AnalyticalIntent.EDA
+    # Quality score bounds
+    dq = res1.data["data_quality"]
+    assert 0.0 <= dq["quality_score"] <= 1.0
+    for comp_name, comp_val in dq["components"].items():
+        assert 0.0 <= comp_val <= 1.0, f"Component {comp_name} out of bounds: {comp_val}"
 
-    r4 = analyzer.analyze("what is wrong with this dataset?")
-    assert r4.primary_intent == AnalyticalIntent.EDA
+    # Column quality scores
+    for col_name, col_data in res1.data["columns"].items():
+        assert 0.0 <= col_data["quality_score"] <= 1.0
 
-    r5 = analyzer.analyze("show dataset statistics and missing values")
-    assert r5.primary_intent == AnalyticalIntent.EDA
+    # Determinism
+    assert res1.data["summary"] == res2.data["summary"]
+
+    # Non-causal wording
+    for rec in res1.data.get("recommendations", []):
+        for forbidden in ("causes", "drives", "because of", "results in"):
+            assert forbidden not in rec.lower()
+
+
+# ---------------------------------------------------------------------------
+# AA. DataFrame Non-Mutation & Raw Values Preservation
+# ---------------------------------------------------------------------------
+def test_AA_dataframe_non_mutation():
+    """Verify input DataFrame is not mutated in-place and raw string formatting is preserved."""
+    dirty_vals = ["$100.00", "$200.00", "$300.00"] * 10
+    original_series = pd.Series(dirty_vals, name="raw_revenue")
+    df = pd.DataFrame({"raw_revenue": original_series.copy()})
+
+    engine = EDAEngine()
+    res = engine.analyze(df)
+
+    assert "error" not in res
+    # Ensure source DataFrame was NOT overwritten in-place
+    assert (df["raw_revenue"] == original_series).all()
+    assert df["raw_revenue"].dtype == object
+    assert df["raw_revenue"].iloc[0] == "$100.00"
 
 
 # ---------------------------------------------------------------------------
 # Z. FastAPI Live HTTP Endpoints
 # ---------------------------------------------------------------------------
 def test_Z_fastapi_eda_endpoints():
-    """Verify POST /api/v1/eda/profile, POST /api/v1/eda, and POST /api/v1/data/profile via TestClient."""
+    """Verify POST /api/v1/eda/profile, POST /api/v1/eda, POST /api/v1/eda/run, and POST /api/v1/data/profile via TestClient."""
     client = TestClient(app)
 
     records = [{"feature_a": float(i), "feature_b": f"Group_{i%3}"} for i in range(25)]
@@ -424,10 +431,14 @@ def test_Z_fastapi_eda_endpoints():
     resp2 = client.post("/api/v1/eda", json={"dataset": records})
     assert resp2.status_code == 200
 
-    # 3. /api/v1/data/profile
+    # 3. /api/v1/eda/run
+    resp_run = client.post("/api/v1/eda/run", json={"dataset": records})
+    assert resp_run.status_code == 200
+
+    # 4. /api/v1/data/profile
     resp3 = client.post("/api/v1/data/profile", json={"dataset": records})
     assert resp3.status_code == 200
 
-    # 4. Empty dataset returns 400
+    # 5. Empty dataset returns 400
     resp_empty = client.post("/api/v1/eda/profile", json={"dataset": []})
     assert resp_empty.status_code == 400

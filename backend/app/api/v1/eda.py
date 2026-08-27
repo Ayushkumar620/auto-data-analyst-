@@ -22,6 +22,7 @@ class EDARequest(BaseModel):
 
 @router.post("/eda/profile")
 @router.post("/eda")
+@router.post("/eda/run")
 @router.post("/data/profile")
 def run_eda_profile(req: EDARequest) -> Dict[str, Any]:
     """Execute autonomous dataset profiling, schema inference, distributions, and quality assessment."""
