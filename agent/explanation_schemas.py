@@ -7,7 +7,7 @@ evidence tracing, methodology breakdown, metric interpretation, and uncertainty 
 from __future__ import annotations
 
 import uuid
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from pydantic import BaseModel, ConfigDict, Field
 
 
