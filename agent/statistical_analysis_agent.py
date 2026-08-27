@@ -176,13 +176,15 @@ class StatisticalAnalysisAgent(BaseAgent):
                 "weak_global_strong_subgroup_count": len(weak_findings),
             }
 
+            result["metrics"] = metrics_dict
             raw_res = self._finish(
                 result,
                 evidence=evidence_list,
-                metrics=metrics_dict,
+                metadata={"metrics": metrics_dict},
                 confidence=conf_rep.confidence,
                 model_used="StatisticalAnalysisEngine",
             )
+            raw_res.metrics = metrics_dict
 
             # 5. Result validation and repair
             repaired_res, _ = ResultValidator().repair(raw_res, context={"data": data})
