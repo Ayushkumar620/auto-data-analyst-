@@ -169,6 +169,7 @@ class UniversalOrchestrator:
     def orchestrate(
         self,
         command: str,
+        data: Union[pd.DataFrame, Dict[str, Any], Any],
         data: Optional[Union[pd.DataFrame, Dict[str, Any], Any]] = None,
         target: Optional[str] = None,
         features: Optional[List[str]] = None,
@@ -233,6 +234,7 @@ class UniversalOrchestrator:
 
         # 3. Generate Analytical Plan
         plan: AnalyticalPlan = self.plan(
+            command=command,
             command=effective_command,
             df=df,
             profile=profile,
@@ -250,6 +252,7 @@ class UniversalOrchestrator:
             return self._build_unsupported_result(plan, orchestration_id)
 
         # 5. Execute Analytical Plan
+        return self.execute_plan(
         res = self.execute_plan(
             plan=plan,
             df=df,

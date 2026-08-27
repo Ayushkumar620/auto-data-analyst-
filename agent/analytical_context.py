@@ -234,10 +234,12 @@ class UniversalReferenceResolver:
         active_ds = context.datasets.get(context.active_dataset_id) if context.active_dataset_id else None
 
         # 1. Dataset Reference & Switching: e.g. "go back to sales", "switch to dataset_2"
+        switch_match = re.search(r"(switch to|go back to|use the)\s+([a-zA-Z0-9_\-\.]+)(\s+dataset)?", cmd_lower)
         switch_match = re.search(r"\b(switch to|go back to|use the)\s+([a-zA-Z0-9_\-\.]+)(\s+dataset)?\b", cmd_lower)
         if switch_match:
             requested_name = switch_match.group(2)
             for d_id, ds in context.datasets.items():
+                if requested_name in d_id.lower() or requested_name in ds.dataset_name.lower():
                 if requested_name in d_id.lower() or requested_name in ds.dataset_name.lower() or ds.dataset_name.lower() in requested_name:
                     dataset_id = d_id
                     resolved_refs["dataset"] = ds.dataset_name
@@ -257,6 +259,8 @@ class UniversalReferenceResolver:
                 suggested_options=options,
             )
 
+        # 3. Horizon Modification: e.g. "make it 12", "increase horizon to 10", "forecast next 12"
+        horizon_match = re.search(r"(make it|increase horizon to|set horizon to|horizon to|next)\s+(\d+)", cmd_lower)
         # 3. Horizon Modification: e.g. "make it 12", "increase horizon to 10", "forecast next 12", "increase horizon to 8 periods"
         horizon_match = re.search(r"\b(make it|increase horizon to|set horizon to|horizon to|next)\s+(\d+)", cmd_lower)
         if horizon_match:
@@ -279,11 +283,17 @@ class UniversalReferenceResolver:
                     dataset_id=dataset_id,
                 )
 
+        # 4. Target Pronoun Resolution: "predict it", "forecast it", "what predicts it", "the target", "same target"
+        if re.search(r"(predict it|forecast it|what predicts it|the target|same target|for it)", cmd_lower):
         # 4. Target Pronoun Resolution: "predict it", "forecast it", "what predicts it", "the target", "same target", "which feature predicts it"
         if re.search(r"\b(predict it|forecast it|what predicts it|predicts it|the target|same target|for it)\b", cmd_lower) or "predicts it" in cmd_lower or "predict it" in cmd_lower or "the target" in cmd_lower:
             if target:
                 resolved_refs["target"] = target
                 is_follow_up = True
+                resolved_cmd = re.sub(r"(predict it)", f"predict {target}", resolved_cmd, flags=re.IGNORECASE)
+                resolved_cmd = re.sub(r"(forecast it)", f"forecast {target}", resolved_cmd, flags=re.IGNORECASE)
+                resolved_cmd = re.sub(r"(what predicts it)", f"which feature predicts {target}", resolved_cmd, flags=re.IGNORECASE)
+                resolved_cmd = re.sub(r"(the target|same target)", target, resolved_cmd, flags=re.IGNORECASE)
                 resolved_cmd = re.sub(r"\b(predict it)\b", f"predict {target}", resolved_cmd, flags=re.IGNORECASE)
                 resolved_cmd = re.sub(r"\b(forecast it)\b", f"forecast {target}", resolved_cmd, flags=re.IGNORECASE)
                 resolved_cmd = re.sub(r"\b(what predicts it|which feature predicts it)\b", f"which feature predicts {target}", resolved_cmd, flags=re.IGNORECASE)
@@ -305,6 +315,7 @@ class UniversalReferenceResolver:
         # 5. Relationship References: "the strongest relationship", "that correlation", "that relationship", "second strongest"
         if "second strongest" in cmd_lower and context.latest_second_strongest_relationship:
             rel = context.latest_second_strongest_relationship
+            f1, f2 = rel.get("feature_1"), rel.get("feature_2")
             f1 = rel.get("feature_1") or rel.get("feature") or rel.get("var1")
             f2 = rel.get("feature_2") or rel.get("target") or rel.get("var2")
             if f1 and f2:
@@ -316,12 +327,15 @@ class UniversalReferenceResolver:
             is_follow_up = True
             if context.latest_strongest_relationship:
                 rel = context.latest_strongest_relationship
+                f1, f2 = rel.get("feature_1"), rel.get("feature_2")
                 f1 = rel.get("feature_1") or rel.get("feature") or rel.get("var1")
                 f2 = rel.get("feature_2") or rel.get("target") or rel.get("var2")
                 if f1 and f2:
                     resolved_refs["strongest_relationship"] = f"{f1} and {f2}"
                     features = [f1, f2]
+                    is_follow_up = True
                     resolved_cmd = re.sub(
+                        r"(the strongest relationship|the strongest correlation|that relationship|that correlation)",
                         r"\b(the strongest relationship|the strongest correlation|that relationship|that correlation|strongest relationship)\b",
                         f"the relationship between {f1} and {f2}",
                         resolved_cmd,
@@ -329,13 +343,16 @@ class UniversalReferenceResolver:
                     )
 
         # 6. Feature References: "those features", "same features", "the features"
+        if re.search(r"(those features|same features|the features|using those features)", cmd_lower):
         if re.search(r"\b(those features|same features|the features|using those features)\b", cmd_lower) or "those features" in cmd_lower:
             if features:
                 resolved_refs["features"] = ", ".join(features)
                 is_follow_up = True
+                resolved_cmd = re.sub(r"(those features|same features|the features)", ", ".join(features), resolved_cmd, flags=re.IGNORECASE)
                 resolved_cmd = re.sub(r"\b(those features|same features|the features)\b", ", ".join(features), resolved_cmd, flags=re.IGNORECASE)
 
         # 7. Cluster / Segment References: "cluster 2", "that cluster", "focus on cluster 3", "explain that group"
+        clust_match = re.search(r"(cluster|segment|group)\s+(\d+)", cmd_lower)
         clust_match = re.search(r"\b(cluster|segment|group)\s+(\d+)\b", cmd_lower)
         if clust_match:
             c_num = int(clust_match.group(2))
@@ -352,15 +369,20 @@ class UniversalReferenceResolver:
                 resolved_refs["anomaly_count"] = str(context.latest_anomaly_count)
 
         # 9. Model References: "the model", "the previous model", "that model", "compare with previous model"
+        if re.search(r"(the model|the previous model|that model|previous model)", cmd_lower):
         if re.search(r"\b(the model|the previous model|that model|previous model)\b", cmd_lower) or "previous model" in cmd_lower:
             if context.latest_model_name:
                 resolved_refs["model"] = context.latest_model_name
                 is_follow_up = True
+                resolved_cmd = re.sub(r"(the model|the previous model|that model|previous model)", context.latest_model_name, resolved_cmd, flags=re.IGNORECASE)
                 resolved_cmd = re.sub(r"\b(the model|the previous model|that model|previous model)\b", context.latest_model_name, resolved_cmd, flags=re.IGNORECASE)
 
         # 10. General Deictics: "tell me more about that", "explain that", "why is that important", "show more"
         if any(k in cmd_lower for k in ("explain that", "tell me more about that", "why is that important", "show more", "why?")):
             is_follow_up = True
+            if context.previous_task:
+                resolved_refs["context_task"] = context.previous_task
+                resolved_cmd = f"explain and synthesize findings for {context.previous_task}"
             task_name = context.active_task or context.previous_task
             if task_name:
                 resolved_refs["context_task"] = task_name
@@ -450,6 +472,7 @@ class SessionContextManager:
             d_name = dataset_name or f"dataset_{len(ctx.datasets) + 1}"
 
             # Ingest through CanonicalDataLayer to obtain SemanticProfile
+            ingested = CanonicalDataLayer.ingest(df, dataset_name=d_name)
             ingested = CanonicalDataLayer.ingest(df)
             prof = ingested.profile
 
@@ -461,6 +484,7 @@ class SessionContextManager:
             snapshot = DatasetSnapshot(
                 dataset_id=d_id,
                 dataset_name=d_name,
+                columns=prof.column_names,
                 columns=list(df.columns),
                 numeric_columns=prof.numeric_columns,
                 categorical_columns=prof.categorical_columns,
@@ -470,6 +494,7 @@ class SessionContextManager:
                 original_rows=len(df),
                 current_rows=len(df),
                 preview_sample=preview_records,
+                quality_score=prof.quality_score,
                 quality_score=qs,
             )
 
@@ -550,6 +575,8 @@ class SessionContextManager:
             ctx.warnings = result.warnings or []
 
             # Extract specific analytical state from result payload
+            if "tasks" in res_data:
+                tasks_dict = res_data["tasks"]
             tasks_dict = res_data.get("task_outputs") or res_data.get("tasks", {})
             if isinstance(tasks_dict, dict):
                 # Forecast state
