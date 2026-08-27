@@ -271,7 +271,8 @@ class DataQualityGate:
             elif col in profile.identifier_columns and n_orig_rows >= 10:
                 is_usable = False
                 excl_reason = "Excluded by default as unique database identifier / key"
-            elif missing_rate > 0.0 or (sem_role == "categorical" and task_norm in ("regression", "clustering", "anomaly_detection")):
+            is_natively_numeric = pd.api.types.is_numeric_dtype(s) and not pd.api.types.is_bool_dtype(s)
+            if not is_natively_numeric or missing_rate > 0.0 or (sem_role in ("categorical", "datetime") and task_norm in ("regression", "clustering", "anomaly_detection")):
                 trans_req = True
 
             # Leakage risk check
