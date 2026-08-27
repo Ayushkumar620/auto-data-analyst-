@@ -884,11 +884,12 @@ class UniversalOrchestrator:
         return " ".join(lines)
 
     def _build_empty_dataset_error(self, command: str, orchestration_id: str) -> AgentResult:
-        err = AgentError.create(
+        err = AgentError(
+            code="EMPTY_DATASET",
             category=ErrorCategory.INSUFFICIENT_DATA,
             user_message="Dataset is empty or contains 0 valid columns. Orchestration requires tabular data.",
+            message="Dataset is empty or contains 0 valid columns.",
             agent_name="Universal Orchestrator",
-            code="EMPTY_DATASET",
         )
         return AgentResult.error(
             error=err.user_message,
@@ -901,11 +902,12 @@ class UniversalOrchestrator:
 
     def _build_clarification_result(self, plan: AnalyticalPlan, orchestration_id: str) -> AgentResult:
         reason = plan.ambiguity_information.get("reason", "Command is ambiguous.") if plan.ambiguity_information else "Command is ambiguous."
-        err = AgentError.create(
+        err = AgentError(
+            code="AMBIGUOUS_COMMAND",
             category=ErrorCategory.DATA_INVALID,
             user_message=f"Ambiguous request: {reason}",
+            message=f"Ambiguous request: {reason}",
             agent_name="Universal Orchestrator",
-            code="AMBIGUOUS_COMMAND",
             technical_details=plan.ambiguity_information or {},
         )
         res = AgentResult(
@@ -924,11 +926,12 @@ class UniversalOrchestrator:
 
     def _build_unsupported_result(self, plan: AnalyticalPlan, orchestration_id: str) -> AgentResult:
         reason = plan.unsupported_reason or "The requested capability is not supported by the analytical platform."
-        err = AgentError.create(
+        err = AgentError(
+            code="UNSUPPORTED_COMMAND",
             category=ErrorCategory.UNSUPPORTED_TASK,
             user_message=f"Unsupported request: {reason}",
+            message=f"Unsupported request: {reason}",
             agent_name="Universal Orchestrator",
-            code="UNSUPPORTED_COMMAND",
         )
         res = AgentResult(
             status=AgentStatus.NOT_SUPPORTED,
