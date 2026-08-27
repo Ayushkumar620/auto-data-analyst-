@@ -131,7 +131,6 @@ class CanonicalDataLayer:
             except ValueError:
                 return np.nan
 
-        return series.map(clean_val)
         if hasattr(series, "cat"):
             mapped = series.astype(str).map(clean_val)
         else:
@@ -262,7 +261,6 @@ class CanonicalDataLayer:
             s_num = cls.coerce_numeric_series(df[col]).dropna()
             if len(s_num) < 3:
                 continue
-            variance = float(s_num.var()) if not math.isnan(s_num.var()) else 0.0
             try:
                 var_val = s_num.var()
                 variance = float(var_val) if not math.isnan(var_val) else 0.0
