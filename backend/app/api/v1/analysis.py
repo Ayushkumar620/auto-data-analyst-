@@ -33,8 +33,8 @@ class AnalyzeCommandResponse(BaseModel):
     duration_ms: float
     relationships: Optional[List[Dict[str, Any]]] = None
     top_relationships: Optional[List[Dict[str, Any]]] = None
-    subgroup_analysis: Optional[Dict[str, Any]]] = None
-    correlation_matrix: Optional[Dict[str, Any]]] = None
+    subgroup_analysis: Optional[Dict[str, Any]] = None
+    correlation_matrix: Optional[Dict[str, Any]] = None
 
 
 @router.post("", response_model=AnalyzeCommandResponse)

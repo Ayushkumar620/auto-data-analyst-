@@ -69,8 +69,8 @@ class CommandExecutionResult:
     execution_graph: Optional[List[Dict[str, Any]]] = None
     relationships: Optional[List[Dict[str, Any]]] = None
     top_relationships: Optional[List[Dict[str, Any]]] = None
-    subgroup_analysis: Optional[Dict[str, Any]]] = None
-    correlation_matrix: Optional[Dict[str, Any]]] = None
+    subgroup_analysis: Optional[Dict[str, Any]] = None
+    correlation_matrix: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return sanitize_for_json({
