@@ -350,6 +350,20 @@ class ResultValidator:
                                  "Transformation plan features must be formatted as lists.",
                                  field="transformation_plan")
 
+            # 10. Data quality gate validation
+            gate_decision = result.data.get("quality_gate") or (result.data if "status" in result.data and "row_accounting" in result.data else None)
+            if isinstance(gate_decision, dict):
+                st = gate_decision.get("status")
+                if st and st not in ("READY", "READY_WITH_WARNINGS", "NEEDS_TRANSFORMATION", "NEEDS_CLARIFICATION", "BLOCKED"):
+                    vr.add_issue(ValidationSeverity.ERROR, "INVALID_GATE_STATUS",
+                                 f"Unknown quality gate status: {st}",
+                                 field="status")
+                qs = gate_decision.get("quality_score")
+                if isinstance(qs, (int, float)) and (qs < 0.0 or qs > 1.0):
+                    vr.add_issue(ValidationSeverity.ERROR, "INVALID_QUALITY_SCORE",
+                                 f"Quality score ({qs}) must be within [0, 1].",
+                                 field="quality_score")
+
     def _forecast_bounds_check(self, result: AgentResult, vr: ValidationResult) -> None:
         """Verify prediction intervals satisfy lower <= prediction <= upper."""
         forecast_pts = result.data.get("forecast") or result.data.get("predictions") or []
