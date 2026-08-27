@@ -378,6 +378,8 @@ class UniversalReferenceResolver:
             detected_intent = "hypothesis_testing"
         elif any(w in cmd_lower for w in ("clean", "transform", "impute", "preprocess")):
             detected_intent = "transformation"
+        elif any(w in cmd_lower for w in ("explain", "explanation", "methodology", "how was this calculated", "show evidence", "why did you", "why is this")):
+            detected_intent = "explanation"
         elif is_follow_up and context.previous_intent:
             detected_intent = context.previous_intent
 

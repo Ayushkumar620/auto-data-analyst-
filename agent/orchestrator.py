@@ -161,6 +161,8 @@ class UniversalOrchestrator:
         self.result_validator = ResultValidator()
         from agent.insight_synthesis_engine import InsightSynthesisEngine
         self.synthesis_engine = InsightSynthesisEngine()
+        from agent.explanation_engine import ExplanationEngine
+        self.explanation_engine = ExplanationEngine()
 
     # --------------------------------------------------------------------------
     # Public Entrypoints
@@ -778,6 +780,19 @@ class UniversalOrchestrator:
             command=plan.user_request,
         )
 
+        # 7. Analytical Explanation & Evidence Traceability (Milestone 7, Task 4)
+        explanation_report = self.explanation_engine.explain(
+            result={
+                "tasks": {t.task_type: (t.result or t.error) for t in plan.tasks},
+                "task_outputs": task_outputs,
+                "synthesis": synth_report.to_dict(),
+                "evidence": all_evidence,
+                "confidence": composite_confidence,
+            },
+            dataframe=df,
+            command=plan.user_request,
+        )
+
         aggregated_data = {
             "orchestration_id": orchestration_id,
             "plan_id": plan.plan_id,
@@ -797,6 +812,7 @@ class UniversalOrchestrator:
             "contradictions": [c.to_dict() for c in synth_report.contradictions],
             "recommended_next_questions": synth_report.recommended_next_questions,
             "synthesis": synth_report.to_dict(),
+            "explanation": explanation_report.to_dict(),
             "tasks": {t.task_type: (t.result or t.error) for t in plan.tasks},
             "task_outputs": task_outputs,
             "execution_graph": execution_graph,

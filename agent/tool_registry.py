@@ -463,6 +463,19 @@ class ToolRegistry:
             )
         )
 
+        # 13. Universal Analytical Explanation & Evidence Traceability (Milestone 7, Task 4)
+        self.register(
+            ToolDefinition(
+                name="explanation",
+                description="Converts analytical results and models into transparent, evidence-backed explanations.",
+                capabilities=["explanation", "evidence_traceability", "methodology_breakdown", "uncertainty_modeling"],
+                input_schema={"result": "dict", "data": "pd.DataFrame", "command": "str"},
+                output_schema={"summary": "str", "findings": "list", "methodology": "list", "metrics": "list", "evidence": "list"},
+                execution_fn=lambda **kw: ExplanationAgent().run(kw),
+                validation_requirements=["summary is not empty"],
+            )
+        )
+
 
 # Global default singleton
 DEFAULT_TOOL_REGISTRY = ToolRegistry()
