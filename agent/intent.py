@@ -44,6 +44,7 @@ class AnalyticalIntent(str, Enum):
     ANOMALIES = "anomalies"
     CLUSTERING = "clustering"
     CORRELATION = "correlation"
+    HYPOTHESIS_TESTING = "hypothesis_testing"
     REPORT = "report"
     UNKNOWN = "unknown"
 
@@ -63,6 +64,7 @@ class IntentType(str, Enum):
     REGRESSION = "regression"
     CLUSTERING = "clustering"
     STATISTICAL_RELATIONSHIP = "statistical_relationship"
+    HYPOTHESIS_TESTING = "hypothesis_testing"
     VISUALIZATION = "visualization"
     REPORTING = "reporting"
     DATA_QUESTION = "data_question"
@@ -441,6 +443,11 @@ class CommandIntelligenceAgent(BaseAgent):
             capabilities.append("eda")
             intent_candidates.append((IntentType.DATASET_ANALYSIS, 93))
 
+        # 5e. Hypothesis Testing & Statistical Significance
+        if any(w in text for w in ("hypothesis", "statistically significant", "significance", "differ statistically", "t-test", "t test", "anova", "kruskal", "groups differ", "significantly different", "test whether", "welch", "mann-whitney", "does category", "test the significance")):
+            capabilities.append("hypothesis_testing")
+            intent_candidates.append((IntentType.HYPOTHESIS_TESTING, 94))
+
         # 6. Aggregation / Ranking / Regional Analysis
         if any(w in text for w in ("by region", "regional", "by country", "by category", "by customer")):
             capabilities.append("regional_analysis" if "region" in text else "segmentation")
@@ -720,6 +727,15 @@ class IntentAnalyzer:
             "dependency", "covariance", "factors are associated", "which variables",
             "pearson", "spearman",
         ),
+        AnalyticalIntent.HYPOTHESIS_TESTING: (
+            "hypothesis", "hypothesis test", "hypothesis testing", "statistically significant",
+            "statistical significance", "significance test", "test whether these groups differ",
+            "is this difference statistically significant", "compare these groups statistically",
+            "perform a hypothesis test", "test the significance", "are these groups significantly different",
+            "does category a differ from category b", "test whether the means are different",
+            "t-test", "t test", "welch", "mann-whitney", "anova", "kruskal-wallis", "chi-square test",
+            "p-value", "reject null",
+        ),
         AnalyticalIntent.REPORT: (
             "report", "summary report", "executive summary", "overview",
             "full analysis", "brief", "presentation",
@@ -781,6 +797,8 @@ class IntentAnalyzer:
             primary = AnalyticalIntent.FORECASTING
         elif AnalyticalIntent.PREDICTION in matched_intents:
             primary = AnalyticalIntent.PREDICTION
+        elif AnalyticalIntent.HYPOTHESIS_TESTING in matched_intents:
+            primary = AnalyticalIntent.HYPOTHESIS_TESTING
         elif AnalyticalIntent.CLUSTERING in matched_intents:
             primary = AnalyticalIntent.CLUSTERING
         elif AnalyticalIntent.CORRELATION in matched_intents:
