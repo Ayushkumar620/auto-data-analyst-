@@ -422,6 +422,14 @@ class AutonomousCommandOrchestrator:
                 "benchmark_candidate_algorithms_with_cv",
                 "select_optimal_model_and_explain_rationale",
             ])
+        elif intent_res.primary_intent == AnalyticalIntent.CORRELATION or any(w in q for w in ("correlation", "correlations", "relationship", "relationships", "pearson", "spearman", "effect size", "fdr", "outlier sensitivity", "subgroup")):
+            ops.extend([
+                "calculate_bivariate_pearson_and_spearman_associations",
+                "evaluate_raw_and_fdr_adjusted_significance",
+                "measure_practical_effect_sizes_and_outlier_sensitivity",
+                "analyze_subgroup_consistency_and_heterogeneity",
+                "synthesize_non_causal_statistical_findings",
+            ])
         elif "why" in q or "decrease" in q or "increase" in q or "driver" in q or "cause" in q:
             ops.extend([
                 "compute_period_over_period_variance",
@@ -435,7 +443,7 @@ class AutonomousCommandOrchestrator:
                 "compute_cross_cohort_percentage_delta",
                 "generate_comparative_visualization",
             ])
-        elif "top" in q or "bottom" in q or "rank" in q or "best" in q or "customer" in q:
+        elif "top" in q or "bottom" in q or "rank" in q or "best" in q or ("customer" in q and not any(w in q for w in ("customer segment", "customer_segment", "customer segments"))):
             ops.extend([
                 "group_by_dimension",
                 "sum_and_rank_entities",
@@ -452,14 +460,6 @@ class AutonomousCommandOrchestrator:
                 "compute_z_scores_and_isolation_bounds",
                 "identify_extreme_outliers",
                 "explain_contributing_column_values",
-            ])
-        elif intent_res.primary_intent == AnalyticalIntent.CORRELATION or any(w in q for w in ("correlation", "correlations", "relationship", "relationships", "pearson", "spearman", "effect size", "fdr", "subgroup")):
-            ops.extend([
-                "calculate_bivariate_pearson_and_spearman_associations",
-                "evaluate_raw_and_fdr_adjusted_significance",
-                "measure_practical_effect_sizes_and_outlier_sensitivity",
-                "analyze_subgroup_consistency_and_heterogeneity",
-                "synthesize_non_causal_statistical_findings",
             ])
         elif "report" in q or "performance" in q or "overview" in q:
             ops.extend([
