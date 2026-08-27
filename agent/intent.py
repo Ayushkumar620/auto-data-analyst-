@@ -436,9 +436,11 @@ class CommandIntelligenceAgent(BaseAgent):
             intent_candidates.append((IntentType.CLUSTERING, 93))
 
         # 5c. Statistical Relationships & Correlation
-        if any(w in text for w in ("correlation", "correlations", "relationship", "relationships", "related", "move together", "statistical association", "associations", "dependencies", "dependency", "covariance", "factors are associated")):
+        if any(w in text for w in ("correlation", "correlations", "relationship", "relationships", "related", "move together", "statistical association", "associations", "dependencies", "dependency", "covariance", "factors are associated", "pearson", "spearman", "kendall", "effect size", "fdr", "p-value", "p-values", "p value", "p values", "outlier sensitivity", "subgroup relationship", "subgroup relationships", "correlate", "association between")):
             capabilities.append("statistical_analysis")
-            intent_candidates.append((IntentType.STATISTICAL_RELATIONSHIP, 93))
+            # When explicit correlation/relationship keywords are present, assign high priority (96)
+            is_explicit_corr = any(w in text for w in ("pearson", "spearman", "kendall", "correlation", "correlations", "relationship", "relationships", "effect size", "fdr", "subgroup relationship"))
+            intent_candidates.append((IntentType.STATISTICAL_RELATIONSHIP, 96 if is_explicit_corr else 93))
 
         # 5d. EDA / Data Profiling / Data Quality
         if any(w in text for w in ("eda", "describe", "profile", "data quality", "missing values", "overview of the data", "column statistics", "dataset statistics", "what is wrong with this dataset", "check data quality")):
@@ -446,9 +448,14 @@ class CommandIntelligenceAgent(BaseAgent):
             intent_candidates.append((IntentType.DATASET_ANALYSIS, 93))
 
         # 5e. Hypothesis Testing & Statistical Significance
-        if any(w in text for w in ("hypothesis", "statistically significant", "significance", "differ statistically", "t-test", "t test", "anova", "kruskal", "groups differ", "significantly different", "test whether", "welch", "mann-whitney", "does category", "test the significance")):
+        if any(w in text for w in ("hypothesis test", "hypothesis testing", "hypothesis", "differ statistically", "t-test", "t test", "welch", "mann-whitney", "anova", "kruskal", "groups differ", "significantly different", "test whether", "does category", "test the significance", "two-sample", "group difference", "group comparison")):
             capabilities.append("hypothesis_testing")
-            intent_candidates.append((IntentType.HYPOTHESIS_TESTING, 94))
+            # Only prioritize hypothesis testing if it's not primarily a correlation/relationship request
+            is_rel_query = any(w in text for w in ("pearson", "spearman", "kendall", "correlation", "correlations", "relationship", "relationships", "effect size", "fdr"))
+            if not is_rel_query:
+                intent_candidates.append((IntentType.HYPOTHESIS_TESTING, 94))
+            else:
+                intent_candidates.append((IntentType.HYPOTHESIS_TESTING, 90))
 
         # 5f. Explanation & Evidence Traceability (Milestone 7, Task 4)
         if any(w in text for w in ("explain", "how was this calculated", "show evidence", "show methodology", "why this result", "why did you get")):
@@ -737,16 +744,17 @@ class IntentAnalyzer:
             "correlation", "correlations", "relationship", "relationships", "related",
             "move together", "statistical association", "associations", "dependencies",
             "dependency", "covariance", "factors are associated", "which variables",
-            "pearson", "spearman",
+            "pearson", "spearman", "kendall", "effect size", "fdr", "false discovery rate",
+            "outlier sensitivity", "subgroup relationship", "subgroup relationships",
+            "correlate", "association between",
         ),
         AnalyticalIntent.HYPOTHESIS_TESTING: (
-            "hypothesis", "hypothesis test", "hypothesis testing", "statistically significant",
-            "statistical significance", "significance test", "test whether these groups differ",
-            "is this difference statistically significant", "compare these groups statistically",
-            "perform a hypothesis test", "test the significance", "are these groups significantly different",
-            "does category a differ from category b", "test whether the means are different",
-            "t-test", "t test", "welch", "mann-whitney", "anova", "kruskal-wallis", "chi-square test",
-            "p-value", "reject null",
+            "hypothesis", "hypothesis test", "hypothesis testing", "significance test",
+            "test whether these groups differ", "is this difference statistically significant",
+            "compare these groups statistically", "perform a hypothesis test",
+            "are these groups significantly different", "does category a differ from category b",
+            "test whether the means are different", "t-test", "t test", "welch",
+            "mann-whitney", "anova", "kruskal-wallis", "reject null", "two-sample",
         ),
         AnalyticalIntent.REPORT: (
             "report", "summary report", "executive summary", "overview",
@@ -804,7 +812,7 @@ class IntentAnalyzer:
                 matched_intents.append(intent)
                 reasoning.append(f"Matched {intent.value} via keywords: {', '.join(hits)}")
 
-        # Distinguish prediction vs forecasting vs deep learning
+        # Distinguish prediction vs forecasting vs deep learning vs correlation vs hypothesis testing
         primary = AnalyticalIntent.EDA
         secondary: List[AnalyticalIntent] = []
 
@@ -816,6 +824,8 @@ class IntentAnalyzer:
             primary = AnalyticalIntent.FORECASTING
         elif AnalyticalIntent.PREDICTION in matched_intents:
             primary = AnalyticalIntent.PREDICTION
+        elif AnalyticalIntent.CORRELATION in matched_intents:
+            primary = AnalyticalIntent.CORRELATION
         elif AnalyticalIntent.HYPOTHESIS_TESTING in matched_intents:
             primary = AnalyticalIntent.HYPOTHESIS_TESTING
         elif AnalyticalIntent.CLUSTERING in matched_intents:
