@@ -107,6 +107,7 @@ class ToolRegistry:
             ForecastAgent,
             HypothesisTestingAgent,
             InsightAgent,
+            InsightSynthesisAgent,
             ModelMonitorAgent,
             ModelOrchestratorAgent,
             ModelRegistryAgent,
@@ -445,6 +446,19 @@ class ToolRegistry:
                 output_schema={"report_markdown": "str", "sections": "list"},
                 execution_fn=lambda **kw: ReportAgent().run({"request": "pipeline", **kw}),
                 validation_requirements=["report_markdown is not empty"],
+            )
+        )
+
+        # 12. Universal Cross-Agent Insight Synthesis (Milestone 7, Task 2)
+        self.register(
+            ToolDefinition(
+                name="insight_synthesis",
+                description="Synthesizes validated outputs from multiple analytical agents into an evidence-backed narrative.",
+                capabilities=["insight_synthesis", "cross_analysis", "executive_summary", "contradiction_detection"],
+                input_schema={"orchestration_result": "dict", "data": "pd.DataFrame"},
+                output_schema={"executive_summary": "str", "key_insights": "list", "contradictions": "list"},
+                execution_fn=lambda **kw: InsightSynthesisAgent().run(kw),
+                validation_requirements=["executive_summary is not empty"],
             )
         )
 

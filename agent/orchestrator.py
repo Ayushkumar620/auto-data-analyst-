@@ -159,6 +159,8 @@ class UniversalOrchestrator:
         self.intent_analyzer = IntentAnalyzer()
         self.command_agent = CommandIntelligenceAgent()
         self.result_validator = ResultValidator()
+        from agent.insight_synthesis_engine import InsightSynthesisEngine
+        self.synthesis_engine = InsightSynthesisEngine()
 
     # --------------------------------------------------------------------------
     # Public Entrypoints
@@ -769,6 +771,13 @@ class UniversalOrchestrator:
             for t in plan.tasks
         ]
 
+        # 6. Cross-Agent Analytical Insight Synthesis
+        synth_report = self.synthesis_engine.synthesize(
+            orchestration_result={"task_outputs": task_outputs, "evidence": all_evidence, "confidence": composite_confidence},
+            dataframe=df,
+            command=plan.user_request,
+        )
+
         aggregated_data = {
             "orchestration_id": orchestration_id,
             "plan_id": plan.plan_id,
@@ -782,7 +791,12 @@ class UniversalOrchestrator:
                 "skipped_tasks": n_skipped,
                 "retry_count": total_retries,
             },
-            "summary": summary_narrative,
+            "summary": synth_report.executive_summary or summary_narrative,
+            "executive_summary": synth_report.executive_summary,
+            "key_insights": [i.to_dict() for i in synth_report.key_insights],
+            "contradictions": [c.to_dict() for c in synth_report.contradictions],
+            "recommended_next_questions": synth_report.recommended_next_questions,
+            "synthesis": synth_report.to_dict(),
             "tasks": {t.task_type: (t.result or t.error) for t in plan.tasks},
             "task_outputs": task_outputs,
             "execution_graph": execution_graph,
