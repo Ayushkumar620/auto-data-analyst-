@@ -317,11 +317,15 @@ class AutonomousAnalysisEngine:
     # 5. Correlation Analysis (Strict Non-Causal Attribution)
     # --------------------------------------------------------------------------
     def analyze_correlations(self, df: pd.DataFrame, num_cols: List[str]) -> Tuple[Dict[str, Any], List[Insight]]:
+        """Calculate pairwise Pearson correlation with strict non-causal attribution."""
         """Calculate pairwise correlations, raw/FDR p-values, effect size, and outlier sensitivity."""
         target_cols = [c for c in num_cols if c in df.columns]
         if len(target_cols) < 2:
             return {}, []
 
+        num_df = df[target_cols].dropna()
+        if len(num_df) < 5:
+            return {}, []
         from agent.statistical_analysis_engine import StatisticalAnalysisEngine
         engine = StatisticalAnalysisEngine()
         res = engine.analyze(data=df, features=target_cols)
@@ -329,7 +333,9 @@ class AutonomousAnalysisEngine:
         top_rels = res.get("top_relationships", []) or rels
         corr_matrix = res.get("correlation_matrix", {})
 
+        corr_matrix = num_df.corr().to_dict()
         insights = []
+        checked_pairs = set()
         for r in top_rels:
             c1 = r.get("feature_x")
             c2 = r.get("feature_y")
@@ -344,6 +350,14 @@ class AutonomousAnalysisEngine:
             outlier_sens = r.get("outlier_sensitivity", False)
             valid_n = r.get("valid_rows", len(df))
 
+        for i, c1 in enumerate(target_cols):
+            for j, c2 in enumerate(target_cols):
+                if i >= j:
+                    continue
+                pair_key = tuple(sorted([c1, c2]))
+                if pair_key in checked_pairs:
+                    continue
+                checked_pairs.add(pair_key)
             corr_data = {
                 "feature_1": c1,
                 "feature_2": c2,
@@ -361,6 +375,9 @@ class AutonomousAnalysisEngine:
                 "outlier_sensitivity": outlier_sens,
             }
 
+                r = float(corr_matrix[c1][c2])
+                if np.isnan(r) or abs(r) < 0.40:
+                    continue
             evidence = Evidence(
                 source="AutonomousAnalysisEngine.correlations",
                 method="StatisticalAnalysisEngine.bivariate_correlation",
@@ -369,6 +386,8 @@ class AutonomousAnalysisEngine:
                 claim_type=ClaimType.CORRELATION,
             )
 
+                direction = "positive" if r > 0 else "negative"
+                strength = "strong" if abs(r) >= 0.70 else "moderate"
             sens_str = " (Outlier sensitive: Pearson and Spearman diverge)" if outlier_sens else ""
             insight = Insight(
                 title=f"Statistical Correlation between '{c1}' and '{c2}'",
@@ -389,12 +408,48 @@ class AutonomousAnalysisEngine:
             )
             insights.append(insight)
 
+                corr_data = {
+                    "feature_1": c1,
+                    "feature_2": c2,
+                    "pearson_r": round(r, 4),
+                    "strength": strength,
+                    "direction": direction,
+                }
         return {
             "matrix": corr_matrix,
             "correlation_matrix": corr_matrix,
             "relationships": rels,
             "top_relationships": top_rels,
         }, insights
+
+                evidence = Evidence(
+                    source="AutonomousAnalysisEngine.correlations",
+                    method="pandas.DataFrame.corr_pearson",
+                    data_ref=corr_data,
+                    confidence=0.88,
+                    claim_type=ClaimType.CORRELATION,
+                )
+
+                insight = Insight(
+                    title=f"Statistical Correlation between '{c1}' and '{c2}'",
+                    summary=(
+                        f"A {strength} {direction} association (r = {r:.3f}) was observed between '{c1}' and '{c2}'. "
+                        f"Note: This correlation indicates statistical co-movement and does not prove causal dependency."
+                    ),
+                    category=InsightCategory.RELATIONSHIP,
+                    claim_type=ClaimType.CORRELATION,
+                    severity=InsightSeverity.INFORMATIONAL,
+                    importance=0.75,
+                    confidence=0.88,
+                    evidence=evidence,
+                    affected_columns=[c1, c2],
+                    calculation=corr_data,
+                    limitations=["Correlation does not imply causation; confounding variables may exist."],
+                    source_analysis="correlation_analysis",
+                )
+                insights.append(insight)
+
+        return {"matrix": corr_matrix}, insights
 
     # --------------------------------------------------------------------------
     # 6. Anomaly & Outlier Detection
