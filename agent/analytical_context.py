@@ -215,12 +215,12 @@ class UniversalReferenceResolver:
 
         active_ds = context.datasets.get(context.active_dataset_id) if context.active_dataset_id else None
 
-        # 1. Dataset Reference & Switching: e.g. "go back to sales", "switch to dataset_2"
-        switch_match = re.search(r"(switch to|go back to|use the)\s+([a-zA-Z0-9_\-\.]+)(\s+dataset)?", cmd_lower)
+        # 1. Dataset Reference & Switching: e.g. "go back to sales", "switch to dataset_2", "switch to sales_data dataset"
+        switch_match = re.search(r"(?:switch to|go back to|use the)\s+([a-zA-Z0-9_\-\.]+)(?:\s+dataset)?", cmd_lower)
         if switch_match:
-            requested_name = switch_match.group(2).lower()
+            requested_name = switch_match.group(1).lower()
             for d_id, ds in context.datasets.items():
-                if requested_name in d_id.lower() or requested_name in ds.dataset_name.lower():
+                if requested_name in d_id.lower() or requested_name in ds.dataset_name.lower() or ds.dataset_name.lower() in requested_name:
                     dataset_id = d_id
                     resolved_refs["dataset"] = ds.dataset_name
                     is_follow_up = True
@@ -239,10 +239,10 @@ class UniversalReferenceResolver:
                 suggested_options=options,
             )
 
-        # 3. Horizon Modification: e.g. "make it 12", "increase horizon to 10", "forecast next 12"
-        horizon_match = re.search(r"(make it|increase horizon to|set horizon to|horizon to|next)\s+(\d+)", cmd_lower)
+        # 3. Horizon Modification: e.g. "make it 12", "increase horizon to 8 periods", "forecast next 12"
+        horizon_match = re.search(r"(?:make it|increase horizon to|set horizon to|horizon to|next)\s+(\d+)", cmd_lower)
         if horizon_match:
-            new_horizon = int(horizon_match.group(2))
+            new_horizon = int(horizon_match.group(1))
             parameters["periods"] = new_horizon
             parameters["horizon"] = new_horizon
             resolved_refs["horizon"] = str(new_horizon)
@@ -314,9 +314,9 @@ class UniversalReferenceResolver:
                 resolved_cmd = re.sub(r"(those features|same features|the features)", ", ".join(features), resolved_cmd, flags=re.IGNORECASE)
 
         # 7. Cluster / Segment References: "cluster 2", "that cluster", "focus on cluster 3", "explain that group"
-        clust_match = re.search(r"(cluster|segment|group)\s+(\d+)", cmd_lower)
+        clust_match = re.search(r"(?:cluster|segment|group)\s+(\d+)", cmd_lower)
         if clust_match:
-            c_num = int(clust_match.group(2))
+            c_num = int(clust_match.group(1))
             parameters["cluster_id"] = c_num
             resolved_refs["cluster_id"] = str(c_num)
             is_follow_up = True
@@ -381,11 +381,11 @@ class UniversalReferenceResolver:
 class SessionContextManager:
     """Thread-safe state manager for conversational analytical sessions."""
 
-    def __init__(self, max_history_turns: int = 50):
+    def __init__(self, max_history_turns: int = 50, max_history_per_session: Optional[int] = None):
         self._contexts: Dict[str, SessionContext] = {}
         self._dataset_store: Dict[Tuple[str, str], pd.DataFrame] = {}
         self._lock = threading.RLock()
-        self.max_history_turns = max_history_turns
+        self.max_history_turns = max_history_per_session or max_history_turns
         self.resolver = UniversalReferenceResolver()
 
     def get_or_create_context(self, session_id: str) -> SessionContext:
@@ -397,6 +397,18 @@ class SessionContextManager:
     def get_context(self, session_id: str) -> Optional[SessionContext]:
         with self._lock:
             return self._contexts.get(session_id)
+
+    def invalidate_target(self, session_id: str) -> None:
+        with self._lock:
+            ctx = self.get_context(session_id)
+            if ctx:
+                ctx.active_target = None
+
+    def invalidate_features(self, session_id: str) -> None:
+        with self._lock:
+            ctx = self.get_context(session_id)
+            if ctx:
+                ctx.active_features = []
 
     def register_dataset(
         self,
@@ -457,8 +469,8 @@ class SessionContextManager:
         self,
         session_id: str,
         result: AgentResult,
-        user_command: str,
-        resolved_command: str,
+        user_command: str = "",
+        resolved_command: Optional[str] = None,
         target: Optional[str] = None,
         features: Optional[List[str]] = None,
         time_column: Optional[str] = None,
@@ -467,53 +479,55 @@ class SessionContextManager:
         with self._lock:
             ctx = self.get_or_create_context(session_id)
             turn_id = len(ctx.execution_history) + 1
+            eff_cmd = resolved_command or user_command
 
             t_val = target or result.target or (result.data.get("target") if isinstance(result.data, dict) else None)
             f_val = features or (result.data.get("features") if isinstance(result.data, dict) else [])
             time_col = time_column or (result.data.get("time_column") if isinstance(result.data, dict) else None)
 
-            if t_val:
-                ctx.active_target = str(t_val)
-            if f_val:
-                ctx.active_features = list(f_val)
-            if time_col:
-                ctx.active_time_column = str(time_col)
+            if result.is_success:
+                if t_val:
+                    ctx.active_target = str(t_val)
+                if f_val:
+                    ctx.active_features = list(f_val)
+                if time_col:
+                    ctx.active_time_column = str(time_col)
 
-            ctx.previous_task = result.task_type
-            ctx.previous_intent = result.task_type
+                ctx.previous_task = result.task_type
+                ctx.previous_intent = result.task_type
 
-            model_name = None
-            clust_count = None
-            anom_count = None
-            r1 = None
-            r2 = None
+                model_name = None
+                clust_count = None
+                anom_count = None
+                r1 = None
+                r2 = None
 
-            if isinstance(result.data, dict):
-                model_name = result.data.get("model_name") or result.data.get("model_selected")
-                clust_count = result.data.get("cluster_count")
-                anom_count = result.data.get("anomaly_count")
-                ranked_rels = result.data.get("ranked_relationships") or result.data.get("relationships") or []
-                if ranked_rels and len(ranked_rels) >= 1:
-                    r1 = ranked_rels[0] if isinstance(ranked_rels[0], dict) else None
-                if ranked_rels and len(ranked_rels) >= 2:
-                    r2 = ranked_rels[1] if isinstance(ranked_rels[1], dict) else None
+                if isinstance(result.data, dict):
+                    model_name = result.data.get("model_name") or result.data.get("model_selected")
+                    clust_count = result.data.get("cluster_count")
+                    anom_count = result.data.get("anomaly_count")
+                    ranked_rels = result.data.get("ranked_relationships") or result.data.get("relationships") or []
+                    if ranked_rels and len(ranked_rels) >= 1:
+                        r1 = ranked_rels[0] if isinstance(ranked_rels[0], dict) else None
+                    if ranked_rels and len(ranked_rels) >= 2:
+                        r2 = ranked_rels[1] if isinstance(ranked_rels[1], dict) else None
 
-            if model_name:
-                ctx.latest_model_name = str(model_name)
-            if clust_count is not None:
-                ctx.latest_cluster_count = int(clust_count)
-            if anom_count is not None:
-                ctx.latest_anomaly_count = int(anom_count)
-            if r1:
-                ctx.latest_strongest_relationship = r1
-            if r2:
-                ctx.latest_second_strongest_relationship = r2
+                if model_name:
+                    ctx.latest_model_name = str(model_name)
+                if clust_count is not None:
+                    ctx.latest_cluster_count = int(clust_count)
+                if anom_count is not None:
+                    ctx.latest_anomaly_count = int(anom_count)
+                if r1:
+                    ctx.latest_strongest_relationship = r1
+                if r2:
+                    ctx.latest_second_strongest_relationship = r2
 
             hist_item = ExecutionHistoryItem(
                 turn_id=turn_id,
                 execution_id=result.execution_id or f"exec_{uuid.uuid4().hex[:8]}",
                 user_command=user_command,
-                resolved_command=resolved_command,
+                resolved_command=eff_cmd,
                 task_type=result.task_type or "orchestration",
                 status=result.status.value if hasattr(result.status, "value") else str(result.status),
                 target=ctx.active_target,
