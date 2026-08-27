@@ -311,15 +311,18 @@ class HypothesisTestingEngine:
             g1, g2 = valid_group_arrays[g_keys[0]], valid_group_arrays[g_keys[1]]
             return self._run_two_sample_numeric_test(
                 feat_name, group_name, g_keys[0], g_keys[1], g1, g2, orig_n, valid_n, group_stats, alpha, preferred_test
+                df, feat_name, group_name, g_keys[0], g_keys[1], g1, g2, orig_n, valid_n, group_stats, alpha, preferred_test
             )
         else:
             # Multi-sample comparison (k >= 3)
             return self._run_multi_sample_numeric_test(
                 feat_name, group_name, valid_group_arrays, orig_n, valid_n, group_stats, alpha, preferred_test
+                df, feat_name, group_name, valid_group_arrays, orig_n, valid_n, group_stats, alpha, preferred_test
             )
 
     def _run_two_sample_numeric_test(
         self,
+        df: pd.DataFrame,
         feat_name: str,
         group_name: str,
         label_1: str,
@@ -551,6 +554,7 @@ class HypothesisTestingEngine:
 
     def _run_multi_sample_numeric_test(
         self,
+        df: pd.DataFrame,
         feat_name: str,
         group_name: str,
         group_arrays: Dict[str, np.ndarray],
