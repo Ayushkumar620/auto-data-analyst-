@@ -205,33 +205,65 @@ class EvidenceBasedInsightsEngine:
     # ------------------------------------------------------------------
     def generate_correlations(self, df: pd.DataFrame, threshold: float = 0.50) -> List[StructuredInsight]:
         correlations: List[StructuredInsight] = []
-        num_cols = df.select_dtypes(include=[np.number]).columns
+        num_cols = [c for c in df.select_dtypes(include=[np.number]).columns if df[c].dropna().nunique() > 1]
 
         if len(num_cols) >= 2:
-            corr_matrix = df[num_cols].corr()
+            from scipy import stats as sp_stats
+
             pairs = []
             for i in range(len(num_cols)):
                 for j in range(i + 1, len(num_cols)):
                     c1, c2 = num_cols[i], num_cols[j]
-                    val = float(corr_matrix.loc[c1, c2])
-                    if not np.isnan(val) and abs(val) >= threshold:
-                        pairs.append((c1, c2, val))
+                    s1 = pd.to_numeric(df[c1], errors="coerce")
+                    s2 = pd.to_numeric(df[c2], errors="coerce")
+                    valid_mask = s1.notna() & s2.notna()
+                    if valid_mask.sum() >= 4:
+                        v1 = s1[valid_mask].to_numpy(dtype=float)
+                        v2 = s2[valid_mask].to_numpy(dtype=float)
+                        if np.std(v1) > 1e-9 and np.std(v2) > 1e-9:
+                            try:
+                                r_val, p_val = sp_stats.pearsonr(v1, v2)
+                                rho_val, _ = sp_stats.spearmanr(v1, v2)
+                                if not np.isnan(r_val):
+                                    pairs.append((c1, c2, float(r_val), float(rho_val), float(p_val), int(valid_mask.sum())))
+                            except Exception:
+                                pass
 
+            # Sort by absolute Pearson correlation descending
             pairs.sort(key=lambda x: abs(x[2]), reverse=True)
 
-            for c1, c2, r_val in pairs[:3]:
+            # Adaptive threshold: filter by threshold or take top candidate relationships (>= 0.10)
+            selected_pairs = [p for p in pairs if abs(p[2]) >= threshold]
+            if not selected_pairs and pairs:
+                selected_pairs = [p for p in pairs if abs(p[2]) >= 0.10][:3]
+            elif selected_pairs:
+                selected_pairs = selected_pairs[:5]
+
+            for c1, c2, r_val, rho_val, p_val, n_valid in selected_pairs:
                 direction = "positive" if r_val > 0 else "negative"
-                strength = "strong" if abs(r_val) >= 0.75 else "moderate"
+                strength = "very strong" if abs(r_val) >= 0.70 else ("strong" if abs(r_val) >= 0.50 else ("moderate" if abs(r_val) >= 0.30 else "weak"))
+                outlier_sens = abs(r_val - rho_val) > 0.20
+
+                outlier_note = " Divergence between Pearson and Spearman indicates sensitivity to extreme outlier observations." if outlier_sens else ""
 
                 correlations.append(
                     StructuredInsight(
                         insight_id=f"corr_{uuid.uuid4().hex[:6]}",
                         text=(
-                            f"Observed {strength} {direction} correlation (r = {r_val:.3f}) between '{c1}' and '{c2}'. "
-                            f"As '{c1}' increases, '{c2}' tends to {'increase' if r_val > 0 else 'decrease'} proportionally."
+                            f"Observed {strength} {direction} correlation (Pearson r = {r_val:.3f}, Spearman rho = {rho_val:.3f}, p = {p_val:.4g}, n = {n_valid}) between '{c1}' and '{c2}'. "
+                            f"As '{c1}' increases, '{c2}' tends to {'increase' if r_val > 0 else 'decrease'} proportionally.{outlier_note}"
                         ),
                         claim_type=ClaimType.CORRELATION,
-                        supporting_metrics={"feature_1": c1, "feature_2": c2, "pearson_r": round(r_val, 4), "r_squared": round(r_val**2, 4)},
+                        supporting_metrics={
+                            "feature_1": c1,
+                            "feature_2": c2,
+                            "pearson_r": round(r_val, 4),
+                            "spearman_rho": round(rho_val, 4),
+                            "p_value": round(p_val, 6),
+                            "r_squared": round(r_val**2, 4),
+                            "valid_rows": n_valid,
+                            "outlier_sensitivity": outlier_sens,
+                        },
                         confidence=0.90,
                         caveats=[
                             "CRITICAL: Correlation does NOT imply causation.",

@@ -42,6 +42,8 @@ from agent.agents import (
     CNNAgent,
     ModelRegistryAgent,
     DataValidationAgent,
+    StatisticalAnalysisAgent,
+    HypothesisTestingAgent,
 )
 from backend.app.core.semantic import SemanticSchemaAgent
 
@@ -577,6 +579,21 @@ class DynamicTaskPlanner(BaseAgent):
             )
             step_idx += 1
 
+        elif primary_intent_val in ("statistical_relationship", "correlation", "statistical_analysis") or "statistical_analysis" in req_caps or "correlation_analysis" in req_caps:
+            stats_step = f"step_{step_idx}"
+            steps.append(
+                ExecutionStep(
+                    step_id=stats_step,
+                    tool_name="statistical_analysis",
+                    agent_name="StatisticalAnalysisAgent",
+                    purpose="Analyze, measure, test, and rank bivariate and multivariate statistical relationships, correlations, and subgroup consistency.",
+                    inputs={"features": user_intent.dimensions or None, "target": user_intent.metrics[0] if user_intent.metrics else None},
+                    required_capabilities=["statistical_analysis"],
+                    dependencies=upstream_dep,
+                )
+            )
+            step_idx += 1
+
         elif primary_intent_val in ("autonomous_analysis", "exploratory_data_analysis", "eda", "insight_generation", "general_summary") or "autonomous_analysis" in req_caps:
             auto_step = f"step_{step_idx}"
             steps.append(
@@ -683,6 +700,8 @@ class DynamicTaskPlanner(BaseAgent):
             "CNNAgent": CNNAgent,
             "ModelRegistryAgent": ModelRegistryAgent,
             "DataValidationAgent": DataValidationAgent,
+            "StatisticalAnalysisAgent": StatisticalAnalysisAgent,
+            "HypothesisTestingAgent": HypothesisTestingAgent,
         }
 
         for step in plan.steps:
@@ -827,6 +846,32 @@ class DynamicTaskPlanner(BaseAgent):
                     agent_class_name="ForecastAgent",
                     action="forecast",
                     parameters={"target": target, "periods": periods},
+                    dependencies=primary_deps,
+                )
+            )
+            step_counter += 1
+        elif intent_res.primary_intent == AnalyticalIntent.CORRELATION:
+            target = intent_res.target_column or knowledge.get_primary_metric()
+            steps.append(
+                PlanStep(
+                    step_id=main_step_id,
+                    name="Statistical Relationship & Correlation Analysis",
+                    agent_class_name="StatisticalAnalysisAgent",
+                    action="statistical_analysis",
+                    parameters={"target": target, "features": intent_res.feature_columns or None},
+                    dependencies=primary_deps,
+                )
+            )
+            step_counter += 1
+        elif intent_res.primary_intent == AnalyticalIntent.HYPOTHESIS_TESTING:
+            target = intent_res.target_column or knowledge.get_primary_metric()
+            steps.append(
+                PlanStep(
+                    step_id=main_step_id,
+                    name="Hypothesis Testing & Significance Evaluation",
+                    agent_class_name="HypothesisTestingAgent",
+                    action="hypothesis_testing",
+                    parameters={"target": target, "features": intent_res.feature_columns or None},
                     dependencies=primary_deps,
                 )
             )
