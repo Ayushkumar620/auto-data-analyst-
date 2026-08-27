@@ -182,11 +182,6 @@ class PreExecutionValidator:
             return cls._validate_transformation(main_df, profile, target, feature_columns, agent_name)
 
         # TASK K: GENERAL ANALYSIS
-        # TASK K: DATA QUALITY GATE & PRE-ANALYSIS VALIDATION
-        elif task_norm in ("data_quality_gate", "data_quality", "quality_gate", "validation_gate", "pre_flight"):
-            return cls._validate_data_quality_gate(main_df, profile, target, feature_columns, agent_name)
-
-        # TASK L: GENERAL ANALYSIS
         else:
             return PreExecutionValidationReport(
                 is_valid=True,
@@ -704,38 +699,6 @@ class PreExecutionValidator:
         return PreExecutionValidationReport(
             is_valid=True,
             task_type="transformation",
-            target_column=target,
-            diagnostics={"rows": len(df), "columns": list(df.columns)},
-        )
-
-    @classmethod
-    def _validate_data_quality_gate(
-        cls,
-        df: pd.DataFrame,
-        profile: SemanticProfile,
-        target: Optional[str],
-        features: Optional[List[str]],
-        agent_name: str,
-    ) -> PreExecutionValidationReport:
-        if len(df) == 0:
-            err = AgentError.create(
-                category=ErrorCategory.INSUFFICIENT_DATA,
-                user_message="Dataset contains 0 rows. Cannot validate quality on an empty dataset.",
-                agent_name=agent_name,
-            )
-            return PreExecutionValidationReport(is_valid=False, task_type="data_quality_gate", error=err)
-
-        if len(df.columns) == 0:
-            err = AgentError.create(
-                category=ErrorCategory.DATA_INVALID,
-                user_message="Dataset contains 0 columns. Quality gate requires at least one attribute column.",
-                agent_name=agent_name,
-            )
-            return PreExecutionValidationReport(is_valid=False, task_type="data_quality_gate", error=err)
-
-        return PreExecutionValidationReport(
-            is_valid=True,
-            task_type="data_quality_gate",
             target_column=target,
             diagnostics={"rows": len(df), "columns": list(df.columns)},
         )

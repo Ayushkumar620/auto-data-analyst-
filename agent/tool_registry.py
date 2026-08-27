@@ -215,19 +215,6 @@ class ToolRegistry:
             )
         )
 
-        # 5d. Data Quality Gate & Pre-Analysis Validation
-        self.register(
-            ToolDefinition(
-                name="data_quality_gate",
-                description="Evaluates dataset structural validity, feature eligibility, target compatibility, and task-specific readiness before analytical execution.",
-                capabilities=["data_quality_gate", "data_quality", "quality_gate", "pre_flight", "validation_gate"],
-                input_schema={"data": "pd.DataFrame", "task_type": "str", "target": "str", "features": "list", "time_column": "str"},
-                output_schema={"status": "str", "is_ready": "bool", "row_accounting": "dict", "feature_eligibility": "dict"},
-                execution_fn=lambda data, **kw: DataQualityAgent().run({"data": data, **kw}),
-                validation_requirements=["status is not None"],
-            )
-        )
-
         # 6. Anomaly Detection
         self.register(
             ToolDefinition(

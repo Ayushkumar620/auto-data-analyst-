@@ -750,11 +750,6 @@ class IntentAnalyzer:
             "data quality", "data quality report", "missing values", "analyze missing",
             "column statistics", "what is wrong with this dataset", "overview of the data",
             "check data quality", "dataset statistics", "give me an overview",
-            "is this dataset ready for prediction?", "can i forecast this data?",
-            "check whether this data is suitable for clustering", "validate this dataset",
-            "check data quality before modeling", "is this dataset ready for machine learning?",
-            "can this dataset be used for classification?", "check if this data is suitable",
-            "validate my data", "quality gate", "data quality gate",
         ),
     }
 
