@@ -67,6 +67,10 @@ class CommandExecutionResult:
     resolved_command: Optional[str] = None
     context_metadata: Optional[Dict[str, Any]] = None
     execution_graph: Optional[List[Dict[str, Any]]] = None
+    relationships: Optional[List[Dict[str, Any]]] = None
+    top_relationships: Optional[List[Dict[str, Any]]] = None
+    subgroup_analysis: Optional[Dict[str, Any]]] = None
+    correlation_matrix: Optional[Dict[str, Any]]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return sanitize_for_json({
@@ -86,6 +90,10 @@ class CommandExecutionResult:
             "duration_ms": round(float(self.duration_ms), 2),
             "context_metadata": self.context_metadata,
             "execution_graph": self.execution_graph or [],
+            "relationships": self.relationships or [],
+            "top_relationships": self.top_relationships or [],
+            "subgroup_analysis": self.subgroup_analysis or {},
+            "correlation_matrix": self.correlation_matrix or {},
         })
 
 
