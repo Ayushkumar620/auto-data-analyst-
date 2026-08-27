@@ -685,7 +685,7 @@ class IntentAnalyzer:
 
     INTENT_KEYWORDS = {
         AnalyticalIntent.CLEANING: (
-            "clean", "preprocess", "impute", "missing", "outlier removal",
+            "clean", "preprocess", "impute", "impute missing", "fill missing", "outlier removal",
             "dedup", "duplicates", "null values", "format data", "sanitize",
             "clean this dataset", "prepare the data", "preprocess the data",
             "encode categorical columns", "scale the features", "handle missing values",
