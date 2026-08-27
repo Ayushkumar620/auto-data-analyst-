@@ -545,14 +545,17 @@ class EDAEngine:
 
             # String examination
             sample_str = s.dropna().astype(str).iloc[:20]
-            avg_len = sum(len(x) for x in sample_str) / max(1, len(sample_str))
-            has_spaces = (sample_str.str.count(" ") >= 2).mean() > 0.40
-            if has_spaces or avg_len > 35:
-                return 0.10, "Free-form text attribute"
 
-            # String with UUID or ID structure
+            # 1. String with UUID structure (e.g. 8-4-4-4-12)
             if any(len(x) in (32, 36) and "-" in x for x in sample_str):
                 return 0.99, "UUID format matched"
+
+            # 2. Free text with multiple spaces or paragraph text
+            has_spaces = (sample_str.str.count(" ") >= 2).mean() > 0.40
+            avg_len = sum(len(x) for x in sample_str) / max(1, len(sample_str))
+            if has_spaces or avg_len > 60:
+                return 0.10, "Free-form text attribute"
+
             if col_name in sem_profile.identifier_columns:
                 return 0.95, "Identified as key by semantic profiler"
             if not pd.api.types.is_numeric_dtype(s):
