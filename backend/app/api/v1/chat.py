@@ -11,6 +11,7 @@ from backend.app.config import UPLOAD_DIR
 from backend.app.services.dataset_service import DatasetService
 from agent.command_orchestrator import AutonomousCommandOrchestrator
 from agent.conversational_analyst import ConversationalAnalystAgent
+from agent.json_utils import sanitize_for_json
 
 router = APIRouter(tags=["chat"])
 
@@ -137,9 +138,9 @@ def handle_conversational_session(req: ChatSessionMessageRequest) -> ChatSession
             session_id=req.session_id,
             message=req.message,
             response=resp_text,
-            evidence=evidence_dicts,
-            dataset_context=ds_ctx,
-            metadata=turn_meta,
+            evidence=sanitize_for_json(evidence_dicts),
+            dataset_context=sanitize_for_json(ds_ctx),
+            metadata=sanitize_for_json(turn_meta),
             created_at=datetime.now(timezone.utc).isoformat(),
         )
     except Exception as exc:
