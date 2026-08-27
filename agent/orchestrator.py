@@ -169,13 +169,12 @@ class UniversalOrchestrator:
     def orchestrate(
         self,
         command: str,
-        data: Optional[Union[pd.DataFrame, Dict[str, Any], Any]] = None,
+        data: Union[pd.DataFrame, Dict[str, Any], Any],
         target: Optional[str] = None,
         features: Optional[List[str]] = None,
         time_column: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
         dataset_id: Optional[str] = None,
-        session_id: Optional[str] = None,
     ) -> AgentResult:
         """
         Execute end-to-end orchestration pipeline from natural language command to AgentResult.
@@ -183,49 +182,10 @@ class UniversalOrchestrator:
         start_time = datetime.now()
         orchestration_id = f"orch_{uuid.uuid4().hex[:8]}"
 
-        from agent.analytical_context import DEFAULT_SESSION_CONTEXT_MANAGER, ContextualResolution
-
-        ctx = DEFAULT_SESSION_CONTEXT_MANAGER.get_context(session_id) if session_id else None
-        resolution = DEFAULT_SESSION_CONTEXT_MANAGER.resolver.resolve(command, ctx) if session_id else None
-
-        if resolution and resolution.needs_clarification:
-            return self._build_contextual_clarification_result(
-                command=command,
-                orchestration_id=orchestration_id,
-                reason=resolution.clarification_reason or "Ambiguous contextual reference.",
-                suggested_options=resolution.suggested_options,
-                session_id=session_id,
-            )
-
         # 1. Extract & validate raw DataFrame
         df = self._extract_dataframe(data)
-        if (df is None or len(df) == 0 or len(df.columns) == 0) and session_id:
-            target_ds_id = dataset_id or (resolution.dataset_id if resolution else None)
-            cached_df = DEFAULT_SESSION_CONTEXT_MANAGER.get_dataset(session_id, target_ds_id)
-            if cached_df is not None and len(cached_df) > 0:
-                df = cached_df
-
         if df is None or len(df) == 0 or len(df.columns) == 0:
-            if session_id:
-                return self._build_missing_session_dataset_error(command, orchestration_id, session_id)
             return self._build_empty_dataset_error(command, orchestration_id)
-
-        # Register dataset in session if session_id provided
-        if session_id:
-            DEFAULT_SESSION_CONTEXT_MANAGER.register_dataset(
-                session_id,
-                df,
-                dataset_id=dataset_id or (resolution.dataset_id if resolution else None),
-            )
-
-        # Enrich parameters with resolution
-        effective_command = resolution.resolved_command if (resolution and resolution.is_follow_up) else command
-        target = target or (resolution.target if resolution else None)
-        features = features or (resolution.features if resolution and resolution.features else None)
-        time_column = time_column or (resolution.time_column if resolution else None)
-        dataset_id = dataset_id or (resolution.dataset_id if resolution else None)
-        if resolution and resolution.parameters:
-            config = {**(config or {}), **resolution.parameters}
 
         # 2. Ingest into CanonicalDataLayer & build SemanticProfile
         canonical_ds: CanonicalDataset = CanonicalDataLayer.ingest(df)
@@ -233,7 +193,7 @@ class UniversalOrchestrator:
 
         # 3. Generate Analytical Plan
         plan: AnalyticalPlan = self.plan(
-            command=effective_command,
+            command=command,
             df=df,
             profile=profile,
             target=target,
@@ -250,40 +210,13 @@ class UniversalOrchestrator:
             return self._build_unsupported_result(plan, orchestration_id)
 
         # 5. Execute Analytical Plan
-        res = self.execute_plan(
+        return self.execute_plan(
             plan=plan,
             df=df,
             profile=profile,
             orchestration_id=orchestration_id,
             start_time=start_time,
         )
-
-        # 6. Update Session Context
-        if session_id:
-            DEFAULT_SESSION_CONTEXT_MANAGER.record_execution(
-                session_id=session_id,
-                result=res,
-                user_command=command,
-                resolved_command=effective_command,
-                target=target,
-                features=features,
-                time_column=time_column,
-                resolved_references=resolution.resolved_references if resolution else {},
-            )
-            if isinstance(res.provenance, dict):
-                res.provenance["session_id"] = session_id
-                res.provenance["is_follow_up"] = resolution.is_follow_up if resolution else False
-                res.provenance["resolved_references"] = resolution.resolved_references if resolution else {}
-            if isinstance(res.result, dict):
-                res.result["session_id"] = session_id
-                res.result["is_follow_up"] = resolution.is_follow_up if resolution else False
-                res.result["resolved_references"] = resolution.resolved_references if resolution else {}
-            if isinstance(res.data, dict):
-                res.data["session_id"] = session_id
-                res.data["is_follow_up"] = resolution.is_follow_up if resolution else False
-                res.data["resolved_references"] = resolution.resolved_references if resolution else {}
-
-        return res
 
     # --------------------------------------------------------------------------
     # Planning Engine
@@ -987,56 +920,6 @@ class UniversalOrchestrator:
             task_type="orchestration",
             task_id=orchestration_id,
             errors=[err],
-        )
-
-    def _build_missing_session_dataset_error(self, command: str, orchestration_id: str, session_id: str) -> AgentResult:
-        err = AgentError(
-            code="NO_DATASET_IN_SESSION",
-            category=ErrorCategory.INSUFFICIENT_DATA,
-            user_message=f"No active dataset found in session '{session_id}'. Please provide a dataset to proceed.",
-            message=f"No active dataset found in session '{session_id}'.",
-            agent_name="Universal Orchestrator",
-        )
-        return AgentResult(
-            status=AgentStatus.NEEDS_CLARIFICATION,
-            task_type="orchestration",
-            agent_name="Universal Orchestrator",
-            execution_id=orchestration_id,
-            result={"error": err.user_message, "session_id": session_id},
-            data={"error": err.user_message, "session_id": session_id},
-            output={"error": err.user_message, "session_id": session_id},
-            confidence=0.30,
-            errors=[err],
-            warnings=["Operation requires a dataset, but none is active in the current session."],
-        )
-
-    def _build_contextual_clarification_result(
-        self,
-        command: str,
-        orchestration_id: str,
-        reason: str,
-        suggested_options: List[str],
-        session_id: Optional[str] = None,
-    ) -> AgentResult:
-        err = AgentError(
-            code="AMBIGUOUS_CONTEXTUAL_REFERENCE",
-            category=ErrorCategory.DATA_INVALID,
-            user_message=f"Clarification required: {reason} Suggested options: {', '.join(suggested_options)}",
-            message=reason,
-            agent_name="Universal Orchestrator",
-            technical_details={"suggested_options": suggested_options},
-        )
-        return AgentResult(
-            status=AgentStatus.NEEDS_CLARIFICATION,
-            task_type="orchestration",
-            agent_name="Universal Orchestrator",
-            execution_id=orchestration_id,
-            result={"error": err.user_message, "suggested_options": suggested_options, "session_id": session_id},
-            data={"error": err.user_message, "suggested_options": suggested_options, "session_id": session_id},
-            output={"error": err.user_message, "suggested_options": suggested_options, "session_id": session_id},
-            confidence=0.30,
-            errors=[err],
-            warnings=["Ambiguous reference could not be uniquely resolved from session context."],
         )
 
     def _build_clarification_result(self, plan: AnalyticalPlan, orchestration_id: str) -> AgentResult:

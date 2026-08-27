@@ -461,7 +461,7 @@ def test_X_agentresult_compatibility():
 
     assert isinstance(res, AgentResult)
     assert res.provenance.get("session_id") == session_id
-    assert res.status in (AgentStatus.SUCCESS, AgentStatus.COMPLETED)
+    assert res.status == AgentStatus.COMPLETED
 
 
 # ------------------------------------------------------------------------------
@@ -501,7 +501,7 @@ def test_Z_api_follow_up_execution():
     )
     assert r1.status_code == 200
     d1 = r1.json()
-    assert d1["status"] in ("success", "completed")
+    assert d1["status"] == "completed"
 
     # Turn 2: Follow-up without resending dataset
     r2 = client.post(
@@ -510,7 +510,7 @@ def test_Z_api_follow_up_execution():
     )
     assert r2.status_code == 200
     d2 = r2.json()
-    assert d2["status"] in ("success", "completed")
+    assert d2["status"] == "completed"
     assert d2.get("result", {}).get("is_follow_up") is True or d2.get("provenance", {}).get("is_follow_up") is True
 
 
@@ -550,11 +550,11 @@ def test_AB_context_aware_orchestration():
 
     # 1. First command
     res1 = orch.orchestrate("analyze correlation with revenue", df, session_id=session_id, target="revenue")
-    assert res1.status in (AgentStatus.SUCCESS, AgentStatus.COMPLETED)
+    assert res1.status == AgentStatus.COMPLETED
 
     # 2. Contextual follow-up command
     res2 = orch.orchestrate("forecast it for the next 6 periods", session_id=session_id)
-    assert res2.status in (AgentStatus.SUCCESS, AgentStatus.COMPLETED)
+    assert res2.status == AgentStatus.COMPLETED
     assert res2.provenance.get("is_follow_up") is True
 
 
