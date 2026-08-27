@@ -636,7 +636,10 @@ class InsightsEngine:
                     break
             if gb_col and gb_col != target_col:
                 if target_col in numeric_cols:
-                    grouped = df.groupby(gb_col)[target_col].sum().sort_values(ascending=False).head(15)
+                    grouped = (
+                        df.assign(**{target_col: pd.to_numeric(df[target_col], errors="coerce")})
+                        .groupby(gb_col)[target_col].sum().sort_values(ascending=False).head(15)
+                    )
                     result["groups"] = {str(k): float(v) for k, v in grouped.items()}
                 else:
                     grouped = df.groupby(gb_col).size().sort_values(ascending=False).head(15)
