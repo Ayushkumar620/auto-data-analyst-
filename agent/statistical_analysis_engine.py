@@ -216,11 +216,6 @@ class StatisticalAnalysisEngine:
                 excluded.append(str(col))
                 continue
 
-            # 1. Identifier exclusion
-            if not is_explicit and (col in profile.identifier_columns or (series.nunique(dropna=True) == len(df) and len(df) >= 5 and not pd.api.types.is_numeric_dtype(series))):
-                excluded.append(str(col))
-                continue
-
             # 2. Constant exclusion (0 variance)
             if not is_explicit and (col in profile.constant_columns or series.nunique(dropna=True) <= 1):
                 excluded.append(str(col))
@@ -427,18 +422,28 @@ class StatisticalAnalysisEngine:
         return {
             "feature_x": name_x,
             "feature_y": name_y,
+            "variable_x": name_x,
+            "variable_y": name_y,
             "pair_type": "numeric_numeric",
             "primary_method": primary_method,
+            "method": primary_method,
             "statistic": round(primary_stat, 4),
+            "pearson_r": round(r_val, 4),
+            "spearman_rho": round(rho_val, 4),
+            "kendall_tau": tau_val,
             "p_value": round(primary_p, 6),
             "effect_size": round(effect_size, 4),
             "strength": strength,
+            "effect_strength": strength,
             "direction": direction,
             "valid_rows": n_valid,
+            "valid_sample_size": n_valid,
             "missing_x": int((~num_x.notna()).sum()),
             "missing_y": int((~num_y.notna()).sum()),
             "outlier_sensitivity": outlier_sensitivity,
+            "outlier_sensitive": outlier_sensitivity,
             "r_vs_rho_delta": r_vs_rho_delta,
+            "confidence": round(0.95 if abs(primary_stat) >= 0.10 else 0.85, 4),
             "pearson": {
                 "r": round(r_val, 4),
                 "p_value": round(p_pearson, 6),

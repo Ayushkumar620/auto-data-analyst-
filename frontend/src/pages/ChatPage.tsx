@@ -435,6 +435,66 @@ export default function ChatPage() {
                 </Card>
               )}
 
+              {/* Statistical Relationships & Dependencies Table (if available) */}
+              {activeResult.relationships && activeResult.relationships.length > 0 && (
+                <Card>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <h2 className="section-title" style={{ margin: 0, color: 'var(--primary)' }}>
+                      Statistical Relationships & Dependencies ({activeResult.relationships.length})
+                    </h2>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)' }}>
+                      Benjamini-Hochberg FDR Adjusted (α = 0.05)
+                    </span>
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', background: 'var(--panel-alt, #f8fafc)' }}>
+                          <th style={{ padding: '0.5rem 0.75rem' }}>Relationship</th>
+                          <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>Pearson r</th>
+                          <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>Spearman ρ</th>
+                          <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>Raw p-value</th>
+                          <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>FDR p-value</th>
+                          <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>Effect Strength</th>
+                          <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>Valid N</th>
+                          <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>Outlier Sensitivity</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {activeResult.relationships.map((rel, idx) => {
+                          const fx = rel.feature_x || rel.variable_x;
+                          const fy = rel.feature_y || rel.variable_y;
+                          const pr = rel.pearson_r ?? rel.pearson?.r ?? rel.statistic ?? 0;
+                          const rho = rel.spearman_rho ?? rel.spearman?.rho ?? 0;
+                          const pVal = rel.p_value ?? 1.0;
+                          const adjP = rel.adjusted_p_value ?? pVal;
+                          const strength = (rel.effect_strength || rel.strength || 'moderate').replace('_', ' ');
+                          const isSens = rel.outlier_sensitive || rel.outlier_sensitivity;
+                          return (
+                            <tr key={idx} style={{ borderBottom: '1px solid var(--border, #f1f5f9)' }}>
+                              <td style={{ padding: '0.5rem 0.75rem', fontWeight: 600 }}>{fx} ↔ {fy}</td>
+                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', fontFamily: 'monospace' }}>{pr.toFixed(3)}</td>
+                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', fontFamily: 'monospace' }}>{rho.toFixed(3)}</td>
+                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', fontFamily: 'monospace' }}>{pVal < 0.0001 ? pVal.toExponential(2) : pVal.toFixed(4)}</td>
+                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', fontFamily: 'monospace', fontWeight: adjP < 0.05 ? 700 : 400, color: adjP < 0.05 ? '#059669' : 'inherit' }}>
+                                {adjP < 0.0001 ? adjP.toExponential(2) : adjP.toFixed(4)}
+                              </td>
+                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', textTransform: 'capitalize' }}>
+                                <span style={{ padding: '0.15rem 0.4rem', borderRadius: '4px', background: '#f1f5f9', fontSize: '0.75rem' }}>{strength}</span>
+                              </td>
+                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>{rel.valid_rows ?? rel.valid_sample_size ?? '—'}</td>
+                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>
+                                {isSens ? <span style={{ color: '#d97706', fontWeight: 600 }}>⚠️ Sensitive</span> : <span style={{ color: '#059669' }}>Robust</span>}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              )}
+
               {/* Executive Report & Key Findings Card (Controlled by Toggle) */}
               {showExecutiveReport && (
                 <Card>

@@ -1,5 +1,5 @@
 import { buildApiUrl, authedFetch, parseApiError } from './api';
-import type { ChatSessionApiResponse } from '../types';
+import type { ChatSessionApiResponse, StatisticalRelationshipRecord } from '../types';
 
 export type ChatResponse = {
   message: string;
@@ -29,6 +29,10 @@ export type CommandExecutionResponse = {
   visualization: { data?: unknown[]; layout?: Record<string, unknown>; chart_type?: string; x?: string; y?: string; title?: string } | null;
   dataset_summary: Record<string, unknown>;
   duration_ms: number;
+  relationships?: StatisticalRelationshipRecord[];
+  top_relationships?: StatisticalRelationshipRecord[];
+  subgroup_analysis?: Record<string, unknown>;
+  correlation_matrix?: Record<string, Record<string, number>>;
 };
 
 export async function sendChatMessage(file: File, message: string, sessionId = 'default'): Promise<ChatResponse> {

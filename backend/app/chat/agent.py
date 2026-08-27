@@ -66,13 +66,68 @@ class ChatAgent:
                     else:
                         answer = f"Looking at the data, {metric} {self._describe_trend(growth)}. The most recent period changed by {self._format(abs(change))}% compared with the prior period. This describes the observed trend rather than proving a cause."
                     return ChatResponse(answer, "trend", "success", evidence, self._chart_visualization(dataframe, "line", date, metric), self._metric_questions(dataframe))
-        if any(word in text for word in ("correlat", "related", "relationship")) and len(self._numeric_columns(dataframe)) >= 2:
-            left, right = self._numeric_columns(dataframe)[:2]
-            evidence = self.tools.execute("calculate_correlation", dataframe, left=left, right=right)
-            value = evidence.get("correlation")
-            strength = "strong" if abs(value or 0) >= 0.7 else "moderate" if abs(value or 0) >= 0.4 else "weak"
-            answer = f"{left} and {right} show a {strength} {'positive' if (value or 0) > 0 else 'negative'} relationship (correlation {self._format(value)})."
-            return ChatResponse(answer, "correlation", "success", evidence, suggested_questions=self._metric_questions(dataframe))
+        if any(word in text for word in ("correlat", "related", "relationship", "association", "pearson", "spearman")) and len(self._numeric_columns(dataframe)) >= 2:
+            from agent.statistical_analysis_engine import StatisticalAnalysisEngine
+            engine = StatisticalAnalysisEngine()
+            stats_res = engine.analyze(data=dataframe)
+            rels = stats_res.get("relationships", [])
+            top_rels = stats_res.get("top_relationships", []) or rels
+            corr_matrix = stats_res.get("correlation_matrix", {})
+
+            # Format comprehensive table & explanation
+            lines = ["📊 **Statistical Relationship & Correlation Analysis**:\n"]
+            if top_rels:
+                lines.append("| Relationship | Pearson r | Spearman ρ | Raw p-value | FDR-adjusted p-value | Effect Strength | Valid N | Outlier Sensitivity |")
+                lines.append("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
+                for r in top_rels[:8]:
+                    fx = r.get("feature_x") or r.get("variable_x")
+                    fy = r.get("feature_y") or r.get("variable_y")
+                    p_info = r.get("pearson", {}) or {}
+                    s_info = r.get("spearman", {}) or {}
+                    p_r = p_info.get("r", r.get("statistic", 0.0))
+                    p_val = p_info.get("p_value", r.get("p_value", 0.0))
+                    rho_val = s_info.get("rho", 0.0)
+                    adj_p = r.get("adjusted_p_value", p_val)
+                    strength = r.get("strength", "moderate").replace("_", " ").title()
+                    outlier_sens = "Yes ⚠️" if r.get("outlier_sensitivity") else "No"
+                    v_n = r.get("valid_rows", len(dataframe))
+                    lines.append(
+                        f"| **{fx}** ↔ **{fy}** | {p_r:.3f} | {rho_val:.3f} | {p_val:.4g} | {adj_p:.4g} | {strength} | {v_n} | {outlier_sens} |"
+                    )
+
+                lines.append("\n**Key Statistical Findings**:")
+                for i, r in enumerate(top_rels[:3], 1):
+                    fx = r.get("feature_x")
+                    fy = r.get("feature_y")
+                    p_r = r.get("pearson", {}).get("r", r.get("statistic", 0.0))
+                    rho_val = r.get("spearman", {}).get("rho", 0.0)
+                    p_val = r.get("p_value", 0.0)
+                    adj_p = r.get("adjusted_p_value", p_val)
+                    strength = r.get("strength", "moderate")
+                    lines.append(
+                        f"{i}. **{fx}** ↔ **{fy}**: {strength.replace('_', ' ').title()} association (Pearson r = {p_r:.3f}, Spearman ρ = {rho_val:.3f}, raw p = {p_val:.4g}, FDR-adjusted p = {adj_p:.4g}, valid N = {r.get('valid_rows')})."
+                    )
+
+            lines.append("\n> [!NOTE]\n> *All reported p-values are adjusted via Benjamini-Hochberg FDR control. Correlations describe mathematical associations without establishing causal mechanisms.*")
+            answer = "\n".join(lines)
+
+            # Preserve legacy fields in evidence while attaching detailed relationship records
+            evidence = {
+                "columns": list(dataframe.columns),
+                "numeric_columns": self._numeric_columns(dataframe),
+                "correlation_matrix": corr_matrix,
+                "relationships": rels,
+                "top_relationships": top_rels,
+                "correlation": top_rels[0].get("statistic") if top_rels else None,
+            }
+            return ChatResponse(
+                answer,
+                "correlation",
+                "success",
+                evidence,
+                command_result={"relationships": rels, "correlation_matrix": corr_matrix},
+                suggested_questions=self._metric_questions(dataframe),
+            )
         if any(word in text for word in ("show", "display", "visualize", "chart", "plot", "monthly", "over time", "trend")):
             date = self._date_column(dataframe)
             target = date or self._categorical_column(dataframe)
