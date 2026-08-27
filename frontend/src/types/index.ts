@@ -491,3 +491,57 @@ export type AnalyticalContextData = {
   limitations: string[];
   warnings: string[];
 };
+
+// ==========================================
+// Milestone 7 Task 4: Universal Analytical Explanation
+// ==========================================
+export type ExplanationSectionItem = {
+  title: string;
+  content: string;
+  evidence_refs: string[];
+  importance: number;
+  metadata?: Record<string, unknown>;
+};
+
+export type MetricExplanationItem = {
+  metric_name: string;
+  value?: number | string | null;
+  interpretation: string;
+  validation_status: string;
+  benchmark?: string | null;
+};
+
+export type EvidenceTraceItem = {
+  evidence_id: string;
+  claim: string;
+  source: string;
+  method: string;
+  columns: string[];
+  rows_analyzed?: number | null;
+  calculation?: string | null;
+  result?: unknown;
+  confidence: number;
+  claim_type: string;
+};
+
+export type AnalyticalExplanationData = {
+  explanation_id: string;
+  task_type: string;
+  summary: string;
+  findings: ExplanationSectionItem[];
+  methodology: ExplanationSectionItem[];
+  metrics: MetricExplanationItem[];
+  evidence: EvidenceTraceItem[];
+  assumptions: string[];
+  limitations: string[];
+  uncertainty: {
+    statistical_confidence?: number | null;
+    model_validation_score?: number | null;
+    prediction_interval_level?: string | null;
+    epistemic_confidence: number;
+    practical_effect_size?: string | null;
+    notes?: string[];
+  };
+  provenance: Record<string, unknown>;
+  recommended_next_steps: string[];
+};
