@@ -389,7 +389,7 @@
                     method: 'POST',
                     body: formData
                 });
-                const data = await resp.json();
+                const data = await parseJson(resp);
                 if (!resp.ok || data.type === 'error') {
                     throw new Error(data.message || 'Upload failed.');
                 }
@@ -423,13 +423,47 @@
                     method: 'POST',
                     body: formData
                 });
-                const data = await resp.json();
+                const data = await parseJson(resp);
                 renderResult(data);
             } catch (err) {
                 showError('Request failed: ' + err.message);
             } finally {
                 showLoading(false);
             }
+        }
+
+        /**
+         * Safely parse a fetch() response as JSON.
+         *
+         * The classic failure `Unexpected token '<', "<!doctype "... is not valid JSON`
+         * happens when the browser receives an HTML document (e.g. an HTML 404 error
+         * page or an SPA index.html fallback) instead of the JSON the endpoint should
+         * return. This usually means `index.html` was opened via a static file server
+         * (or a host that does not expose the `/api/*` routes) rather than being served
+         * by the backend app itself. Instead of leaking that cryptic JSON.parse message,
+         * we inspect the Content-Type, read the actual body, and surface the real cause
+         * with an actionable hint.
+         */
+        async function parseJson(resp) {
+            const ctype = (resp.headers.get('content-type') || '').toLowerCase();
+            let data;
+            try {
+                data = await resp.json();
+            } catch (e) {
+                const snippet = await resp.text()
+                    .then(t => (t || '<empty>').replace(/\s+/g, ' ').trim().slice(0, 200))
+                    .catch(() => '<unreadable>');
+                const kind = (ctype && ctype !== 'application/json') ? ctype : 'non-JSON';
+                throw new Error(
+                    'The server returned "' + kind + '" (HTTP ' + resp.status + ') for "' + resp.url +
+                    '" — expected JSON. This page must be served by the backend at the same origin ' +
+                    '(run: python app.py). Body: ' + snippet
+                );
+            }
+            if (!resp.ok && data && (data.detail || data.message)) {
+                throw new Error(data.detail || data.message);
+            }
+            return data;
         }
 
         function showLoading(show) {
@@ -1210,7 +1244,7 @@ function renderInsight(result, intent) {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ email: email })
                     });
-                    const data = await resp.json();
+                    const data = await parseJson(resp);
                     if (!resp.ok) throw new Error(data.detail || 'Could not send verification code.');
 
                     lastDemoOtp = data.demo_otp || '123456';
@@ -1255,7 +1289,7 @@ function renderInsight(result, intent) {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ email: email, otp: otp })
                     });
-                    const data = await resp.json();
+                    const data = await parseJson(resp);
                     if (!resp.ok) throw new Error(data.detail || 'Invalid verification code.');
 
                     const userObj = {
@@ -1309,7 +1343,7 @@ function renderInsight(result, intent) {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ phone: fullPhone })
                     });
-                    const data = await resp.json();
+                    const data = await parseJson(resp);
                     if (!resp.ok) throw new Error(data.detail || 'Could not send SMS verification code.');
 
                     lastDemoPhoneOtp = data.demo_otp || '123456';
@@ -1354,7 +1388,7 @@ function renderInsight(result, intent) {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ phone: fullPhone, otp: otp })
                     });
-                    const data = await resp.json();
+                    const data = await parseJson(resp);
                     if (!resp.ok) throw new Error(data.detail || 'Invalid SMS verification code.');
 
                     const userObj = {
@@ -1401,7 +1435,7 @@ function renderInsight(result, intent) {
                     body: JSON.stringify({ email: email, password: password })
                 });
 
-                const data = await resp.json();
+                const data = await parseJson(resp);
                 if (!resp.ok) {
                     throw new Error(data.detail || 'Login failed. Please check your credentials.');
                 }
