@@ -58,14 +58,19 @@ class ExplanationAgent(BaseAgent):
         start_time = datetime.now()
         self.status = AgentStatus.WORKING
 
-        target_payload = inputs.get("result") or inputs.get("orchestration_result") or inputs.get("data_result") or inputs
+        target_payload = inputs.get("result") or inputs.get("orchestration_result") or inputs.get("data_result")
+        if target_payload is None:
+            content_keys = [k for k in inputs if k not in ("command", "user_request", "depth", "data", "result", "orchestration_result", "data_result")]
+            if any(inputs.get(k) is not None for k in content_keys):
+                target_payload = inputs
+
         dataframe = inputs.get("data") if isinstance(inputs.get("data"), pd.DataFrame) else None
         command = inputs.get("command") or inputs.get("user_request")
         depth = inputs.get("depth", "detailed")
 
         try:
             # Handle empty payload safely
-            if not target_payload and dataframe is None:
+            if (target_payload is None or not target_payload) and dataframe is None:
                 err = AgentError(
                     code="EMPTY_EXPLANATION_INPUT",
                     category=ErrorCategory.INPUT_INVALID,
