@@ -322,7 +322,7 @@ class CanonicalDataLayer:
         )
 
     @classmethod
-    def ingest(cls, data: Union[pd.DataFrame, Dict[str, Any]]) -> CanonicalDataset:
+    def ingest(cls, data: Union[pd.DataFrame, Dict[str, Any]], *args: Any, **kwargs: Any) -> CanonicalDataset:
         """Standardize any input data into a CanonicalDataset object with semantic profile."""
         if isinstance(data, dict):
             for df in data.values():

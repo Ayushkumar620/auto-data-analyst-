@@ -448,15 +448,18 @@ class SessionContextManager:
             d_name = dataset_name or f"dataset_{len(ctx.datasets) + 1}"
 
             # Ingest through CanonicalDataLayer to obtain SemanticProfile
-            ingested = CanonicalDataLayer.ingest(df, dataset_name=d_name)
+            ingested = CanonicalDataLayer.ingest(df)
             prof = ingested.profile
 
             preview_records = df.head(5).to_dict(orient="records")
+            total_cells = max(1, len(df) * max(1, len(df.columns)))
+            total_missing = sum(m.get("missing_count", 0) for m in prof.missing_stats.values()) if isinstance(prof.missing_stats, dict) else 0
+            q_score = round(max(0.0, min(1.0, 1.0 - (total_missing / total_cells))), 4)
 
             snapshot = DatasetSnapshot(
                 dataset_id=d_id,
                 dataset_name=d_name,
-                columns=prof.column_names,
+                columns=list(df.columns),
                 numeric_columns=prof.numeric_columns,
                 categorical_columns=prof.categorical_columns,
                 datetime_columns=prof.datetime_candidates,
@@ -465,7 +468,7 @@ class SessionContextManager:
                 original_rows=len(df),
                 current_rows=len(df),
                 preview_sample=preview_records,
-                quality_score=prof.quality_score,
+                quality_score=q_score,
             )
 
             # Store in session context and cache dataframe in memory scoped to (session_id, d_id)
