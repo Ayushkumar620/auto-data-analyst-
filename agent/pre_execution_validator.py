@@ -181,7 +181,6 @@ class PreExecutionValidator:
         elif task_norm in ("transformation", "transform", "feature_engineering", "preprocessing", "clean", "preprocess"):
             return cls._validate_transformation(main_df, profile, target, feature_columns, agent_name)
 
-        # TASK K: GENERAL ANALYSIS
         # TASK K: DATA QUALITY GATE & PRE-ANALYSIS VALIDATION
         elif task_norm in ("data_quality_gate", "data_quality", "quality_gate", "validation_gate", "pre_flight"):
             return cls._validate_data_quality_gate(main_df, profile, target, feature_columns, agent_name)
