@@ -99,6 +99,9 @@ class ExecutionHistoryItem(BaseModel):
         }
 
 
+ExecutionRecord = ExecutionHistoryItem
+
+
 class SessionContext(BaseModel):
     """Session state carrying active entities, turn history, and reference memory."""
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -140,6 +143,9 @@ class SessionContext(BaseModel):
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
+
+
+AnalyticalContext = SessionContext
 
 
 class ContextualResolution(BaseModel):

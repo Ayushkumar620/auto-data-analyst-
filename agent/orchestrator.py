@@ -1015,14 +1015,17 @@ class UniversalOrchestrator:
             message=f"No dataset found in session '{session_id}'.",
             agent_name="Universal Orchestrator",
         )
-        return AgentResult.error(
-            error=err.user_message,
-            code=err.code,
-            category=err.category,
-            agent_name="Universal Orchestrator",
+        return AgentResult(
+            status=AgentStatus.NEEDS_CLARIFICATION,
             task_type="orchestration",
-            task_id=orchestration_id,
+            agent_name="Universal Orchestrator",
+            execution_id=orchestration_id,
+            result={"error": err.user_message},
+            data={"error": err.user_message},
+            output={"error": err.user_message},
+            confidence=0.20,
             errors=[err],
+            warnings=[err.user_message],
         )
 
     def _build_contextual_clarification_result(
