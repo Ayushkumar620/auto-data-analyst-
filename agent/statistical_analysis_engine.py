@@ -218,6 +218,9 @@ class StatisticalAnalysisEngine:
 
             # 1. Identifier exclusion
             if not is_explicit and (col in profile.identifier_columns or (series.nunique(dropna=True) == len(df) and len(df) >= 5 and not pd.api.types.is_numeric_dtype(series))):
+            # 1. Identifier exclusion (only exclude if named like an ID or non-numeric unique key)
+            is_id_name = any(id_kw in str(col).lower() for id_kw in ("_id", "id", "uuid", "guid", "ssn", "hash", "key", "account_number", "cust_id"))
+            if not is_explicit and ((is_id_name and series.nunique(dropna=True) > len(df) * 0.8) or (series.nunique(dropna=True) == len(df) and len(df) >= 5 and not pd.api.types.is_numeric_dtype(series))):
                 excluded.append(str(col))
                 continue
 
@@ -249,6 +252,23 @@ class StatisticalAnalysisEngine:
                     cat_cols.append(str(col))
                 else:
                     excluded.append(str(col))
+
+        # Fallback if fewer than 2 features found but non-constant columns exist
+        if len(numeric_cols) + len(cat_cols) < 2 and not is_explicit:
+            for col in df.columns:
+                c_str = str(col)
+                if c_str not in numeric_cols and c_str not in cat_cols:
+                    s = df[col]
+                    if s.nunique(dropna=True) > 1:
+                        num_s = CanonicalDataLayer.coerce_numeric_series(s)
+                        if num_s.notna().mean() >= 0.50 and num_s.nunique(dropna=True) > 1:
+                            numeric_cols.append(c_str)
+                            if c_str in excluded:
+                                excluded.remove(c_str)
+                        elif 2 <= s.nunique(dropna=True) <= 50:
+                            cat_cols.append(c_str)
+                            if c_str in excluded:
+                                excluded.remove(c_str)
 
         return numeric_cols, cat_cols, dt_cols, excluded
 

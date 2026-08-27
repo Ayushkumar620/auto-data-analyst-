@@ -132,6 +132,7 @@ class ConversationalAnalystAgent(BaseAgent):
         command: str,
         session_id: str = "default_session",
         data: Optional[Any] = None,
+        dataset: Optional[Any] = None,
     ) -> Tuple[str, List[Evidence], Dict[str, Any]]:
         """
         Process a single natural language conversational turn.
@@ -147,6 +148,12 @@ class ConversationalAnalystAgent(BaseAgent):
                 df = data
             elif isinstance(data, (dict, list)):
                 df = pd.DataFrame(data)
+        active_input_data = data if data is not None else dataset
+        if active_input_data is not None:
+            if isinstance(active_input_data, pd.DataFrame):
+                df = active_input_data
+            elif isinstance(active_input_data, (dict, list)):
+                df = pd.DataFrame(active_input_data)
             else:
                 df = pd.DataFrame()
             if not df.empty:
@@ -338,6 +345,7 @@ class ConversationalAnalystAgent(BaseAgent):
                 }
 
         # Create structured intent for autonomous analysis
+
         user_intent = UserIntent(
             intent_type=intent.value,
             objective=resolved_cmd,
