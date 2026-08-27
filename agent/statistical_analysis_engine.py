@@ -216,11 +216,6 @@ class StatisticalAnalysisEngine:
                 excluded.append(str(col))
                 continue
 
-            # 1. Identifier exclusion
-            if not is_explicit and (col in profile.identifier_columns or (series.nunique(dropna=True) == len(df) and len(df) >= 5 and not pd.api.types.is_numeric_dtype(series))):
-            # 1. Identifier exclusion (only exclude if named like an ID or non-numeric unique key)
-            is_id_name = any(id_kw in str(col).lower() for id_kw in ("_id", "id", "uuid", "guid", "ssn", "hash", "key", "account_number", "cust_id"))
-            if not is_explicit and ((is_id_name and series.nunique(dropna=True) > len(df) * 0.8) or (series.nunique(dropna=True) == len(df) and len(df) >= 5 and not pd.api.types.is_numeric_dtype(series))):
                 excluded.append(str(col))
                 continue
 
@@ -252,23 +247,6 @@ class StatisticalAnalysisEngine:
                     cat_cols.append(str(col))
                 else:
                     excluded.append(str(col))
-
-        # Fallback if fewer than 2 features found but non-constant columns exist
-        if len(numeric_cols) + len(cat_cols) < 2 and not is_explicit:
-            for col in df.columns:
-                c_str = str(col)
-                if c_str not in numeric_cols and c_str not in cat_cols:
-                    s = df[col]
-                    if s.nunique(dropna=True) > 1:
-                        num_s = CanonicalDataLayer.coerce_numeric_series(s)
-                        if num_s.notna().mean() >= 0.50 and num_s.nunique(dropna=True) > 1:
-                            numeric_cols.append(c_str)
-                            if c_str in excluded:
-                                excluded.remove(c_str)
-                        elif 2 <= s.nunique(dropna=True) <= 50:
-                            cat_cols.append(c_str)
-                            if c_str in excluded:
-                                excluded.remove(c_str)
 
         return numeric_cols, cat_cols, dt_cols, excluded
 
@@ -447,28 +425,18 @@ class StatisticalAnalysisEngine:
         return {
             "feature_x": name_x,
             "feature_y": name_y,
-            "variable_x": name_x,
-            "variable_y": name_y,
             "pair_type": "numeric_numeric",
             "primary_method": primary_method,
-            "method": primary_method,
             "statistic": round(primary_stat, 4),
-            "pearson_r": round(r_val, 4),
-            "spearman_rho": round(rho_val, 4),
-            "kendall_tau": tau_val,
             "p_value": round(primary_p, 6),
             "effect_size": round(effect_size, 4),
             "strength": strength,
-            "effect_strength": strength,
             "direction": direction,
             "valid_rows": n_valid,
-            "valid_sample_size": n_valid,
             "missing_x": int((~num_x.notna()).sum()),
             "missing_y": int((~num_y.notna()).sum()),
             "outlier_sensitivity": outlier_sensitivity,
-            "outlier_sensitive": outlier_sensitivity,
             "r_vs_rho_delta": r_vs_rho_delta,
-            "confidence": round(0.95 if abs(primary_stat) >= 0.10 else 0.85, 4),
             "pearson": {
                 "r": round(r_val, 4),
                 "p_value": round(p_pearson, 6),
@@ -575,22 +543,16 @@ class StatisticalAnalysisEngine:
         return {
             "feature_x": name_num,
             "feature_y": name_cat,
-            "variable_x": name_num,
-            "variable_y": name_cat,
             "pair_type": "numeric_categorical",
             "primary_method": primary_method,
-            "method": primary_method,
             "statistic": round(primary_stat, 4),
             "p_value": round(primary_p, 6),
             "effect_size": round(eta_sq, 4),
             "strength": strength,
-            "effect_strength": strength,
             "valid_rows": n_valid,
-            "valid_sample_size": n_valid,
             "missing_x": int((~num_clean.notna()).sum()),
             "missing_y": int((~cat_clean.notna()).sum()),
             "group_count": k_groups,
-            "confidence": round(0.95 if eta_sq >= 0.05 else 0.85, 4),
             "group_summaries": group_summaries,
             "anova": {
                 "f_statistic": round(f_stat, 4),
@@ -679,21 +641,15 @@ class StatisticalAnalysisEngine:
         return {
             "feature_x": name_x,
             "feature_y": name_y,
-            "variable_x": name_x,
-            "variable_y": name_y,
             "pair_type": "categorical_categorical",
             "primary_method": "chi_square",
-            "method": "chi_square",
             "statistic": round(chi2, 4),
             "p_value": round(final_p, 6),
             "effect_size": round(cramers_v, 4),
             "strength": strength,
-            "effect_strength": strength,
             "valid_rows": n_valid,
-            "valid_sample_size": n_valid,
             "missing_x": int((~c_x.notna()).sum()),
             "missing_y": int((~c_y.notna()).sum()),
-            "confidence": round(0.95 if cramers_v >= 0.10 else 0.85, 4),
             "contingency_shape": [r, c],
             "chi_square": {
                 "statistic": round(chi2, 4),
