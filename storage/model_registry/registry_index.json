@@ -3696,5 +3696,76 @@
     },
     "reference_profile": {},
     "feature_importances": {}
+  },
+  "mod_cade15a2d3": {
+    "model_id": "mod_cade15a2d3",
+    "name": "Linear Regression",
+    "version": 47,
+    "model_family": "linear",
+    "algorithm": "Linear Regression",
+    "problem_type": "regression",
+    "target_column": "target",
+    "feature_columns": [
+      "x1",
+      "x2"
+    ],
+    "feature_dtypes": {},
+    "hyperparameters": {},
+    "training_metrics": {
+      "r2": 0.9974,
+      "mae": 1.4078,
+      "rmse": 1.8407,
+      "mape": 1.652
+    },
+    "validation_metrics": {
+      "r2": 0.9971,
+      "mae": 1.474,
+      "rmse": 1.8961,
+      "mape": 1.738
+    },
+    "primary_metric_name": "r2",
+    "primary_metric_value": 0.9971,
+    "loss_curve": [],
+    "created_at": "2026-08-27T10:57:14.781201",
+    "status": "active",
+    "tags": [
+      "regression",
+      "5_fold_cv",
+      "auto_selected"
+    ],
+    "preprocessor_meta": {
+      "has_preprocessor": true
+    },
+    "reference_profile": {},
+    "feature_importances": {}
+  },
+  "mod_bf4a585146": {
+    "model_id": "mod_bf4a585146",
+    "name": "Agent_Test_Model",
+    "version": 65,
+    "model_family": "traditional_ml",
+    "algorithm": "Random Forest",
+    "problem_type": "binary_classification",
+    "target_column": "label",
+    "feature_columns": [
+      "feat_1",
+      "feat_2",
+      "feat_3"
+    ],
+    "feature_dtypes": {},
+    "hyperparameters": {},
+    "training_metrics": {},
+    "validation_metrics": {},
+    "primary_metric_name": "score",
+    "primary_metric_value": 0.0,
+    "loss_curve": [],
+    "created_at": "2026-08-27T10:58:03.569358",
+    "status": "active",
+    "tags": [],
+    "preprocessor_meta": {
+      "has_preprocessor": false
+    },
+    "reference_profile": {},
+    "feature_importances": {}
   }
 }
