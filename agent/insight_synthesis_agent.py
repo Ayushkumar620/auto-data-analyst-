@@ -46,14 +46,18 @@ class InsightSynthesisAgent(BaseAgent):
         super().__init__(data=data)
         self.name = name
         self.engine = InsightSynthesisEngine()
-        self.role = "insight_synthesis"
+    def run(self, task: Any) -> AgentResult:
+        """Standard BaseAgent execution method."""
+        if isinstance(task, dict):
+            return self.execute(task)
+        elif isinstance(task, pd.DataFrame):
+            return self.execute({"data": task})
+        return self.execute({"orchestration_result": task})
 
     def execute(self, inputs: Dict[str, Any]) -> AgentResult:
         """Execute multi-agent analytical insight synthesis."""
         start_time = datetime.now()
-        self.state["status"] = AgentStatus.WORKING.value
-        self.state["warnings"] = []
-        self.state["errors"] = []
+        self.status = AgentStatus.WORKING
 
         orchestration_result = inputs.get("orchestration_result") or inputs.get("result") or inputs
         dataframe = inputs.get("data") if isinstance(inputs.get("data"), pd.DataFrame) else None
@@ -95,18 +99,20 @@ class InsightSynthesisAgent(BaseAgent):
             )
 
             # Repair and validate
-            repaired = ResultValidator.repair(res)
-            self.state["status"] = AgentStatus.COMPLETED.value
+            validator = ResultValidator()
+            repaired, _ = validator.repair(res)
+            self.status = AgentStatus.COMPLETED
             return repaired
 
         except Exception as exc:
             duration_ms = round((datetime.now() - start_time).total_seconds() * 1000, 2)
-            self.state["status"] = AgentStatus.ERROR.value
-            err = AgentError.create(
+            self.status = AgentStatus.ERROR
+            err = AgentError(
+                code="SYNTHESIS_ERROR",
                 category=ErrorCategory.COMPUTATION,
                 user_message=f"Insight synthesis failed: {str(exc)}",
+                message=f"Insight synthesis failed: {str(exc)}",
                 agent_name=self.name,
-                code="SYNTHESIS_ERROR",
             )
             return AgentResult.error(
                 error=err.user_message,
