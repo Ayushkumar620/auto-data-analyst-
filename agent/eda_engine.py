@@ -248,11 +248,7 @@ class EDAEngine:
         is_empty = n_valid == 0
         is_constant = n_uniq <= 1 and not is_empty
 
-        # Statistical Identifier Detection
-        id_likelihood, id_reason = self._detect_identifier_likelihood(series, n_total, n_valid, n_uniq, col, sem_profile)
-        is_identifier = id_likelihood >= 0.75 and not is_constant
-
-        # Check Datetime candidate
+        # Check Datetime candidate FIRST before identifier
         is_dt_candidate = False
         dt_series: Optional[pd.Series] = None
         if not is_empty and not is_constant and (pd.api.types.is_datetime64_any_dtype(series) or col in sem_profile.datetime_candidates):
@@ -271,6 +267,10 @@ class EDAEngine:
                             is_dt_candidate = True
                 except Exception:
                     pass
+
+        # Statistical Identifier Detection
+        id_likelihood, id_reason = self._detect_identifier_likelihood(series, n_total, n_valid, n_uniq, col, sem_profile)
+        is_identifier = (not is_dt_candidate) and id_likelihood >= 0.75 and not is_constant
 
         # Check Numeric candidate & Dirty Coercion
         is_num_candidate = False
@@ -542,8 +542,15 @@ class EDAEngine:
                 diffs = s.dropna().diff().dropna()
                 if (diffs == 1).mean() > 0.90:
                     return 0.98, "Sequential integer index"
+
+            # String examination
+            sample_str = s.dropna().astype(str).iloc[:20]
+            avg_len = sum(len(x) for x in sample_str) / max(1, len(sample_str))
+            has_spaces = (sample_str.str.count(" ") >= 2).mean() > 0.40
+            if has_spaces or avg_len > 35:
+                return 0.10, "Free-form text attribute"
+
             # String with UUID or ID structure
-            sample_str = s.dropna().astype(str).iloc[:10]
             if any(len(x) in (32, 36) and "-" in x for x in sample_str):
                 return 0.99, "UUID format matched"
             if col_name in sem_profile.identifier_columns:

@@ -134,9 +134,7 @@ class EDAAgent(BaseAgent):
                         },
                         confidence=0.95,
                         claim_type=ClaimType.OBSERVATION,
-                        raw_value={
-                            "missing_pct": missing_analysis.get("overall_missing_percentage", 0.0),
-                        },
+                        raw_value=int(missing_analysis.get("total_missing_cells", 0)),
                     )
                 )
 

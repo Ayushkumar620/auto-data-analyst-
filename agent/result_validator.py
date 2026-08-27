@@ -399,7 +399,21 @@ class ResultValidator:
                         actual_nulls = int(data[col].isnull().sum())
                     else:
                         actual_nulls = int(data.isnull().sum().sum())
-                    if float(evidence.raw_value) != float(actual_nulls):
+
+                    val_to_check = None
+                    if isinstance(evidence.raw_value, (int, float)):
+                        val_to_check = float(evidence.raw_value)
+                    elif isinstance(evidence.raw_value, str):
+                        try:
+                            val_to_check = float(evidence.raw_value)
+                        except Exception:
+                            pass
+                    elif isinstance(evidence.raw_value, dict):
+                        mc = evidence.raw_value.get("total_missing_cells") or evidence.raw_value.get("missing_count") or evidence.raw_value.get("null_count")
+                        if isinstance(mc, (int, float)):
+                            val_to_check = float(mc)
+
+                    if val_to_check is not None and val_to_check != float(actual_nulls):
                         vr.add_issue(
                             ValidationSeverity.ERROR, "CALCULATION_MISMATCH",
                             f"Evidence null count ({evidence.raw_value}) != actual ({actual_nulls}).",

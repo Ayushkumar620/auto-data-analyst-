@@ -781,14 +781,20 @@ class IntentAnalyzer:
             primary = AnalyticalIntent.FORECASTING
         elif AnalyticalIntent.PREDICTION in matched_intents:
             primary = AnalyticalIntent.PREDICTION
+        elif AnalyticalIntent.CLUSTERING in matched_intents:
+            primary = AnalyticalIntent.CLUSTERING
+        elif AnalyticalIntent.CORRELATION in matched_intents:
+            primary = AnalyticalIntent.CORRELATION
+        elif AnalyticalIntent.ANOMALIES in matched_intents:
+            primary = AnalyticalIntent.ANOMALIES
         elif AnalyticalIntent.CLEANING in matched_intents:
             primary = AnalyticalIntent.CLEANING
         elif AnalyticalIntent.EXPLANATION in matched_intents:
             primary = AnalyticalIntent.EXPLANATION
+        elif AnalyticalIntent.EDA in matched_intents and any(w in q_norm for w in ("quality", "profile", "missing", "statistics", "describe", "overview", "eda")):
+            primary = AnalyticalIntent.EDA
         elif AnalyticalIntent.VISUALIZATION in matched_intents:
             primary = AnalyticalIntent.VISUALIZATION
-        elif AnalyticalIntent.ANOMALIES in matched_intents:
-            primary = AnalyticalIntent.ANOMALIES
         elif AnalyticalIntent.REPORT in matched_intents:
             primary = AnalyticalIntent.REPORT
         elif matched_intents:
