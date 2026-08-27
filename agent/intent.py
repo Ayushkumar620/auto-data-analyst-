@@ -71,6 +71,7 @@ class IntentType(str, Enum):
     MODEL_TRAINING = "model_training"
     MULTI_STAGE_PIPELINE = "multi_stage_pipeline"
     RECOMMENDATION = "recommendation"
+    EXPLANATION = "explanation"
     UNKNOWN = "unknown"
 
 
@@ -448,6 +449,12 @@ class CommandIntelligenceAgent(BaseAgent):
         if any(w in text for w in ("hypothesis", "statistically significant", "significance", "differ statistically", "t-test", "t test", "anova", "kruskal", "groups differ", "significantly different", "test whether", "welch", "mann-whitney", "does category", "test the significance")):
             capabilities.append("hypothesis_testing")
             intent_candidates.append((IntentType.HYPOTHESIS_TESTING, 94))
+
+        # 5f. Explanation & Evidence Traceability (Milestone 7, Task 4)
+        if any(w in text for w in ("explain", "how was this calculated", "show evidence", "show methodology", "why this result", "why did you get")):
+            capabilities.append("explanation")
+            intent_candidates.append((IntentType.EXPLANATION, 94))
+            requested_output = "explanation"
 
         # 6. Aggregation / Ranking / Regional Analysis
         if any(w in text for w in ("by region", "regional", "by country", "by category", "by customer")):

@@ -74,6 +74,7 @@ from backend.app.api.v1.hypothesis_testing import router as hypothesis_testing_r
 from backend.app.api.v1.transformation import router as transformation_router
 from backend.app.api.v1.data_quality import router as data_quality_router
 from backend.app.api.v1.orchestration import router as orchestration_router
+from backend.app.api.v1.explanations import router as explanations_router
 
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(analysis_router, prefix=settings.api_v1_prefix)
@@ -99,6 +100,7 @@ app.include_router(hypothesis_testing_router, prefix=settings.api_v1_prefix)
 app.include_router(transformation_router, prefix=settings.api_v1_prefix)
 app.include_router(data_quality_router, prefix=settings.api_v1_prefix)
 app.include_router(orchestration_router, prefix=settings.api_v1_prefix)
+app.include_router(explanations_router, prefix=settings.api_v1_prefix)
 app.include_router(sql_router, prefix=settings.api_v1_prefix)
 app.include_router(sandbox_router, prefix=settings.api_v1_prefix)
 app.include_router(vision_router, prefix=settings.api_v1_prefix)
