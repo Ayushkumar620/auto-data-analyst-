@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from agent.agent_result import AgentError, AgentResult, AgentStatus, ClaimType, ErrorCategory, Evidence
 from agent.canonical_data_layer import CanonicalDataLayer, SemanticProfile
+from agent.json_utils import sanitize_for_json
 
 
 class DatasetSnapshot(BaseModel):
@@ -469,7 +470,7 @@ class SessionContextManager:
                 constant_columns=prof.constant_columns,
                 original_rows=len(df),
                 current_rows=len(df),
-                preview_sample=preview_records,
+                preview_sample=sanitize_for_json(preview_records),
                 quality_score=q_score,
             )
 
