@@ -529,6 +529,21 @@ class DynamicTaskPlanner(BaseAgent):
             )
             step_idx += 1
 
+        elif primary_intent_val in ("statistical_relationship", "correlation", "statistical_analysis") or "statistical_analysis" in req_caps or "correlation_analysis" in req_caps:
+            stats_step = f"step_{step_idx}"
+            steps.append(
+                ExecutionStep(
+                    step_id=stats_step,
+                    tool_name="statistical_analysis",
+                    agent_name="StatisticalAnalysisAgent",
+                    purpose="Analyze, measure, test, and rank bivariate and multivariate statistical relationships, correlations, and subgroup consistency.",
+                    inputs={"features": user_intent.dimensions or None, "target": user_intent.metrics[0] if user_intent.metrics else None},
+                    required_capabilities=["statistical_analysis"],
+                    dependencies=upstream_dep,
+                )
+            )
+            step_idx += 1
+
         elif primary_intent_val == "anomaly_detection" or "anomaly_detection" in req_caps:
             col_target = user_intent.metrics[0] if user_intent.metrics else (knowledge.get_primary_metric() if knowledge else None)
             anom_step = f"step_{step_idx}"
@@ -574,21 +589,6 @@ class DynamicTaskPlanner(BaseAgent):
                     purpose=f"Aggregate '{metric_target}' by '{dim_target}'.",
                     inputs={"metric": metric_target, "dimension": dim_target, "request": "summary"},
                     required_capabilities=["aggregation"],
-                    dependencies=upstream_dep,
-                )
-            )
-            step_idx += 1
-
-        elif primary_intent_val in ("statistical_relationship", "correlation", "statistical_analysis") or "statistical_analysis" in req_caps or "correlation_analysis" in req_caps:
-            stats_step = f"step_{step_idx}"
-            steps.append(
-                ExecutionStep(
-                    step_id=stats_step,
-                    tool_name="statistical_analysis",
-                    agent_name="StatisticalAnalysisAgent",
-                    purpose="Analyze, measure, test, and rank bivariate and multivariate statistical relationships, correlations, and subgroup consistency.",
-                    inputs={"features": user_intent.dimensions or None, "target": user_intent.metrics[0] if user_intent.metrics else None},
-                    required_capabilities=["statistical_analysis"],
                     dependencies=upstream_dep,
                 )
             )

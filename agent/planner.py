@@ -31,6 +31,7 @@ from .agents import (
     CNNAgent,
     ModelRegistryAgent,
     DataValidationAgent,
+    StatisticalAnalysisAgent,
 )
 
 
@@ -66,8 +67,8 @@ class PlannerAgent:
         },
         "correlation": {
             "action": "correlation",
-            "agent": AnalysisAgent,
-            "task": lambda data, req: {"data": data, "request": "correlation"},
+            "agent": StatisticalAnalysisAgent,
+            "task": lambda data, req: {"data": data, "target": req.get("target"), "features": req.get("features")},
         },
         "head": {
             "action": "head",

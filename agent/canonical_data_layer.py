@@ -131,7 +131,11 @@ class CanonicalDataLayer:
             except ValueError:
                 return np.nan
 
-        return series.map(clean_val)
+        if hasattr(series, "cat"):
+            mapped = series.astype(str).map(clean_val)
+        else:
+            mapped = series.map(clean_val)
+        return pd.to_numeric(mapped, errors="coerce")
 
     @staticmethod
     def coerce_datetime_series(series: pd.Series) -> pd.Series:
@@ -257,7 +261,11 @@ class CanonicalDataLayer:
             s_num = cls.coerce_numeric_series(df[col]).dropna()
             if len(s_num) < 3:
                 continue
-            variance = float(s_num.var()) if not math.isnan(s_num.var()) else 0.0
+            try:
+                var_val = s_num.var()
+                variance = float(var_val) if not math.isnan(var_val) else 0.0
+            except Exception:
+                variance = 0.0
             if variance <= 0:
                 continue
             score = 60.0 + (len(s_num) / n_rows) * 20.0 + min(20.0, s_num.nunique() / 2.0)
