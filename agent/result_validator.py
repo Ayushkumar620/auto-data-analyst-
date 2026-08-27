@@ -245,6 +245,30 @@ class ResultValidator:
                     vr.add_issue(ValidationSeverity.ERROR, "INVALID_DB_SCORE",
                                  f"Davies-Bouldin score ({db}) must be non-negative.", field="metrics.davies_bouldin_score")
 
+            # 5. Statistical relationship checks in relationships list
+            relationships = result.data.get("relationships") or result.result.get("relationships") or []
+            if isinstance(relationships, list):
+                for i, rel in enumerate(relationships):
+                    if isinstance(rel, dict):
+                        stat = rel.get("statistic")
+                        if isinstance(stat, (int, float)) and rel.get("pair_type") == "numeric_numeric":
+                            if not -1.0 <= float(stat) <= 1.0:
+                                vr.add_issue(ValidationSeverity.ERROR, "INVALID_CORRELATION_STATISTIC",
+                                             f"Correlation statistic ({stat}) at index {i} must be within [-1, 1].",
+                                             field=f"relationships[{i}].statistic")
+                        p_val = rel.get("p_value")
+                        if isinstance(p_val, (int, float)):
+                            if not 0.0 <= float(p_val) <= 1.0:
+                                vr.add_issue(ValidationSeverity.ERROR, "INVALID_P_VALUE",
+                                             f"P-value ({p_val}) at index {i} must be within [0, 1].",
+                                             field=f"relationships[{i}].p_value")
+                        adj_p = rel.get("adjusted_p_value")
+                        if isinstance(adj_p, (int, float)):
+                            if not 0.0 <= float(adj_p) <= 1.0:
+                                vr.add_issue(ValidationSeverity.ERROR, "INVALID_ADJUSTED_P_VALUE",
+                                             f"Adjusted p-value ({adj_p}) at index {i} must be within [0, 1].",
+                                             field=f"relationships[{i}].adjusted_p_value")
+
     def _forecast_bounds_check(self, result: AgentResult, vr: ValidationResult) -> None:
         """Verify prediction intervals satisfy lower <= prediction <= upper."""
         forecast_pts = result.data.get("forecast") or result.data.get("predictions") or []

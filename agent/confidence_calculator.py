@@ -350,4 +350,62 @@ class ConfidenceCalculator:
             explanations=explanations,
         )
 
+    @classmethod
+    def calculate_statistical_relationship_confidence(
+        cls,
+        n_samples: int = 10,
+        n_pairs: int = 1,
+        top_effect_size: float = 0.5,
+        min_adjusted_p: float = 0.01,
+        missing_rate: float = 0.0,
+        outlier_sensitivity: bool = False,
+    ) -> ConfidenceReport:
+        """Calculate confidence for statistical relationship & dependency outcomes."""
+        penalties: List[str] = []
+        explanations: List[str] = []
+        factors: Dict[str, float] = {}
+
+        # 1. Sample size adequacy
+        if n_samples < 10:
+            sample_factor = 0.65
+            penalties.append(f"Small sample size for statistical testing (N={n_samples} < 10)")
+        elif n_samples < 30:
+            sample_factor = 0.85
+        else:
+            sample_factor = 1.0
+        factors["sample_size"] = sample_factor
+
+        # 2. Effect size & significance factor
+        p_clamped = cls._clamp(min_adjusted_p, 0.0, 1.0)
+        sig_factor = 0.50 + 0.45 * (1.0 - p_clamped) * cls._clamp(top_effect_size, 0.0, 1.0)
+        factors["effect_significance"] = sig_factor
+        explanations.append(f"Top effect size = {top_effect_size:.3f}, adjusted p = {min_adjusted_p:.4f}")
+
+        # 3. Outlier sensitivity penalty
+        outlier_factor = 0.85 if outlier_sensitivity else 1.0
+        if outlier_sensitivity:
+            penalties.append("Discrepancy detected between linear and rank associations (potential outlier influence)")
+        factors["outlier_stability"] = outlier_factor
+
+        # 4. Multiple testing load penalty (if testing > 50 pairs)
+        mult_factor = 0.90 if n_pairs > 50 else 1.0
+        factors["multiple_testing"] = mult_factor
+
+        # 5. Data completeness
+        comp_factor = max(0.70, 1.0 - missing_rate)
+        factors["completeness"] = comp_factor
+
+        raw_conf = sample_factor * sig_factor * outlier_factor * mult_factor * comp_factor
+        final_conf = cls._clamp(raw_conf, min_val=0.25, max_val=0.95)
+
+        return ConfidenceReport(
+            confidence=final_conf,
+            confidence_level=1.0,
+            validation_score=sig_factor,
+            factors=factors,
+            penalties=penalties,
+            explanations=explanations,
+        )
+
+
 

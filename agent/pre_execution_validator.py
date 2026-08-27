@@ -165,7 +165,11 @@ class PreExecutionValidator:
         elif task_norm in ("anomaly", "anomalies", "anomaly_detection", "outliers"):
             return cls._validate_anomaly_detection(main_df, profile, target, agent_name)
 
-        # TASK G: DESCRIPTIVE / EDA / GENERAL ANALYSIS
+        # TASK G: STATISTICAL RELATIONSHIP / CORRELATION / DEPENDENCY ANALYSIS
+        elif task_norm in ("correlation", "correlations", "relationship", "relationships", "statistical_analysis", "dependency", "association", "associations"):
+            return cls._validate_statistical_relationship(main_df, profile, feature_columns, agent_name)
+
+        # TASK H: DESCRIPTIVE / EDA / GENERAL ANALYSIS
         else:
             return PreExecutionValidationReport(
                 is_valid=True,
@@ -483,3 +487,47 @@ class PreExecutionValidator:
             return PreExecutionValidationReport(is_valid=False, task_type="anomaly_detection", error=err)
 
         return PreExecutionValidationReport(is_valid=True, task_type="anomaly_detection", target_column=target)
+
+    @classmethod
+    def _validate_statistical_relationship(
+        cls,
+        df: pd.DataFrame,
+        profile: SemanticProfile,
+        features: Optional[List[str]],
+        agent_name: str,
+    ) -> PreExecutionValidationReport:
+        if len(df) < 3:
+            err = AgentError.create(
+                category=ErrorCategory.INSUFFICIENT_DATA,
+                user_message=f"Statistical relationship analysis requires at least 3 sample observations. Found {len(df)}.",
+                agent_name=agent_name,
+            )
+            return PreExecutionValidationReport(is_valid=False, task_type="statistical_analysis", error=err)
+
+        if all(df[c].nunique(dropna=True) <= 1 for c in df.columns):
+            err = AgentError.create(
+                category=ErrorCategory.DATA_INVALID,
+                user_message="All candidate feature columns have zero variance (constant values). Cannot compute statistical relationships across invariant columns.",
+                agent_name=agent_name,
+            )
+            return PreExecutionValidationReport(is_valid=False, task_type="statistical_analysis", error=err)
+
+        if len(profile.identifier_columns) == len(df.columns) and len(df.columns) > 0:
+            err = AgentError.create(
+                category=ErrorCategory.DATA_INVALID,
+                user_message="Dataset contains only identifier columns. Statistical relationship analysis requires quantitative or categorical variables.",
+                agent_name=agent_name,
+            )
+            return PreExecutionValidationReport(is_valid=False, task_type="statistical_analysis", error=err)
+
+        n_features = len(features) if features else (len(profile.numeric_columns) + len(profile.categorical_columns) + len(profile.datetime_candidates))
+        if n_features < 2:
+            err = AgentError.create(
+                category=ErrorCategory.INSUFFICIENT_DATA,
+                user_message="Statistical relationship analysis requires at least 2 distinct feature columns.",
+                agent_name=agent_name,
+            )
+            return PreExecutionValidationReport(is_valid=False, task_type="statistical_analysis", error=err)
+
+        return PreExecutionValidationReport(is_valid=True, task_type="statistical_analysis")
+
