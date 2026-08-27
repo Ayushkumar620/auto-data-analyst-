@@ -235,21 +235,31 @@ class AutonomousCommandOrchestrator:
             })
 
         # Extract artifacts and evidence from executed plan steps
-        for step_res in exec_output.get("results", []):
-            out = step_res.get("output", {})
-            if isinstance(out, dict):
-                if "best_model" in out:
-                    model_selection_summary = out.get("best_model")
-                if "figure" in out or "chart" in out or "data" in out and "layout" in out:
-                    visualization = out
-                if "repaired_data" in out:
-                    dataset_summary["repaired_columns"] = list(out["repaired_data"].columns)
-
-            for ev in step_res.get("evidence", []):
+        if hasattr(exec_output, "evidence") and exec_output.evidence:
+            for ev in exec_output.evidence:
                 if isinstance(ev, dict):
                     evidence_list.append(ev)
                 elif hasattr(ev, "to_dict"):
                     evidence_list.append(ev.to_dict())
+
+        step_outs = exec_output.output.get("step_outputs", {}) if hasattr(exec_output, "output") and isinstance(exec_output.output, dict) else {}
+        for out in step_outs.values():
+            if isinstance(out, dict):
+                if "best_model" in out:
+                    model_selection_summary = out.get("best_model")
+                if "figure" in out or "chart" in out or ("data" in out and "layout" in out):
+                    visualization = out
+                if "repaired_data" in out:
+                    dataset_summary["repaired_columns"] = list(out["repaired_data"].columns)
+
+        # If statistical relationship request or no evidence collected yet, ensure StatisticalAnalysisEngine runs
+        is_rel_request = intent_res.primary_intent == AnalyticalIntent.CORRELATION or any(w in q_norm for w in ("correlation", "correlations", "relationship", "relationships", "pearson", "spearman", "effect size", "fdr", "subgroup"))
+        if is_rel_request:
+            from agent.statistical_analysis_agent import StatisticalAnalysisAgent
+            stats_agent_res = StatisticalAnalysisAgent().run({"data": dataframe})
+            if stats_agent_res.is_success and stats_agent_res.evidence:
+                for ev in stats_agent_res.evidence:
+                    evidence_list.append(ev.to_dict() if hasattr(ev, "to_dict") else ev)
 
         # Synthesize final narrative explanation based on user's exact outcome goal
         explanation = self._synthesize_explanation(
@@ -443,6 +453,14 @@ class AutonomousCommandOrchestrator:
                 "identify_extreme_outliers",
                 "explain_contributing_column_values",
             ])
+        elif intent_res.primary_intent == AnalyticalIntent.CORRELATION or any(w in q for w in ("correlation", "correlations", "relationship", "relationships", "pearson", "spearman", "effect size", "fdr", "subgroup")):
+            ops.extend([
+                "calculate_bivariate_pearson_and_spearman_associations",
+                "evaluate_raw_and_fdr_adjusted_significance",
+                "measure_practical_effect_sizes_and_outlier_sensitivity",
+                "analyze_subgroup_consistency_and_heterogeneity",
+                "synthesize_non_causal_statistical_findings",
+            ])
         elif "report" in q or "performance" in q or "overview" in q:
             ops.extend([
                 "compute_executive_kpis",
@@ -490,6 +508,104 @@ class AutonomousCommandOrchestrator:
                 f"- **Top Key Themes**: {top_kws}\n"
                 f"- **Lexical Diversity**: {text_report.lexical_diversity:.4f} TTR (Vocabulary: {text_report.vocabulary_size:,} distinct tokens)"
             )
+
+        # 1. Statistical Relationship, Correlation & Subgroup Analysis Queries
+        if intent_res.primary_intent == AnalyticalIntent.CORRELATION or any(w in q for w in ("correlation", "correlations", "relationship", "relationships", "pearson", "spearman", "subgroup")):
+            from agent.statistical_analysis_engine import StatisticalAnalysisEngine
+            stats_engine = StatisticalAnalysisEngine()
+            stats_res = stats_engine.analyze(data=df)
+
+            lines = ["📊 **Statistical Relationship & Correlation Analysis**:"]
+
+            top_rels = stats_res.get("top_relationships", [])
+            if top_rels:
+                lines.append("\n**Strongest Statistically Significant Relationships**:")
+                for i, r in enumerate(top_rels[:5], 1):
+                    fx = r.get("feature_x")
+                    fy = r.get("feature_y")
+                    p_info = r.get("pearson", {})
+                    s_info = r.get("spearman", {})
+                    p_r = p_info.get("r", r.get("statistic", 0.0))
+                    p_val = p_info.get("p_value", r.get("p_value", 0.0))
+                    rho_val = s_info.get("rho", 0.0)
+                    adj_p = r.get("adjusted_p_value", p_val)
+                    strength = r.get("strength", "moderate")
+                    outlier_sens = r.get("outlier_sensitivity", False)
+                    delta = r.get("r_vs_rho_delta", abs(p_r - rho_val))
+
+                    sens_text = f" (Outlier Sensitive: Pearson r={p_r:.3f} vs Spearman ρ={rho_val:.3f}, Δ={delta:.3f})" if outlier_sens else f" (Robust: Pearson r={p_r:.3f}, Spearman ρ={rho_val:.3f})"
+
+                    lines.append(
+                        f"{i}. **{fx}** ↔ **{fy}**: {strength.replace('_', ' ').title()} association (Pearson r = {p_r:.3f}, Spearman ρ = {rho_val:.3f}, raw p = {p_val:.4g}, FDR-adjusted p = {adj_p:.4g}, effect size = {r.get('effect_size', abs(p_r)):.3f}, valid N = {r.get('valid_rows')}){sens_text}"
+                    )
+
+            # Statistical Significance vs Practical Effect Size
+            lines.append("\n**Significance vs. Practical Effect Size**:")
+            lines.append(
+                "- All reported p-values are adjusted using Benjamini-Hochberg False Discovery Rate (FDR) control at α = 0.05. "
+                "Statistical significance indicates that observed associations are unlikely under the null hypothesis of independence, "
+                "while practical effect sizes (|r|, η², Cramer's V) quantify the substantive magnitude of co-variation."
+            )
+
+            # Outlier Sensitivity Analysis
+            outlier_sens_rels = [r for r in top_rels if r.get("outlier_sensitivity")]
+            lines.append("\n**Outlier Sensitivity Assessment**:")
+            if outlier_sens_rels:
+                sens_names = [f"'{r.get('feature_x')}' ↔ '{r.get('feature_y')}'" for r in outlier_sens_rels[:3]]
+                lines.append(
+                    f"- Identified {len(outlier_sens_rels)} relationship(s) with notable sensitivity to extreme values: {', '.join(sens_names)}. "
+                    "In these pairs, rank-based Spearman correlation diverges materially (|r - ρ| > 0.20) from linear Pearson correlation due to influential observations."
+                )
+            else:
+                lines.append(
+                    "- Linear (Pearson) and rank-order (Spearman) correlations are broadly consistent across primary variable pairs, indicating robustness to extreme outliers."
+                )
+
+            # Subgroup Analysis across dimensions (e.g. customer_segment, product_group)
+            subgroup_data = stats_res.get("subgroup_analysis", {})
+            dims = subgroup_data.get("dimensions_evaluated", [])
+            weak_strong = subgroup_data.get("weak_global_strong_subgroup_findings", [])
+            simpsons = subgroup_data.get("simpsons_paradox_findings", [])
+            summaries = subgroup_data.get("subgroup_consistency_summary", [])
+
+            if dims:
+                lines.append(f"\n**Subgroup Consistency Across Dimensions ({', '.join(dims)})**:")
+                if summaries:
+                    for s in summaries[:4]:
+                        fx, fy, dim = s["feature_x"], s["feature_y"], s["subgroup_dimension"]
+                        cons_str = "consistent direction" if s["is_directionally_consistent"] else "mixed directional signs"
+                        r_min, r_max = s["r_range"]
+                        lines.append(
+                            f"- **{fx}** ↔ **{fy}** across **{dim}**: {cons_str} with correlation range r ∈ [{r_min:.3f}, {r_max:.3f}] across {s['subgroups_evaluated']} subgroups."
+                        )
+
+            # Weak Global but Strong Within Subgroup
+            if weak_strong:
+                lines.append("\n**Subgroup Heterogeneity (Weak Globally, Strong in Subgroup)**:")
+                for wf in weak_strong[:4]:
+                    fx = wf["feature_x"]
+                    fy = wf["feature_y"]
+                    dim = wf["subgroup_dimension"]
+                    val = wf["subgroup_value"]
+                    gr = wf["global_r"]
+                    sr = wf["subgroup_r"]
+                    sp = wf["subgroup_p_value"]
+                    sn = wf["subgroup_valid_rows"]
+                    lines.append(
+                        f"- **{fx}** ↔ **{fy}**: Weak overall (global r = {gr:.3f}), but becomes {wf['subgroup_strength']} within {dim} = '{val}' (subgroup r = {sr:.3f}, p = {sp:.4g}, valid N = {sn})."
+                    )
+            else:
+                lines.append("\n**Subgroup Heterogeneity Assessment**:")
+                lines.append("- No variable pair with negligible global correlation was found to exhibit statistically significant strong correlation exclusively within a single subgroup.")
+
+            if simpsons:
+                lines.append("\n**Simpson's Paradox Findings**:")
+                for sf in simpsons:
+                    lines.append(f"- {sf['explanation']}")
+
+            lines.append("\n*Non-Causal Disclaimer*: All observed correlations and subgroup associations describe mathematical co-variation and do not demonstrate causal mechanisms or directions of influence.")
+
+            return "\n".join(lines)
 
         # 1. Top-N Ranking Queries (e.g. "Clean this dataset and find the top 10 customers")
         if "top" in q or "rank" in q or "customer" in q:

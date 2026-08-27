@@ -386,9 +386,11 @@ class UniversalOrchestrator:
             needs_anomaly = True
         if any(w in cmd_lower for w in ("cluster", "clustering", "segment", "segmentation", "groups", "natural groups")):
             needs_clustering = True
-        if any(w in cmd_lower for w in ("correlation", "relationships", "dependency", "association", "correlate", "related")):
+        if any(w in cmd_lower for w in ("correlation", "correlations", "relationship", "relationships", "dependency", "association", "associations", "correlate", "related", "pearson", "spearman", "kendall", "effect size", "fdr", "outlier sensitivity", "subgroup")):
             needs_stats = True
-        if any(w in cmd_lower for w in ("hypothesis", "statistically significant", "t-test", "anova", "significance", "differ")):
+        if any(w in cmd_lower for w in ("hypothesis test", "hypothesis testing", "t-test", "t test", "welch", "mann-whitney", "groups differ", "significantly different", "test whether the means")):
+            needs_hyp = True
+        elif not needs_stats and any(w in cmd_lower for w in ("hypothesis", "statistically significant", "significance", "differ")):
             needs_hyp = True
         if any(w in cmd_lower for w in ("forecast", "future", "predict next", "horizon", "time series")):
             needs_forecast = True
