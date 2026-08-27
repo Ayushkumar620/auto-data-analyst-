@@ -100,6 +100,7 @@ class StatisticalAnalysisAgent(BaseAgent):
 
             # 3. Canonical Evidence generation
             evidence_list: List[Evidence] = []
+            for rel in top_relationships[:8]:
             for rel in relationships:
                 fx = rel.get("feature_x")
                 fy = rel.get("feature_y")
@@ -110,9 +111,38 @@ class StatisticalAnalysisAgent(BaseAgent):
                 eff = rel.get("effect_size")
                 valid_n = rel.get("valid_rows")
                 outlier_sens = rel.get("outlier_sensitivity", False)
+                p_dict = rel.get("pearson", {})
+                s_dict = rel.get("spearman", {})
                 p_dict = rel.get("pearson", {}) or {}
                 s_dict = rel.get("spearman", {}) or {}
 
+                evidence_list.append(
+                    self.make_evidence(
+                        method=f"stats.{rel.get('pair_type', 'bivariate')}.{method}",
+                        data_ref={
+                            "feature_x": fx,
+                            "feature_y": fy,
+                            "method": method,
+                            "statistic": stat,
+                            "p_value": p_val,
+                            "adjusted_p_value": adj_p,
+                            "effect_size": eff,
+                            "valid_rows": valid_n,
+                            "analysis_scope": "global",
+                            "outlier_sensitivity": outlier_sens,
+                            "pearson_r": p_dict.get("r"),
+                            "spearman_rho": s_dict.get("rho"),
+                        },
+                        confidence=0.88,
+                        claim_type=ClaimType.CORRELATION,
+                        raw_value={
+                            "statistic": stat,
+                            "p_value": p_val,
+                            "adjusted_p_value": adj_p,
+                            "effect_size": eff,
+                            "interpretation": rel.get("interpretation"),
+                        },
+                    )
                 ev = self.make_evidence(
                     method=f"stats.{rel.get('pair_type', 'bivariate')}.{method}",
                     data_ref={
@@ -146,6 +176,24 @@ class StatisticalAnalysisAgent(BaseAgent):
 
             # Subgroup findings evidence
             for wf in weak_findings[:5]:
+                evidence_list.append(
+                    self.make_evidence(
+                        method="stats.subgroup_analysis.heterogeneity",
+                        data_ref={
+                            "feature_x": wf.get("feature_x"),
+                            "feature_y": wf.get("feature_y"),
+                            "subgroup_dimension": wf.get("subgroup_dimension"),
+                            "subgroup_value": wf.get("subgroup_value"),
+                            "global_r": wf.get("global_r"),
+                            "subgroup_r": wf.get("subgroup_r"),
+                            "p_value": wf.get("subgroup_p_value"),
+                            "valid_rows": wf.get("subgroup_valid_rows"),
+                            "analysis_scope": "subgroup",
+                        },
+                        confidence=0.85,
+                        claim_type=ClaimType.OBSERVATION,
+                        raw_value=wf,
+                    )
                 ev_sub = self.make_evidence(
                     method="stats.subgroup_analysis.heterogeneity",
                     data_ref={

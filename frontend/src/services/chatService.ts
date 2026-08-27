@@ -1,4 +1,5 @@
 import { buildApiUrl, authedFetch, parseApiError } from './api';
+import type { ChatSessionApiResponse } from '../types';
 import type { ChatSessionApiResponse, StatisticalRelationshipRecord } from '../types';
 
 export type ChatResponse = {
