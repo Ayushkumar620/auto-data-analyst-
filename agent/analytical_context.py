@@ -1,47 +1,28 @@
 """
 Universal Conversational Analytical Context & Session Memory Layer.
-
-Single source of truth for:
-- Multi-turn analytical context tracking (sessions, datasets, schemas, rows)
-- Non-destructive, state-aware reference resolution ("it", "that", "the target", "the forecast", "cluster 2")
-- Contextual intent routing & follow-up task generation
-- Multi-dataset switching and session isolation
-- Bounded result and metric history (zero massive DataFrame storage in context objects)
-- Ambiguity detection and structured clarification requests
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
+import json
 import math
 import re
 import threading
-import time
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
 import uuid
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-from agent.agent_result import (
-    AgentError,
-    AgentResult,
-    AgentStatus,
-    ClaimType,
-    ErrorCategory,
-    Evidence,
-)
+from agent.agent_result import AgentError, AgentResult, AgentStatus, ClaimType, ErrorCategory, Evidence
 from agent.canonical_data_layer import CanonicalDataLayer, SemanticProfile
 
 
-# ------------------------------------------------------------------------------
-# Structured Context Models
-# ------------------------------------------------------------------------------
-
 class DatasetSnapshot(BaseModel):
-    """Compact, bounded summary of a dataset within a session (no raw bulk rows)."""
+    """Metadata-only footprint of a registered session dataset."""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     dataset_id: str
     dataset_name: str
     columns: List[str] = Field(default_factory=list)
@@ -52,7 +33,7 @@ class DatasetSnapshot(BaseModel):
     constant_columns: List[str] = Field(default_factory=list)
     original_rows: int = 0
     current_rows: int = 0
-    preview_sample: List[Dict[str, Any]] = Field(default_factory=list) # max 5 rows
+    preview_sample: List[Dict[str, Any]] = Field(default_factory=list)
     quality_score: float = 1.0
 
     def to_dict(self) -> Dict[str, Any]:
@@ -67,116 +48,104 @@ class DatasetSnapshot(BaseModel):
             "constant_columns": self.constant_columns,
             "original_rows": self.original_rows,
             "current_rows": self.current_rows,
-            "preview_sample": self.preview_sample,
-            "quality_score": round(self.quality_score, 4),
+            "preview_sample": self.preview_sample[:5],
+            "quality_score": round(float(self.quality_score), 4),
         }
 
 
-class ExecutionRecord(BaseModel):
-    """Bounded record of a past analytical execution."""
-    execution_id: str
+class ExecutionHistoryItem(BaseModel):
+    """Immutable audit record of an executed analytical turn."""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     turn_id: int
-    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
+    execution_id: str
     user_command: str
     resolved_command: str
     task_type: str
-    intent: str
+    status: str
     target: Optional[str] = None
     features: List[str] = Field(default_factory=list)
     time_column: Optional[str] = None
-    model_selected: Optional[str] = None
     metrics: Dict[str, Any] = Field(default_factory=dict)
-    confidence: float = 0.85
-    status: str = "success"
-    summary: str = ""
-    top_findings: List[str] = Field(default_factory=list)
-    resolved_references: Dict[str, str] = Field(default_factory=dict)
+    model_name: Optional[str] = None
+    cluster_count: Optional[int] = None
+    anomaly_count: Optional[int] = None
+    strongest_relationship: Optional[Dict[str, Any]] = None
+    second_strongest_relationship: Optional[Dict[str, Any]] = None
+    dataset_id: Optional[str] = None
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    duration_ms: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "execution_id": self.execution_id,
             "turn_id": self.turn_id,
-            "timestamp": self.timestamp,
+            "execution_id": self.execution_id,
             "user_command": self.user_command,
             "resolved_command": self.resolved_command,
             "task_type": self.task_type,
-            "intent": self.intent,
+            "status": self.status,
             "target": self.target,
             "features": self.features,
             "time_column": self.time_column,
-            "model_selected": self.model_selected,
             "metrics": self.metrics,
-            "confidence": round(self.confidence, 4),
-            "status": self.status,
-            "summary": self.summary,
-            "top_findings": self.top_findings,
-            "resolved_references": self.resolved_references,
+            "model_name": self.model_name,
+            "cluster_count": self.cluster_count,
+            "anomaly_count": self.anomaly_count,
+            "strongest_relationship": self.strongest_relationship,
+            "second_strongest_relationship": self.second_strongest_relationship,
+            "dataset_id": self.dataset_id,
+            "timestamp": self.timestamp,
+            "duration_ms": self.duration_ms,
         }
 
 
-class AnalyticalContext(BaseModel):
-    """Structured analytical session context."""
+class SessionContext(BaseModel):
+    """Session state carrying active entities, turn history, and reference memory."""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     session_id: str
-    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
-    last_active_at: str = Field(default_factory=lambda: datetime.now().isoformat())
     active_dataset_id: Optional[str] = None
-    datasets: Dict[str, DatasetSnapshot] = Field(default_factory=dict)
     active_target: Optional[str] = None
     active_features: List[str] = Field(default_factory=list)
     active_time_column: Optional[str] = None
-    active_task: Optional[str] = None
+    datasets: Dict[str, DatasetSnapshot] = Field(default_factory=dict)
+    execution_history: List[ExecutionHistoryItem] = Field(default_factory=list)
     previous_task: Optional[str] = None
-    current_intent: Optional[str] = None
     previous_intent: Optional[str] = None
-    last_execution_id: Optional[str] = None
-    latest_result_summary: Optional[Dict[str, Any]] = None
-    latest_metrics: Dict[str, Any] = Field(default_factory=dict)
-    latest_confidence: float = 0.85
     latest_model_name: Optional[str] = None
-    latest_forecast_horizon: Optional[int] = None
-    latest_cluster_count: Optional[int] = None
-    latest_anomaly_count: Optional[int] = None
     latest_strongest_relationship: Optional[Dict[str, Any]] = None
     latest_second_strongest_relationship: Optional[Dict[str, Any]] = None
-    execution_history: List[ExecutionRecord] = Field(default_factory=list)
-    pending_clarification: Optional[Dict[str, Any]] = None
-    assumptions: List[str] = Field(default_factory=list)
-    limitations: List[str] = Field(default_factory=list)
-    warnings: List[str] = Field(default_factory=list)
+    latest_cluster_count: Optional[int] = None
+    latest_anomaly_count: Optional[int] = None
+    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "session_id": self.session_id,
-            "created_at": self.created_at,
-            "last_active_at": self.last_active_at,
             "active_dataset_id": self.active_dataset_id,
-            "datasets": {k: v.to_dict() for k, v in self.datasets.items()},
             "active_target": self.active_target,
             "active_features": self.active_features,
             "active_time_column": self.active_time_column,
-            "active_task": self.active_task,
+            "datasets": {k: v.to_dict() for k, v in self.datasets.items()},
+            "execution_history": [h.to_dict() for h in self.execution_history],
             "previous_task": self.previous_task,
-            "current_intent": self.current_intent,
             "previous_intent": self.previous_intent,
-            "last_execution_id": self.last_execution_id,
-            "latest_result_summary": self.latest_result_summary,
-            "latest_metrics": self.latest_metrics,
-            "latest_confidence": round(self.latest_confidence, 4),
             "latest_model_name": self.latest_model_name,
-            "latest_forecast_horizon": self.latest_forecast_horizon,
+            "latest_strongest_relationship": self.latest_strongest_relationship,
+            "latest_second_strongest_relationship": self.latest_second_strongest_relationship,
             "latest_cluster_count": self.latest_cluster_count,
             "latest_anomaly_count": self.latest_anomaly_count,
-            "latest_strongest_relationship": self.latest_strongest_relationship,
-            "execution_history": [h.to_dict() for h in self.execution_history],
-            "pending_clarification": self.pending_clarification,
-            "assumptions": self.assumptions,
-            "limitations": self.limitations,
-            "warnings": self.warnings,
+            "turn_count": len(self.execution_history),
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
         }
 
 
 class ContextualResolution(BaseModel):
-    """Result of resolving a natural language command against conversational context."""
+    """Result of context-aware follow-up command resolution."""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     user_command: str
     resolved_command: str
     detected_intent: str
@@ -191,30 +160,37 @@ class ContextualResolution(BaseModel):
     resolved_references: Dict[str, str] = Field(default_factory=dict)
     dataset_id: Optional[str] = None
 
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "user_command": self.user_command,
+            "resolved_command": self.resolved_command,
+            "detected_intent": self.detected_intent,
+            "target": self.target,
+            "features": self.features,
+            "time_column": self.time_column,
+            "parameters": self.parameters,
+            "is_follow_up": self.is_follow_up,
+            "needs_clarification": self.needs_clarification,
+            "clarification_reason": self.clarification_reason,
+            "suggested_options": self.suggested_options,
+            "resolved_references": self.resolved_references,
+            "dataset_id": self.dataset_id,
+        }
 
-# ------------------------------------------------------------------------------
-# Universal Reference Resolver
-# ------------------------------------------------------------------------------
 
 class UniversalReferenceResolver:
-    """
-    Resolves anaphoric expressions, pronouns, entity references, and follow-up
-    modifiers using structured AnalyticalContext.
-    """
+    """Deterministic, domain-aware resolver for conversational analytical follow-up commands."""
 
     def resolve(
         self,
         command: str,
-        context: Optional[AnalyticalContext],
+        context: Optional[SessionContext],
         df: Optional[pd.DataFrame] = None,
     ) -> ContextualResolution:
-        """
-        Disambiguate and enrich a command using the active analytical context.
-        """
         cmd_clean = command.strip()
         cmd_lower = cmd_clean.lower()
 
-        if context is None:
+        if not context:
             return ContextualResolution(
                 user_command=cmd_clean,
                 resolved_command=cmd_clean,
@@ -236,7 +212,7 @@ class UniversalReferenceResolver:
         # 1. Dataset Reference & Switching: e.g. "go back to sales", "switch to dataset_2"
         switch_match = re.search(r"(switch to|go back to|use the)\s+([a-zA-Z0-9_\-\.]+)(\s+dataset)?", cmd_lower)
         if switch_match:
-            requested_name = switch_match.group(2)
+            requested_name = switch_match.group(2).lower()
             for d_id, ds in context.datasets.items():
                 if requested_name in d_id.lower() or requested_name in ds.dataset_name.lower():
                     dataset_id = d_id
@@ -265,7 +241,7 @@ class UniversalReferenceResolver:
             parameters["horizon"] = new_horizon
             resolved_refs["horizon"] = str(new_horizon)
             is_follow_up = True
-            if context.previous_task == "forecasting" or "forecast" in cmd_lower or "make it" in cmd_lower:
+            if context.previous_task == "forecasting" or "forecast" in cmd_lower or "make it" in cmd_lower or "horizon" in cmd_lower:
                 resolved_cmd = f"forecast the next {new_horizon} periods for {target or 'target'}"
                 return ContextualResolution(
                     user_command=cmd_clean,
@@ -284,12 +260,11 @@ class UniversalReferenceResolver:
             if target:
                 resolved_refs["target"] = target
                 is_follow_up = True
-                resolved_cmd = re.sub(r"(predict it)", f"predict {target}", resolved_cmd, flags=re.IGNORECASE)
-                resolved_cmd = re.sub(r"(forecast it)", f"forecast {target}", resolved_cmd, flags=re.IGNORECASE)
-                resolved_cmd = re.sub(r"(what predicts it)", f"which feature predicts {target}", resolved_cmd, flags=re.IGNORECASE)
+                resolved_cmd = re.sub(r"predict it", f"predict {target}", resolved_cmd, flags=re.IGNORECASE)
+                resolved_cmd = re.sub(r"forecast it", f"forecast {target}", resolved_cmd, flags=re.IGNORECASE)
+                resolved_cmd = re.sub(r"what predicts it", f"which feature predicts {target}", resolved_cmd, flags=re.IGNORECASE)
                 resolved_cmd = re.sub(r"(the target|same target)", target, resolved_cmd, flags=re.IGNORECASE)
             elif active_ds and active_ds.numeric_columns:
-                # If no active target was explicitly set, check if command is ambiguous
                 if len(active_ds.numeric_columns) > 1 and "predict" in cmd_lower:
                     return ContextualResolution(
                         user_command=cmd_clean,
@@ -397,40 +372,23 @@ class UniversalReferenceResolver:
         )
 
 
-# ------------------------------------------------------------------------------
-# Session Context Manager
-# ------------------------------------------------------------------------------
-
 class SessionContextManager:
-    """
-    Thread-safe, session-isolated analytical context and session memory manager.
-    Enforces bounded history, TTL expirations, and multi-dataset continuity.
-    """
+    """Thread-safe state manager for conversational analytical sessions."""
 
-    def __init__(self, max_history_per_session: int = 10, ttl_seconds: int = 86400):
-        self.max_history = max_history_per_session
-        self.ttl_seconds = ttl_seconds
-        self._contexts: Dict[str, AnalyticalContext] = {}
-        # Scoped In-Memory DataFrames: (session_id, dataset_id) -> pd.DataFrame
-        self._session_datasets: Dict[Tuple[str, str], pd.DataFrame] = {}
+    def __init__(self, max_history_turns: int = 50):
+        self._contexts: Dict[str, SessionContext] = {}
+        self._dataset_store: Dict[Tuple[str, str], pd.DataFrame] = {}
         self._lock = threading.RLock()
+        self.max_history_turns = max_history_turns
         self.resolver = UniversalReferenceResolver()
 
-    # --------------------------------------------------------------------------
-    # Session & Dataset Accessors
-    # --------------------------------------------------------------------------
-
-    def get_or_create_context(self, session_id: str) -> AnalyticalContext:
-        """Get or initialize context for a given session."""
+    def get_or_create_context(self, session_id: str) -> SessionContext:
         with self._lock:
             if session_id not in self._contexts:
-                self._contexts[session_id] = AnalyticalContext(session_id=session_id)
-            ctx = self._contexts[session_id]
-            ctx.last_active_at = datetime.now().isoformat()
-            return ctx
+                self._contexts[session_id] = SessionContext(session_id=session_id)
+            return self._contexts[session_id]
 
-    def get_context(self, session_id: str) -> Optional[AnalyticalContext]:
-        """Retrieve existing context if present."""
+    def get_context(self, session_id: str) -> Optional[SessionContext]:
         with self._lock:
             return self._contexts.get(session_id)
 
@@ -441,13 +399,11 @@ class SessionContextManager:
         dataset_id: Optional[str] = None,
         dataset_name: Optional[str] = None,
     ) -> DatasetSnapshot:
-        """Register and cache a dataset for a session without storing bulk data inside context."""
         with self._lock:
             ctx = self.get_or_create_context(session_id)
             d_id = dataset_id or f"ds_{uuid.uuid4().hex[:8]}"
             d_name = dataset_name or f"dataset_{len(ctx.datasets) + 1}"
 
-            # Ingest through CanonicalDataLayer to obtain SemanticProfile
             ingested = CanonicalDataLayer.ingest(df)
             prof = ingested.profile
 
@@ -471,165 +427,117 @@ class SessionContextManager:
                 quality_score=q_score,
             )
 
-            # Store in session context and cache dataframe in memory scoped to (session_id, d_id)
             ctx.datasets[d_id] = snapshot
             ctx.active_dataset_id = d_id
             if prof.datetime_candidates and not ctx.active_time_column:
                 ctx.active_time_column = prof.datetime_candidates[0]
 
-            self._session_datasets[(session_id, d_id)] = df.copy()
+            self._dataset_store[(session_id, d_id)] = df.copy(deep=True)
+            ctx.updated_at = datetime.utcnow().isoformat()
             return snapshot
 
     def get_dataset(self, session_id: str, dataset_id: Optional[str] = None) -> Optional[pd.DataFrame]:
-        """Retrieve cached DataFrame for a session."""
         with self._lock:
             ctx = self.get_context(session_id)
             if not ctx:
                 return None
-            target_id = dataset_id or ctx.active_dataset_id
-            if not target_id:
+            target_d_id = dataset_id or ctx.active_dataset_id
+            if not target_d_id:
                 return None
-            return self._session_datasets.get((session_id, target_id))
-
-    def switch_dataset(self, session_id: str, dataset_id: str) -> bool:
-        """Switch active dataset within a session and reset target/feature pointers."""
-        with self._lock:
-            ctx = self.get_context(session_id)
-            if not ctx or dataset_id not in ctx.datasets:
-                return False
-            ctx.active_dataset_id = dataset_id
-            # Reset target/features on dataset switch to prevent cross-dataset contamination
-            ctx.active_target = None
-            ctx.active_features = []
-            ds = ctx.datasets[dataset_id]
-            ctx.active_time_column = ds.datetime_columns[0] if ds.datetime_columns else None
-            return True
-
-    # --------------------------------------------------------------------------
-    # Record Analytical Execution & Update Memory
-    # --------------------------------------------------------------------------
+            df = self._dataset_store.get((session_id, target_d_id))
+            return df.copy(deep=True) if df is not None else None
 
     def record_execution(
         self,
         session_id: str,
         result: AgentResult,
         user_command: str,
-        resolved_command: Optional[str] = None,
+        resolved_command: str,
         target: Optional[str] = None,
         features: Optional[List[str]] = None,
         time_column: Optional[str] = None,
         resolved_references: Optional[Dict[str, str]] = None,
-    ) -> None:
-        """Update analytical context after an execution."""
+    ) -> ExecutionHistoryItem:
         with self._lock:
             ctx = self.get_or_create_context(session_id)
             turn_id = len(ctx.execution_history) + 1
 
-            # Extract task details
-            task_type = result.task_type or "orchestration"
-            status_str = result.status.value if isinstance(result.status, AgentStatus) else str(result.status)
-            res_data = result.data if isinstance(result.data, dict) else (result.result if isinstance(result.result, dict) else {})
+            t_val = target or result.target or (result.data.get("target") if isinstance(result.data, dict) else None)
+            f_val = features or (result.data.get("features") if isinstance(result.data, dict) else [])
+            time_col = time_column or (result.data.get("time_column") if isinstance(result.data, dict) else None)
 
-            # Update active pointers
-            if target:
-                ctx.active_target = target
-            if features:
-                ctx.active_features = list(features)
-            if time_column:
-                ctx.active_time_column = time_column
+            if t_val:
+                ctx.active_target = str(t_val)
+            if f_val:
+                ctx.active_features = list(f_val)
+            if time_col:
+                ctx.active_time_column = str(time_col)
 
-            ctx.previous_task = ctx.active_task
-            ctx.active_task = task_type
-            ctx.last_execution_id = result.execution_id
-            ctx.latest_confidence = float(result.confidence)
-            ctx.latest_metrics = result.metrics or {}
-            ctx.assumptions = result.assumptions or []
-            ctx.limitations = result.limitations or []
-            ctx.warnings = result.warnings or []
+            ctx.previous_task = result.task_type
+            ctx.previous_intent = result.task_type
 
-            # Extract specific analytical state from result payload
-            if "tasks" in res_data:
-                tasks_dict = res_data["tasks"]
-                # Forecast state
-                if "forecasting" in tasks_dict and isinstance(tasks_dict["forecasting"], dict):
-                    fc = tasks_dict["forecasting"]
-                    ctx.latest_forecast_horizon = fc.get("horizon", 6)
-                    ctx.latest_model_name = fc.get("model_selected") or fc.get("model_name")
-                # Prediction state
-                if "prediction" in tasks_dict and isinstance(tasks_dict["prediction"], dict):
-                    pred = tasks_dict["prediction"]
-                    ctx.latest_model_name = pred.get("selected_model") or pred.get("best_model")
-                # Anomaly state
-                if "anomaly_detection" in tasks_dict and isinstance(tasks_dict["anomaly_detection"], dict):
-                    anom = tasks_dict["anomaly_detection"]
-                    ctx.latest_anomaly_count = anom.get("anomaly_count", 0)
-                # Clustering state
-                if "clustering" in tasks_dict and isinstance(tasks_dict["clustering"], dict):
-                    clust = tasks_dict["clustering"]
-                    ctx.latest_cluster_count = clust.get("cluster_count", clust.get("n_clusters"))
-                # Relationships state
-                if "statistical_analysis" in tasks_dict and isinstance(tasks_dict["statistical_analysis"], dict):
-                    stats = tasks_dict["statistical_analysis"]
-                    ranked = stats.get("ranked_relationships") or stats.get("relationships", [])
-                    if len(ranked) >= 1 and isinstance(ranked[0], dict):
-                        ctx.latest_strongest_relationship = ranked[0]
-                    if len(ranked) >= 2 and isinstance(ranked[1], dict):
-                        ctx.latest_second_strongest_relationship = ranked[1]
+            model_name = None
+            clust_count = None
+            anom_count = None
+            r1 = None
+            r2 = None
 
-            # Bounded execution record
-            top_findings = []
-            if "synthesis" in res_data and isinstance(res_data["synthesis"], dict):
-                top_findings = res_data["synthesis"].get("important_findings", [])
+            if isinstance(result.data, dict):
+                model_name = result.data.get("model_name") or result.data.get("model_selected")
+                clust_count = result.data.get("cluster_count")
+                anom_count = result.data.get("anomaly_count")
+                ranked_rels = result.data.get("ranked_relationships") or result.data.get("relationships") or []
+                if ranked_rels and len(ranked_rels) >= 1:
+                    r1 = ranked_rels[0] if isinstance(ranked_rels[0], dict) else None
+                if ranked_rels and len(ranked_rels) >= 2:
+                    r2 = ranked_rels[1] if isinstance(ranked_rels[1], dict) else None
 
-            record = ExecutionRecord(
-                execution_id=result.execution_id,
+            if model_name:
+                ctx.latest_model_name = str(model_name)
+            if clust_count is not None:
+                ctx.latest_cluster_count = int(clust_count)
+            if anom_count is not None:
+                ctx.latest_anomaly_count = int(anom_count)
+            if r1:
+                ctx.latest_strongest_relationship = r1
+            if r2:
+                ctx.latest_second_strongest_relationship = r2
+
+            hist_item = ExecutionHistoryItem(
                 turn_id=turn_id,
+                execution_id=result.execution_id or f"exec_{uuid.uuid4().hex[:8]}",
                 user_command=user_command,
-                resolved_command=resolved_command or user_command,
-                task_type=task_type,
-                intent=res_data.get("detected_intent", task_type),
+                resolved_command=resolved_command,
+                task_type=result.task_type or "orchestration",
+                status=result.status.value if hasattr(result.status, "value") else str(result.status),
                 target=ctx.active_target,
                 features=ctx.active_features,
                 time_column=ctx.active_time_column,
-                model_selected=ctx.latest_model_name,
                 metrics=result.metrics or {},
-                confidence=float(result.confidence),
-                status=status_str,
-                summary=res_data.get("summary", ""),
-                top_findings=top_findings[:3],
-                resolved_references=resolved_references or {},
+                model_name=ctx.latest_model_name,
+                cluster_count=ctx.latest_cluster_count,
+                anomaly_count=ctx.latest_anomaly_count,
+                strongest_relationship=ctx.latest_strongest_relationship,
+                second_strongest_relationship=ctx.latest_second_strongest_relationship,
+                dataset_id=ctx.active_dataset_id,
+                duration_ms=result.duration_ms,
             )
 
-            ctx.execution_history.append(record)
-            # Enforce bounded history
-            if len(ctx.execution_history) > self.max_history:
-                ctx.execution_history = ctx.execution_history[-self.max_history:]
+            ctx.execution_history.append(hist_item)
+            if len(ctx.execution_history) > self.max_history_turns:
+                ctx.execution_history = ctx.execution_history[-self.max_history_turns:]
 
-    # --------------------------------------------------------------------------
-    # Context Invalidation & Cleanup
-    # --------------------------------------------------------------------------
-
-    def invalidate_target(self, session_id: str) -> None:
-        with self._lock:
-            ctx = self.get_context(session_id)
-            if ctx:
-                ctx.active_target = None
-
-    def invalidate_features(self, session_id: str) -> None:
-        with self._lock:
-            ctx = self.get_context(session_id)
-            if ctx:
-                ctx.active_features = []
+            ctx.updated_at = datetime.utcnow().isoformat()
+            return hist_item
 
     def clear_session(self, session_id: str) -> None:
         with self._lock:
             if session_id in self._contexts:
                 del self._contexts[session_id]
-            # Remove cached dataframes for this session
-            keys_to_del = [k for k in self._session_datasets.keys() if k[0] == session_id]
-            for k in keys_to_del:
-                del self._session_datasets[k]
+            for (s_id, d_id) in list(self._dataset_store.keys()):
+                if s_id == session_id:
+                    del self._dataset_store[(s_id, d_id)]
 
 
-# Global singleton instance
+# Global default session manager singleton
 DEFAULT_SESSION_CONTEXT_MANAGER = SessionContextManager()

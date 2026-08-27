@@ -784,7 +784,7 @@ class UniversalOrchestrator:
 
         # Determine overall AgentStatus
         if n_success == total_tasks and total_tasks > 0:
-            overall_status = AgentStatus.SUCCESS
+            overall_status = AgentStatus.COMPLETED
         elif n_success > 0:
             overall_status = AgentStatus.PARTIAL
         else:
