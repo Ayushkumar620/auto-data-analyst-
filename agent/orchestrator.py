@@ -171,23 +171,63 @@ class UniversalOrchestrator:
     def orchestrate(
         self,
         command: str,
-        data: Union[pd.DataFrame, Dict[str, Any], Any],
+        data: Optional[Union[pd.DataFrame, Dict[str, Any], Any]] = None,
         target: Optional[str] = None,
         features: Optional[List[str]] = None,
         time_column: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
         dataset_id: Optional[str] = None,
+        session_id: Optional[str] = None,
     ) -> AgentResult:
         """
         Execute end-to-end orchestration pipeline from natural language command to AgentResult.
+        Supports session context, conversational reference resolution, and follow-up turns.
         """
         start_time = datetime.now()
         orchestration_id = f"orch_{uuid.uuid4().hex[:8]}"
+        from agent.analytical_context import DEFAULT_SESSION_CONTEXT_MANAGER
+
+        effective_command = command
+        resolution = None
+
+        # 0. Conversational Context & Reference Resolution
+        if session_id:
+            ctx = DEFAULT_SESSION_CONTEXT_MANAGER.get_context(session_id)
+            if ctx:
+                resolution = DEFAULT_SESSION_CONTEXT_MANAGER.resolver.resolve(command, ctx, df=None)
+                if resolution.needs_clarification:
+                    return self._build_contextual_clarification_result(
+                        command=command,
+                        orchestration_id=orchestration_id,
+                        reason=resolution.clarification_reason or "Ambiguous reference.",
+                        suggested_options=resolution.suggested_options,
+                        session_id=session_id,
+                    )
+                effective_command = resolution.resolved_command
+                target = target or resolution.target
+                features = features or (resolution.features if resolution.features else None)
+                time_column = time_column or resolution.time_column
+                dataset_id = dataset_id or resolution.dataset_id
 
         # 1. Extract & validate raw DataFrame
         df = self._extract_dataframe(data)
         if df is None or len(df) == 0 or len(df.columns) == 0:
-            return self._build_empty_dataset_error(command, orchestration_id)
+            if session_id:
+                cached_df = DEFAULT_SESSION_CONTEXT_MANAGER.get_dataset(session_id, dataset_id=dataset_id)
+                if cached_df is not None and not cached_df.empty:
+                    df = cached_df
+                else:
+                    return self._build_missing_session_dataset_error(command, orchestration_id, session_id)
+            else:
+                return self._build_empty_dataset_error(command, orchestration_id)
+
+        # Register dataset in session if new
+        if session_id and data is not None and (isinstance(data, pd.DataFrame) or isinstance(data, dict)):
+            DEFAULT_SESSION_CONTEXT_MANAGER.register_dataset(
+                session_id=session_id,
+                df=df,
+                dataset_id=dataset_id,
+            )
 
         # 2. Ingest into CanonicalDataLayer & build SemanticProfile
         canonical_ds: CanonicalDataset = CanonicalDataLayer.ingest(df)
@@ -195,7 +235,7 @@ class UniversalOrchestrator:
 
         # 3. Generate Analytical Plan
         plan: AnalyticalPlan = self.plan(
-            command=command,
+            command=effective_command,
             df=df,
             profile=profile,
             target=target,
@@ -212,13 +252,42 @@ class UniversalOrchestrator:
             return self._build_unsupported_result(plan, orchestration_id)
 
         # 5. Execute Analytical Plan
-        return self.execute_plan(
+        res = self.execute_plan(
             plan=plan,
             df=df,
             profile=profile,
             orchestration_id=orchestration_id,
             start_time=start_time,
         )
+
+        # 6. Update Session Context
+        if session_id:
+            DEFAULT_SESSION_CONTEXT_MANAGER.record_execution(
+                session_id=session_id,
+                result=res,
+                user_command=command,
+                resolved_command=effective_command,
+                target=target,
+                features=features,
+                time_column=time_column,
+                resolved_references=resolution.resolved_references if resolution else {},
+            )
+            is_fu = bool(resolution.is_follow_up) if resolution else False
+            refs = resolution.resolved_references if resolution else {}
+            if isinstance(res.provenance, dict):
+                res.provenance["session_id"] = session_id
+                res.provenance["is_follow_up"] = is_fu
+                res.provenance["resolved_references"] = refs
+            if isinstance(res.result, dict):
+                res.result["session_id"] = session_id
+                res.result["is_follow_up"] = is_fu
+                res.result["resolved_references"] = refs
+            if isinstance(res.data, dict):
+                res.data["session_id"] = session_id
+                res.data["is_follow_up"] = is_fu
+                res.data["resolved_references"] = refs
+
+        return res
 
     # --------------------------------------------------------------------------
     # Planning Engine
@@ -936,6 +1005,53 @@ class UniversalOrchestrator:
             task_type="orchestration",
             task_id=orchestration_id,
             errors=[err],
+        )
+
+    def _build_missing_session_dataset_error(self, command: str, orchestration_id: str, session_id: str) -> AgentResult:
+        err = AgentError(
+            code="SESSION_DATASET_MISSING",
+            category=ErrorCategory.INSUFFICIENT_DATA,
+            user_message=f"No dataset found for session '{session_id}'. Please provide a dataset with your analytical command.",
+            message=f"No dataset found in session '{session_id}'.",
+            agent_name="Universal Orchestrator",
+        )
+        return AgentResult.error(
+            error=err.user_message,
+            code=err.code,
+            category=err.category,
+            agent_name="Universal Orchestrator",
+            task_type="orchestration",
+            task_id=orchestration_id,
+            errors=[err],
+        )
+
+    def _build_contextual_clarification_result(
+        self,
+        command: str,
+        orchestration_id: str,
+        reason: str,
+        suggested_options: Optional[List[str]] = None,
+        session_id: Optional[str] = None,
+    ) -> AgentResult:
+        err = AgentError(
+            code="AMBIGUOUS_FOLLOW_UP",
+            category=ErrorCategory.INPUT_INVALID,
+            user_message=f"Ambiguous follow-up reference: {reason}",
+            message=f"Ambiguous follow-up reference: {reason}",
+            agent_name="Universal Orchestrator",
+            technical_details={"suggested_options": suggested_options or [], "session_id": session_id},
+        )
+        return AgentResult(
+            status=AgentStatus.NEEDS_CLARIFICATION,
+            task_type="orchestration",
+            agent_name="Universal Orchestrator",
+            execution_id=orchestration_id,
+            result={"error": err.user_message, "suggested_options": suggested_options or []},
+            data={"error": err.user_message, "suggested_options": suggested_options or []},
+            output={"error": err.user_message, "suggested_options": suggested_options or []},
+            confidence=0.30,
+            errors=[err],
+            warnings=[f"Clarification needed: {reason}"],
         )
 
     def _build_clarification_result(self, plan: AnalyticalPlan, orchestration_id: str) -> AgentResult:
