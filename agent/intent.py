@@ -43,6 +43,7 @@ class AnalyticalIntent(str, Enum):
     EXPLANATION = "explanation"
     ANOMALIES = "anomalies"
     CLUSTERING = "clustering"
+    CORRELATION = "correlation"
     REPORT = "report"
     UNKNOWN = "unknown"
 
@@ -61,6 +62,7 @@ class IntentType(str, Enum):
     CLASSIFICATION = "classification"
     REGRESSION = "regression"
     CLUSTERING = "clustering"
+    STATISTICAL_RELATIONSHIP = "statistical_relationship"
     VISUALIZATION = "visualization"
     REPORTING = "reporting"
     DATA_QUESTION = "data_question"
@@ -429,6 +431,11 @@ class CommandIntelligenceAgent(BaseAgent):
             capabilities.append("clustering")
             intent_candidates.append((IntentType.CLUSTERING, 93))
 
+        # 5c. Statistical Relationships & Correlation
+        if any(w in text for w in ("correlation", "correlations", "relationship", "relationships", "related", "move together", "statistical association", "associations", "dependencies", "dependency", "covariance", "factors are associated")):
+            capabilities.append("statistical_analysis")
+            intent_candidates.append((IntentType.STATISTICAL_RELATIONSHIP, 93))
+
         # 6. Aggregation / Ranking / Regional Analysis
         if any(w in text for w in ("by region", "regional", "by country", "by category", "by customer")):
             capabilities.append("regional_analysis" if "region" in text else "segmentation")
@@ -701,6 +708,12 @@ class IntentAnalyzer:
             "cluster", "clustering", "segment", "segmentation", "segments",
             "natural groups", "group similar", "find groups", "similar records",
             "k-means", "dbscan", "customer segments",
+        ),
+        AnalyticalIntent.CORRELATION: (
+            "correlation", "correlations", "relationship", "relationships", "related",
+            "move together", "statistical association", "associations", "dependencies",
+            "dependency", "covariance", "factors are associated", "which variables",
+            "pearson", "spearman",
         ),
         AnalyticalIntent.REPORT: (
             "report", "summary report", "executive summary", "overview",

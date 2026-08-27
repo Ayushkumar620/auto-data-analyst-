@@ -28,6 +28,7 @@ from .registry_agent import ModelRegistryAgent
 from .validation_agent import DataValidationAgent
 from .anomaly_agent import AnomalyDetectionAgent
 from .clustering_agent import ClusteringAgent
+from .statistical_analysis_agent import StatisticalAnalysisAgent
 from .schemas import ClaimType, Evidence, ErrorCategory
 
 

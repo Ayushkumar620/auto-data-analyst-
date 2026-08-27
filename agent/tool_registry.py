@@ -165,15 +165,26 @@ class ToolRegistry:
             )
         )
 
-        # 5. Correlation Analysis
+        # 5. Statistical Relationship & Correlation Analysis
+        self.register(
+            ToolDefinition(
+                name="statistical_analysis",
+                description="Discovers, measures, tests, and ranks bivariate and multivariate relationships, associations, and correlations.",
+                capabilities=["statistical_analysis", "correlation_analysis", "feature_relationships", "relationship_analysis", "dependency_analysis"],
+                input_schema={"data": "pd.DataFrame", "features": "list", "target": "str"},
+                output_schema={"relationships": "list", "ranked_relationships": "list", "correlation_matrix": "dict"},
+                execution_fn=lambda data, **kw: StatisticalAnalysisAgent().run({"data": data, **kw}),
+                validation_requirements=["relationships is not empty"],
+            )
+        )
         self.register(
             ToolDefinition(
                 name="correlation_analysis",
-                description="Computes Pearson and Spearman correlation matrices across numeric features.",
+                description="Computes Pearson and Spearman correlation matrices and feature dependencies.",
                 capabilities=["correlation_analysis", "feature_relationships", "relationship_analysis"],
                 input_schema={"data": "pd.DataFrame"},
                 output_schema={"correlation_matrix": "dict"},
-                execution_fn=lambda data, **kw: AnalysisAgent().run({"data": data, "request": "correlation", **kw}),
+                execution_fn=lambda data, **kw: StatisticalAnalysisAgent().run({"data": data, **kw}),
                 validation_requirements=["correlation_matrix is not empty"],
             )
         )
