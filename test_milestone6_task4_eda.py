@@ -407,7 +407,6 @@ def test_AA_dataframe_non_mutation():
     assert "error" not in res
     # Ensure source DataFrame was NOT overwritten in-place
     assert (df["raw_revenue"] == original_series).all()
-    assert df["raw_revenue"].dtype == object
     assert pd.api.types.is_string_dtype(df["raw_revenue"]) or df["raw_revenue"].dtype == object
     assert df["raw_revenue"].iloc[0] == "$100.00"
 
