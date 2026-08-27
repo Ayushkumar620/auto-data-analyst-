@@ -41,6 +41,7 @@ from agent.confidence_calculator import ConfidenceCalculator
 from agent.intent import AnalyticalIntent, CommandIntelligenceAgent, IntentAnalyzer, IntentClassificationResult, IntentType
 from agent.pre_execution_validator import PreExecutionValidator
 from agent.result_validator import ResultValidator
+from agent.tool_registry import DEFAULT_TOOL_REGISTRY, ToolRegistry
 
 
 class TaskStatus(str, Enum):
@@ -145,10 +146,12 @@ class UniversalOrchestrator:
 
     def __init__(
         self,
+        tool_registry: Optional[ToolRegistry] = None,
         tool_registry: Optional[Any] = None,
         max_workers: int = 4,
         random_state: int = 42,
     ):
+        self.tool_registry = tool_registry or DEFAULT_TOOL_REGISTRY
         if tool_registry is not None:
             self.tool_registry = tool_registry
         else:
@@ -281,6 +284,7 @@ class UniversalOrchestrator:
                     break
 
         # Time Column Resolution
+        effective_time_col = time_column or classification.time_column
         effective_time_col = time_column or getattr(classification, "time_column", None)
         if not effective_time_col and profile.datetime_candidates:
             effective_time_col = profile.datetime_candidates[0]
@@ -288,6 +292,7 @@ class UniversalOrchestrator:
         # Feature Resolution
         effective_features = features or classification.feature_columns
         if not effective_features:
+            effective_features = [c for c in df.columns if c != effective_target and c != effective_time_col]
             non_id_cols = [c for c in df.columns if c != effective_target and c != effective_time_col and c not in profile.identifier_columns and c not in profile.constant_columns]
             if non_id_cols:
                 effective_features = non_id_cols
@@ -402,6 +407,8 @@ class UniversalOrchestrator:
                 agent_name="Statistical Analysis Agent",
                 purpose="Analyze statistical relationships, correlations, and feature dependencies.",
                 target_column=effective_target,
+                required_columns=effective_features,
+                parameters={"target": effective_target, "features": effective_features},
                 required_columns=stats_cols,
                 parameters={"target": effective_target, "features": stats_cols},
                 dependencies=[eda_task_id] if eda_task_id else [],
@@ -891,12 +898,14 @@ class UniversalOrchestrator:
         return " ".join(lines)
 
     def _build_empty_dataset_error(self, command: str, orchestration_id: str) -> AgentResult:
+        err = AgentError.create(
         err = AgentError(
             code="EMPTY_DATASET",
             category=ErrorCategory.INSUFFICIENT_DATA,
             user_message="Dataset is empty or contains 0 valid columns. Orchestration requires tabular data.",
             message="Dataset is empty or contains 0 valid columns.",
             agent_name="Universal Orchestrator",
+            code="EMPTY_DATASET",
         )
         return AgentResult.error(
             error=err.user_message,
@@ -904,18 +913,21 @@ class UniversalOrchestrator:
             category=err.category,
             agent_name="Universal Orchestrator",
             task_type="orchestration",
+            execution_id=orchestration_id,
             task_id=orchestration_id,
             errors=[err],
         )
 
     def _build_clarification_result(self, plan: AnalyticalPlan, orchestration_id: str) -> AgentResult:
         reason = plan.ambiguity_information.get("reason", "Command is ambiguous.") if plan.ambiguity_information else "Command is ambiguous."
+        err = AgentError.create(
         err = AgentError(
             code="AMBIGUOUS_COMMAND",
             category=ErrorCategory.DATA_INVALID,
             user_message=f"Ambiguous request: {reason}",
             message=f"Ambiguous request: {reason}",
             agent_name="Universal Orchestrator",
+            code="AMBIGUOUS_COMMAND",
             technical_details=plan.ambiguity_information or {},
         )
         res = AgentResult(
@@ -934,12 +946,14 @@ class UniversalOrchestrator:
 
     def _build_unsupported_result(self, plan: AnalyticalPlan, orchestration_id: str) -> AgentResult:
         reason = plan.unsupported_reason or "The requested capability is not supported by the analytical platform."
+        err = AgentError.create(
         err = AgentError(
             code="UNSUPPORTED_COMMAND",
             category=ErrorCategory.UNSUPPORTED_TASK,
             user_message=f"Unsupported request: {reason}",
             message=f"Unsupported request: {reason}",
             agent_name="Universal Orchestrator",
+            code="UNSUPPORTED_COMMAND",
         )
         res = AgentResult(
             status=AgentStatus.NOT_SUPPORTED,
