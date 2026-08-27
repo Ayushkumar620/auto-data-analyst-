@@ -139,15 +139,15 @@ class ToolRegistry:
             )
         )
 
-        # 3. Exploratory Data Analysis & Statistics
+        # 3. Exploratory Data Analysis, Profiling & Data Quality
         self.register(
             ToolDefinition(
                 name="eda",
-                description="Computes summary statistics, distributions, quartiles, and descriptive metrics.",
-                capabilities=["eda", "statistics", "descriptive_stats", "summary"],
-                input_schema={"data": "pd.DataFrame", "request": "str"},
-                output_schema={"summary": "dict", "statistics": "dict"},
-                execution_fn=lambda data, **kw: AnalysisAgent().run({"data": data, "request": kw.get("request", "summary")}),
+                description="Comprehensive dataset profiling, schema inference, distributions, missing values, duplicates, and data quality intelligence.",
+                capabilities=["eda", "statistics", "descriptive_stats", "summary", "data_profiling", "data_quality", "missing_analysis", "profile"],
+                input_schema={"data": "pd.DataFrame", "columns": "list"},
+                output_schema={"summary": "dict", "statistics": "dict", "data_quality": "dict", "findings": "list"},
+                execution_fn=lambda data, **kw: EDAAgent().run({"data": data, **kw}),
                 validation_requirements=["summary is not empty"],
             )
         )

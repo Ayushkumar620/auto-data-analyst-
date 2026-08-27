@@ -436,6 +436,11 @@ class CommandIntelligenceAgent(BaseAgent):
             capabilities.append("statistical_analysis")
             intent_candidates.append((IntentType.STATISTICAL_RELATIONSHIP, 93))
 
+        # 5d. EDA / Data Profiling / Data Quality
+        if any(w in text for w in ("eda", "describe", "profile", "data quality", "missing values", "overview of the data", "column statistics", "dataset statistics", "what is wrong with this dataset", "check data quality")):
+            capabilities.append("eda")
+            intent_candidates.append((IntentType.DATASET_ANALYSIS, 93))
+
         # 6. Aggregation / Ranking / Regional Analysis
         if any(w in text for w in ("by region", "regional", "by country", "by category", "by customer")):
             capabilities.append("regional_analysis" if "region" in text else "segmentation")
@@ -720,8 +725,11 @@ class IntentAnalyzer:
             "full analysis", "brief", "presentation",
         ),
         AnalyticalIntent.EDA: (
-            "eda", "describe", "summary", "stats", "statistics", "correlations",
-            "explore", "profile", "distribution", "overview",
+            "eda", "describe", "describe this dataset", "summary", "stats", "statistics",
+            "explore", "profile", "profile the data", "distribution", "overview",
+            "data quality", "data quality report", "missing values", "analyze missing",
+            "column statistics", "what is wrong with this dataset", "overview of the data",
+            "check data quality", "dataset statistics", "give me an overview",
         ),
     }
 
