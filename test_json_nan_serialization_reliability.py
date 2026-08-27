@@ -234,12 +234,11 @@ def test_L_reliability_sales_csv_strict_json():
         )
 
     assert resp.status_code == 200, f"Upload failed: {resp.text[:300]}"
-    assert _strict_json_ok(resp.text), (
-        "Reliability sales CSV upload response contains non-JSON floats.
-"
-        + ("NaN at: " + resp.text[max(0, resp.text.find("NaN")-30):resp.text.find("NaN")+30]
-           if "NaN" in resp.text else resp.text[:200])
-    )
+    nan_idx = resp.text.find("NaN")
+    if nan_idx != -1:
+        snippet = resp.text[max(0, nan_idx - 30): nan_idx + 30]
+        assert False, f"Reliability sales CSV contains non-JSON floats. Snippet: {snippet}"
+    assert _strict_json_ok(resp.text), f"Response is not strict JSON: {resp.text[:200]}"
 
 
 # ---------------------------------------------------------------------------
