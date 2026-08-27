@@ -757,6 +757,37 @@
                     html += '<div class="card"><p>' + escapeHtml(rep.note) + '</p></div>';
                     return;
                 }
+                const rels = rep.relationships || [];
+                if (rels.length > 0) {
+                    html += '<div class="card">' +
+                        '<div class="card-header"><span>📊 Statistical Relationships & Dependencies</span><span class="badge">' + escapeHtml(rep.name) + '</span></div>' +
+                        '<div class="table-wrap"><table>' +
+                        '<thead><tr>' +
+                        '<th>Relationship</th><th>Pearson r</th><th>Spearman ρ</th><th>Raw p-value</th><th>FDR p-value</th><th>Effect Strength</th><th>Valid N</th><th>Outlier Sensitivity</th>' +
+                        '</tr></thead><tbody>';
+                    rels.forEach(function (r) {
+                        const fx = r.feature_x || r.variable_x;
+                        const fy = r.feature_y || r.variable_y;
+                        const pr = typeof r.pearson_r === 'number' ? r.pearson_r.toFixed(3) : (r.pearson && typeof r.pearson.r === 'number' ? r.pearson.r.toFixed(3) : '—');
+                        const rho = typeof r.spearman_rho === 'number' ? r.spearman_rho.toFixed(3) : (r.spearman && typeof r.spearman.rho === 'number' ? r.spearman.rho.toFixed(3) : '—');
+                        const pVal = typeof r.p_value === 'number' ? (r.p_value < 0.0001 ? r.p_value.toExponential(2) : r.p_value.toFixed(4)) : '—';
+                        const adjP = typeof r.adjusted_p_value === 'number' ? (r.adjusted_p_value < 0.0001 ? r.adjusted_p_value.toExponential(2) : r.adjusted_p_value.toFixed(4)) : pVal;
+                        const strength = (r.effect_strength || r.strength || 'moderate').replace('_', ' ');
+                        const isSens = r.outlier_sensitive || r.outlier_sensitivity ? '<span style="color:#d97706;font-weight:600">⚠️ Yes</span>' : '<span style="color:#059669">No</span>';
+                        const vn = r.valid_rows != null ? r.valid_rows : (r.valid_sample_size != null ? r.valid_sample_size : '—');
+                        html += '<tr>' +
+                            '<td><strong>' + escapeHtml(fx) + ' ↔ ' + escapeHtml(fy) + '</strong></td>' +
+                            '<td style="text-align:center;font-family:monospace">' + pr + '</td>' +
+                            '<td style="text-align:center;font-family:monospace">' + rho + '</td>' +
+                            '<td style="text-align:center;font-family:monospace">' + pVal + '</td>' +
+                            '<td style="text-align:center;font-family:monospace;font-weight:bold;color:#059669">' + adjP + '</td>' +
+                            '<td style="text-align:center;text-transform:capitalize">' + escapeHtml(strength) + '</td>' +
+                            '<td style="text-align:center">' + vn + '</td>' +
+                            '<td style="text-align:center">' + isSens + '</td>' +
+                            '</tr>';
+                    });
+                    html += '</tbody></table></div></div>';
+                }
                 html += '<div class="card">' +
                     '<div class="card-header"><span>🔗 Correlation Matrix</span><span class="badge">' + escapeHtml(rep.name) + '</span></div>' +
                     '<div class="table-wrap">' + buildCorrTable(rep.columns, rep.matrix) + '</div></div>';

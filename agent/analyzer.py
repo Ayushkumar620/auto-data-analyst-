@@ -79,8 +79,10 @@ class DataAnalyzer:
         return reports
 
     def correlation(self):
-        """Correlation matrix for numeric columns."""
+        """Correlation matrix and full bivariate statistical relationships for numeric columns."""
         reports = []
+        from agent.statistical_analysis_engine import StatisticalAnalysisEngine
+        engine = StatisticalAnalysisEngine()
         for name, df in self._get_frames():
             if not isinstance(df, pd.DataFrame):
                 continue
@@ -90,12 +92,18 @@ class DataAnalyzer:
                     {"name": name, "note": "Need at least 2 numeric columns for correlation."}
                 )
             else:
-                corr = numeric.corr()
+                stats_res = engine.analyze(data=df)
+                rels = stats_res.get("relationships", [])
+                top_rels = stats_res.get("top_relationships", rels)
+                corr = stats_res.get("correlation_matrix") or numeric.corr().fillna("").to_dict()
                 reports.append(
                     {
                         "name": name,
-                        "matrix": corr.fillna("").to_dict(),
-                        "columns": list(corr.columns),
+                        "matrix": corr,
+                        "columns": list(numeric.columns),
+                        "relationships": rels,
+                        "top_relationships": top_rels,
+                        "subgroup_analysis": stats_res.get("subgroup_analysis", {}),
                     }
                 )
         return reports

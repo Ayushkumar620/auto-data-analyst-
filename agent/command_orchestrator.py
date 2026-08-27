@@ -22,11 +22,14 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from enum import Enum
+import logging
 import re
 import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 from agent.schemas import AgentResult, AgentStatus, ClaimType, Evidence
 from agent.intent import AnalyticalIntent, IntentAnalyzer, IntentClassificationResult
