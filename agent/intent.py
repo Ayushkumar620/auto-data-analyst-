@@ -687,6 +687,10 @@ class IntentAnalyzer:
         AnalyticalIntent.CLEANING: (
             "clean", "preprocess", "impute", "missing", "outlier removal",
             "dedup", "duplicates", "null values", "format data", "sanitize",
+            "clean this dataset", "prepare the data", "preprocess the data",
+            "encode categorical columns", "scale the features", "handle missing values",
+            "engineer features", "prepare this for machine learning",
+            "transform the dataset", "make this model ready", "transform", "transformation", "feature engineering",
         ),
         AnalyticalIntent.FORECASTING: (
             "forecast", "future", "predict next", "time series", "horizon",

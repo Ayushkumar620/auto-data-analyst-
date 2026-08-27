@@ -202,6 +202,19 @@ class ToolRegistry:
             )
         )
 
+        # 5c. Data Transformation & Feature Engineering
+        self.register(
+            ToolDefinition(
+                name="transformation",
+                description="Transforms tabular data into model-ready numerical feature matrices with imputation, encoding, scaling, and feature engineering.",
+                capabilities=["transformation", "feature_engineering", "preprocessing", "data_cleaning", "encoding", "scaling", "imputation"],
+                input_schema={"data": "pd.DataFrame", "target": "str", "features": "list", "config": "dict"},
+                output_schema={"transformation_plan": "dict", "state": "dict", "summary": "dict"},
+                execution_fn=lambda data, **kw: TransformationAgent().run({"data": data, **kw}),
+                validation_requirements=["transformation_plan is not empty"],
+            )
+        )
+
         # 6. Anomaly Detection
         self.register(
             ToolDefinition(

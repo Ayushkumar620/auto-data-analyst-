@@ -31,6 +31,7 @@ from .clustering_agent import ClusteringAgent
 from .statistical_analysis_agent import StatisticalAnalysisAgent
 from .eda_agent import EDAAgent
 from .hypothesis_testing_agent import HypothesisTestingAgent
+from .transformation_agent import TransformationAgent
 from .schemas import ClaimType, Evidence, ErrorCategory
 
 
