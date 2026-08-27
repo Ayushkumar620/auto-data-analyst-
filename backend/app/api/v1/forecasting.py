@@ -64,7 +64,7 @@ def forecast_dataset(
         "project_id": resolved_project_id,
         "workspace_dataset_id": linked_dataset["id"] if linked_dataset else None,
     }
-    return json.loads(json.dumps(payload, default=_json_default))
+    return sanitize_for_json(payload)
 
 
 @router.post("/run")
@@ -83,7 +83,7 @@ def run_autonomous_forecast(req: ForecastRunRequest) -> dict[str, Any]:
             confidence_level=req.confidence_level,
         )
         res = _forecaster_agent.forecast(fc_req)
-        return json.loads(json.dumps(res.to_dict(), default=_json_default))
+        return sanitize_for_json(res.to_dict())
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Autonomous forecasting failed: {str(exc)}") from exc
 
@@ -104,7 +104,7 @@ def run_whatif_scenario(req: WhatIfRunRequest) -> dict[str, Any]:
                 target=req.target,
                 scenarios_spec=req.scenarios,
             )
-            return json.loads(json.dumps(comp_res.to_dict(), default=_json_default))
+            return sanitize_for_json(comp_res.to_dict())
 
         # Single scenario simulation
         whatif_req = WhatIfRequest(
@@ -115,6 +115,7 @@ def run_whatif_scenario(req: WhatIfRunRequest) -> dict[str, Any]:
             assumptions=req.assumptions,
         )
         scen_res = _forecaster_agent.scenario(whatif_req)
-        return json.loads(json.dumps(scen_res.to_dict(), default=_json_default))
+        return sanitize_for_json(scen_res.to_dict())
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"What-If scenario simulation failed: {str(exc)}") from exc
+
