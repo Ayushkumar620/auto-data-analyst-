@@ -123,6 +123,18 @@ class SessionContext(BaseModel):
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
     updated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
+    @property
+    def active_task(self) -> Optional[str]:
+        return self.previous_task
+
+    @property
+    def last_execution_id(self) -> Optional[str]:
+        return self.execution_history[-1].execution_id if self.execution_history else None
+
+    @property
+    def last_result(self) -> Optional[Dict[str, Any]]:
+        return self.execution_history[-1].to_dict() if self.execution_history else None
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "session_id": self.session_id,
@@ -140,6 +152,7 @@ class SessionContext(BaseModel):
             "latest_cluster_count": self.latest_cluster_count,
             "latest_anomaly_count": self.latest_anomaly_count,
             "turn_count": len(self.execution_history),
+            "last_execution_id": self.last_execution_id,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -261,14 +274,15 @@ class UniversalReferenceResolver:
                     dataset_id=dataset_id,
                 )
 
-        # 4. Target Pronoun Resolution: "predict it", "forecast it", "what predicts it", "the target", "same target"
-        if re.search(r"(predict it|forecast it|what predicts it|the target|same target|for it)", cmd_lower):
+        # 4. Target Pronoun Resolution: "predict it", "forecast it", "which feature predicts it", "the target", "same target"
+        if re.search(r"(predicts? it|forecasts? it|what predicts it|which feature predicts it|the target|same target|for it)", cmd_lower):
             if target:
                 resolved_refs["target"] = target
                 is_follow_up = True
-                resolved_cmd = re.sub(r"predict it", f"predict {target}", resolved_cmd, flags=re.IGNORECASE)
-                resolved_cmd = re.sub(r"forecast it", f"forecast {target}", resolved_cmd, flags=re.IGNORECASE)
+                resolved_cmd = re.sub(r"predicts? it", f"predicts {target}", resolved_cmd, flags=re.IGNORECASE)
+                resolved_cmd = re.sub(r"forecasts? it", f"forecasts {target}", resolved_cmd, flags=re.IGNORECASE)
                 resolved_cmd = re.sub(r"what predicts it", f"which feature predicts {target}", resolved_cmd, flags=re.IGNORECASE)
+                resolved_cmd = re.sub(r"which feature predicts it", f"which feature predicts {target}", resolved_cmd, flags=re.IGNORECASE)
                 resolved_cmd = re.sub(r"(the target|same target)", target, resolved_cmd, flags=re.IGNORECASE)
             elif active_ds and active_ds.numeric_columns:
                 if len(active_ds.numeric_columns) > 1 and "predict" in cmd_lower:
@@ -290,7 +304,14 @@ class UniversalReferenceResolver:
                 resolved_refs["second_strongest_relationship"] = f"{f1} and {f2}"
                 features = [f1, f2]
                 is_follow_up = True
-                resolved_cmd = f"analyze statistical relationship between {f1} and {f2}"
+                resolved_cmd = re.sub(
+                    r"(the second strongest relationship|that relationship|that correlation|second strongest relationship)",
+                    f"the relationship between {f1} and {f2}",
+                    resolved_cmd,
+                    flags=re.IGNORECASE,
+                )
+                if f1 not in resolved_cmd:
+                    resolved_cmd = f"{resolved_cmd} between {f1} and {f2}"
         elif any(k in cmd_lower for k in ("strongest relationship", "strongest correlation", "most correlated", "that relationship", "that correlation")):
             if context.latest_strongest_relationship:
                 rel = context.latest_strongest_relationship
@@ -300,18 +321,21 @@ class UniversalReferenceResolver:
                     features = [f1, f2]
                     is_follow_up = True
                     resolved_cmd = re.sub(
-                        r"(the strongest relationship|the strongest correlation|that relationship|that correlation)",
+                        r"(the strongest relationship|the strongest correlation|that relationship|that correlation|strongest relationship)",
                         f"the relationship between {f1} and {f2}",
                         resolved_cmd,
                         flags=re.IGNORECASE,
                     )
+                    if f1 not in resolved_cmd:
+                        resolved_cmd = f"{resolved_cmd} between {f1} and {f2}"
 
         # 6. Feature References: "those features", "same features", "the features"
-        if re.search(r"(those features|same features|the features|using those features)", cmd_lower):
+        if re.search(r"(those features|same features|the features|using those features|with those features)", cmd_lower):
             if features:
-                resolved_refs["features"] = ", ".join(features)
+                feat_str = ", ".join(features)
+                resolved_refs["features"] = feat_str
                 is_follow_up = True
-                resolved_cmd = re.sub(r"(those features|same features|the features)", ", ".join(features), resolved_cmd, flags=re.IGNORECASE)
+                resolved_cmd = re.sub(r"(those features|same features|the features)", feat_str, resolved_cmd, flags=re.IGNORECASE)
 
         # 7. Cluster / Segment References: "cluster 2", "that cluster", "focus on cluster 3", "explain that group"
         clust_match = re.search(r"(?:cluster|segment|group)\s+(\d+)", cmd_lower)
@@ -341,7 +365,8 @@ class UniversalReferenceResolver:
             is_follow_up = True
             if context.previous_task:
                 resolved_refs["context_task"] = context.previous_task
-                resolved_cmd = f"explain and synthesize findings for {context.previous_task}"
+                if context.previous_task not in resolved_cmd:
+                    resolved_cmd = f"tell me more about {context.previous_task}"
 
         # 11. Intent Mapping
         detected_intent = "eda"
@@ -502,15 +527,21 @@ class SessionContextManager:
                 r1 = None
                 r2 = None
 
-                if isinstance(result.data, dict):
-                    model_name = result.data.get("model_name") or result.data.get("model_selected")
-                    clust_count = result.data.get("cluster_count")
-                    anom_count = result.data.get("anomaly_count")
-                    ranked_rels = result.data.get("ranked_relationships") or result.data.get("relationships") or []
-                    if ranked_rels and len(ranked_rels) >= 1:
-                        r1 = ranked_rels[0] if isinstance(ranked_rels[0], dict) else None
-                    if ranked_rels and len(ranked_rels) >= 2:
-                        r2 = ranked_rels[1] if isinstance(ranked_rels[1], dict) else None
+                # Extract from data, result, output
+                for container in (result.data, result.result, result.output):
+                    if isinstance(container, dict):
+                        if not model_name:
+                            model_name = container.get("model_name") or container.get("model_selected")
+                        if clust_count is None:
+                            clust_count = container.get("cluster_count") or container.get("tasks", {}).get("clustering", {}).get("cluster_count")
+                        if anom_count is None:
+                            anom_count = container.get("anomaly_count") or container.get("tasks", {}).get("anomaly_detection", {}).get("anomaly_count")
+                        if not r1:
+                            ranked_rels = container.get("ranked_relationships") or container.get("relationships") or container.get("tasks", {}).get("statistical_analysis", {}).get("ranked_relationships") or []
+                            if ranked_rels and len(ranked_rels) >= 1:
+                                r1 = ranked_rels[0] if isinstance(ranked_rels[0], dict) else None
+                            if ranked_rels and len(ranked_rels) >= 2:
+                                r2 = ranked_rels[1] if isinstance(ranked_rels[1], dict) else None
 
                 if model_name:
                     ctx.latest_model_name = str(model_name)
