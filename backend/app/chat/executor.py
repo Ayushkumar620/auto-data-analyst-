@@ -51,8 +51,6 @@ class DataExecutor:
         return {"column": column, "anomaly_count": int(len(outliers)), "values": [self._number(v) for v in outliers.head(20)]}
 
     def calculate_correlation(self, dataframe: pd.DataFrame, left: str, right: str) -> dict[str, Any]:
-        self._column(dataframe, left); self._column(dataframe, right); data = dataframe[[left, right]].apply(pd.to_numeric, errors="coerce").dropna()
-        return {"columns": [left, right], "correlation": self._number(data[left].corr(data[right])) if len(data) > 1 else None}
         self._column(dataframe, left)
         self._column(dataframe, right)
         data = dataframe[[left, right]].apply(pd.to_numeric, errors="coerce").dropna()
