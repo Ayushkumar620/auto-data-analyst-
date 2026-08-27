@@ -34,6 +34,7 @@ from .hypothesis_testing_agent import HypothesisTestingAgent
 from .transformation_agent import TransformationAgent
 from .data_quality_agent import DataQualityAgent
 from .insight_synthesis_agent import InsightSynthesisAgent
+from .explanation_agent import ExplanationAgent
 from .orchestrator import UniversalOrchestrator
 from .schemas import ClaimType, Evidence, ErrorCategory
 

@@ -104,6 +104,7 @@ class ToolRegistry:
             DataQualityAgent,
             DataValidationAgent,
             EDAAgent,
+            ExplanationAgent,
             ForecastAgent,
             HypothesisTestingAgent,
             InsightAgent,
