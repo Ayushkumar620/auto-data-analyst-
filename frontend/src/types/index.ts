@@ -426,3 +426,68 @@ export type SynthesisReportData = {
   metadata?: Record<string, unknown>;
 };
 
+
+// ==========================================
+// Milestone 7 Task 3: Conversational Analytical Context
+// ==========================================
+export type ExecutionRecordItem = {
+  execution_id: string;
+  turn_id: number;
+  timestamp: string;
+  user_command: string;
+  resolved_command: string;
+  task_type: string;
+  intent: string;
+  target?: string | null;
+  features: string[];
+  time_column?: string | null;
+  model_selected?: string | null;
+  metrics: Record<string, unknown>;
+  confidence: number;
+  status: string;
+  summary: string;
+  top_findings: string[];
+  resolved_references: Record<string, string>;
+};
+
+export type DatasetSnapshotItem = {
+  dataset_id: string;
+  dataset_name: string;
+  columns: string[];
+  numeric_columns: string[];
+  categorical_columns: string[];
+  datetime_columns: string[];
+  identifier_columns: string[];
+  constant_columns: string[];
+  original_rows: number;
+  current_rows: number;
+  preview_sample: Array<Record<string, unknown>>;
+  quality_score: number;
+};
+
+export type AnalyticalContextData = {
+  session_id: string;
+  created_at: string;
+  last_active_at: string;
+  active_dataset_id?: string | null;
+  datasets: Record<string, DatasetSnapshotItem>;
+  active_target?: string | null;
+  active_features: string[];
+  active_time_column?: string | null;
+  active_task?: string | null;
+  previous_task?: string | null;
+  current_intent?: string | null;
+  previous_intent?: string | null;
+  last_execution_id?: string | null;
+  latest_metrics: Record<string, unknown>;
+  latest_confidence: number;
+  latest_model_name?: string | null;
+  latest_forecast_horizon?: number | null;
+  latest_cluster_count?: number | null;
+  latest_anomaly_count?: number | null;
+  execution_history: ExecutionRecordItem[];
+  pending_clarification?: Record<string, unknown> | null;
+  assumptions: string[];
+  limitations: string[];
+  warnings: string[];
+};
