@@ -405,8 +405,9 @@ class StatisticalAnalysisEngine:
             except Exception:
                 pass
 
-        # Outlier sensitivity detection
-        outlier_sensitivity = abs(r_val - rho_val) > 0.25
+        # Outlier sensitivity detection (difference between Pearson and Spearman rank correlation)
+        r_vs_rho_delta = round(float(abs(r_val - rho_val)), 4)
+        outlier_sensitivity = bool(r_vs_rho_delta > 0.20)
 
         # Select primary method: Robust Spearman if outlier sensitivity is high; else Pearson
         primary_method = "spearman" if outlier_sensitivity else "pearson"
@@ -437,6 +438,7 @@ class StatisticalAnalysisEngine:
             "missing_x": int((~num_x.notna()).sum()),
             "missing_y": int((~num_y.notna()).sum()),
             "outlier_sensitivity": outlier_sensitivity,
+            "r_vs_rho_delta": r_vs_rho_delta,
             "pearson": {
                 "r": round(r_val, 4),
                 "p_value": round(p_pearson, 6),
@@ -853,6 +855,205 @@ class StatisticalAnalysisEngine:
         elif v >= 0.10:
             return "weak"
         return "negligible"
+
+    # --------------------------------------------------------------------------
+    # Subgroup Analysis & Heterogeneity Detection
+    # --------------------------------------------------------------------------
+
+    def _detect_subgroup_dimensions(
+        self,
+        df: pd.DataFrame,
+        profile: SemanticProfile,
+        exclude_cols: Set[str],
+    ) -> List[str]:
+        """Automatically detect suitable low-cardinality categorical dimensions for subgroup analysis."""
+        candidate_cols: List[Tuple[str, int, int]] = []
+        semantic_keywords = (
+            "segment", "group", "zone", "region", "tier", "category", "type",
+            "channel", "plan", "class", "status", "country", "state",
+            "department", "division", "cluster", "cohort", "market",
+        )
+
+        for col in df.columns:
+            if col in exclude_cols or col in profile.identifier_columns or col in profile.constant_columns:
+                continue
+            series = df[col]
+            n_unique = series.nunique(dropna=True)
+            if 2 <= n_unique <= 15:
+                val_counts = series.value_counts(dropna=True)
+                if len(val_counts) >= 2 and val_counts.iloc[1] >= 3:
+                    score = 0
+                    col_lower = str(col).lower()
+                    for kw in semantic_keywords:
+                        if kw in col_lower:
+                            score += 10
+                    if 2 <= n_unique <= 6:
+                        score += 5
+                    candidate_cols.append((str(col), score, n_unique))
+
+        candidate_cols.sort(key=lambda x: (x[1], -x[2]), reverse=True)
+        return [c[0] for c in candidate_cols[:4]]
+
+    def _analyze_subgroups(
+        self,
+        df: pd.DataFrame,
+        top_relationships: List[Dict[str, Any]],
+        subgroup_cols: List[str],
+        alpha: float,
+    ) -> Dict[str, Any]:
+        """
+        Evaluate relationship consistency across subgroups, detecting weak-global/strong-subgroup
+        heterogeneity and checking for Simpson's paradox mathematically.
+        """
+        if not subgroup_cols or not top_relationships:
+            return {
+                "dimensions_evaluated": [],
+                "subgroup_relationships": [],
+                "weak_global_strong_subgroup_findings": [],
+                "simpsons_paradox_findings": [],
+                "subgroup_consistency_summary": [],
+            }
+
+        subgroup_relationships: List[Dict[str, Any]] = []
+        weak_global_findings: List[Dict[str, Any]] = []
+        simpsons_findings: List[Dict[str, Any]] = []
+        consistency_summaries: List[Dict[str, Any]] = []
+
+        for rel in top_relationships:
+            if rel.get("pair_type") != "numeric_numeric":
+                continue
+
+            fx = rel["feature_x"]
+            fy = rel["feature_y"]
+            global_r = rel.get("pearson", {}).get("r", rel.get("statistic", 0.0))
+            global_p = rel.get("pearson", {}).get("p_value", rel.get("p_value", 1.0))
+            global_rho = rel.get("spearman", {}).get("rho", 0.0)
+
+            num_x = CanonicalDataLayer.coerce_numeric_series(df[fx])
+            num_y = CanonicalDataLayer.coerce_numeric_series(df[fy])
+
+            for s_col in subgroup_cols:
+                if s_col == fx or s_col == fy:
+                    continue
+
+                sub_entries: List[Dict[str, Any]] = []
+                sub_r_list: List[float] = []
+
+                s_series = df[s_col]
+                unique_vals = s_series.dropna().unique()
+
+                for val in unique_vals:
+                    mask = (s_series == val) & num_x.notna() & num_y.notna()
+                    n_sub = int(mask.sum())
+
+                    if n_sub < 5:
+                        continue
+
+                    vx = num_x[mask].to_numpy(dtype=float)
+                    vy = num_y[mask].to_numpy(dtype=float)
+
+                    if np.std(vx) < 1e-9 or np.std(vy) < 1e-9:
+                        continue
+
+                    try:
+                        r_sub, p_sub = stats.pearsonr(vx, vy)
+                        r_sub = float(r_sub) if not math.isnan(r_sub) else 0.0
+                        p_sub = float(p_sub) if not math.isnan(p_sub) else 1.0
+                    except Exception:
+                        r_sub, p_sub = 0.0, 1.0
+
+                    try:
+                        rho_sub, _ = stats.spearmanr(vx, vy)
+                        rho_sub = float(rho_sub) if not math.isnan(rho_sub) else 0.0
+                    except Exception:
+                        rho_sub = 0.0
+
+                    sub_strength = self._classify_correlation_strength(abs(r_sub))
+                    sub_direction = "positive" if r_sub > 0 else "negative" if r_sub < 0 else "neutral"
+
+                    entry = {
+                        "feature_x": fx,
+                        "feature_y": fy,
+                        "subgroup_dimension": s_col,
+                        "subgroup_value": str(val),
+                        "valid_rows": n_sub,
+                        "pearson_r": round(r_sub, 4),
+                        "p_value": round(p_sub, 6),
+                        "spearman_rho": round(rho_sub, 4),
+                        "strength": sub_strength,
+                        "direction": sub_direction,
+                        "global_r": round(global_r, 4),
+                    }
+                    sub_entries.append(entry)
+                    subgroup_relationships.append(entry)
+                    sub_r_list.append(r_sub)
+
+                    # Check for Weak Global but Strong Within Subgroup
+                    # Condition: Global |r| < 0.35 and Subgroup |r| >= 0.50 (or |r_sub| - |global_r| >= 0.30) with n >= 8 and p_sub < 0.05
+                    is_weak_global = abs(global_r) < 0.35
+                    is_strong_sub = (abs(r_sub) >= 0.50 or (abs(r_sub) - abs(global_r) >= 0.30)) and p_sub < 0.05 and n_sub >= 8
+                    if is_weak_global and is_strong_sub:
+                        weak_global_findings.append({
+                            "feature_x": fx,
+                            "feature_y": fy,
+                            "subgroup_dimension": s_col,
+                            "subgroup_value": str(val),
+                            "global_r": round(global_r, 4),
+                            "global_strength": self._classify_correlation_strength(abs(global_r)),
+                            "subgroup_r": round(r_sub, 4),
+                            "subgroup_p_value": round(p_sub, 6),
+                            "subgroup_strength": sub_strength,
+                            "subgroup_valid_rows": n_sub,
+                            "finding": f"Relationship between '{fx}' and '{fy}' is weak overall (r = {global_r:.3f}), but becomes {sub_strength} within {s_col} = '{val}' (r = {r_sub:.3f}, p = {p_sub:.4f}, n = {n_sub}).",
+                        })
+
+                # Check for Simpson's Paradox (Mathematical sign flip with statistical support)
+                if len(sub_r_list) >= 2:
+                    neg_subgroups = [r for r in sub_r_list if r < -0.15]
+                    pos_subgroups = [r for r in sub_r_list if r > 0.15]
+                    if global_r > 0.20 and global_p < 0.05 and len(neg_subgroups) >= max(2, len(sub_r_list) // 2):
+                        simpsons_findings.append({
+                            "feature_x": fx,
+                            "feature_y": fy,
+                            "subgroup_dimension": s_col,
+                            "global_r": round(global_r, 4),
+                            "subgroup_correlations": [round(r, 3) for r in sub_r_list],
+                            "explanation": f"Demonstrated Simpson's Paradox: '{fx}' and '{fy}' exhibit positive correlation globally (r = {global_r:.3f}), but reverse to negative association across subgroups of '{s_col}'.",
+                        })
+                    elif global_r < -0.20 and global_p < 0.05 and len(pos_subgroups) >= max(2, len(sub_r_list) // 2):
+                        simpsons_findings.append({
+                            "feature_x": fx,
+                            "feature_y": fy,
+                            "subgroup_dimension": s_col,
+                            "global_r": round(global_r, 4),
+                            "subgroup_correlations": [round(r, 3) for r in sub_r_list],
+                            "explanation": f"Demonstrated Simpson's Paradox: '{fx}' and '{fy}' exhibit negative correlation globally (r = {global_r:.3f}), but reverse to positive association across subgroups of '{s_col}'.",
+                        })
+
+                if sub_entries:
+                    all_same_sign = all(r > 0 for r in sub_r_list) or all(r < 0 for r in sub_r_list)
+                    min_r = min(sub_r_list)
+                    max_r = max(sub_r_list)
+                    consistency_summaries.append({
+                        "feature_x": fx,
+                        "feature_y": fy,
+                        "subgroup_dimension": s_col,
+                        "is_directionally_consistent": all_same_sign,
+                        "r_range": [round(min_r, 4), round(max_r, 4)],
+                        "subgroups_evaluated": len(sub_entries),
+                    })
+
+                    if "subgroups" not in rel:
+                        rel["subgroups"] = {}
+                    rel["subgroups"][s_col] = sub_entries
+
+        return {
+            "dimensions_evaluated": subgroup_cols,
+            "subgroup_relationships": subgroup_relationships,
+            "weak_global_strong_subgroup_findings": weak_global_findings,
+            "simpsons_paradox_findings": simpsons_findings,
+            "subgroup_consistency_summary": consistency_summaries,
+        }
 
     def _extract_dataframe(self, data: Any) -> Optional[pd.DataFrame]:
         if isinstance(data, pd.DataFrame):

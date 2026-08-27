@@ -490,28 +490,40 @@ class InsightSynthesisEngine:
 
         if stats_data and isinstance(stats_data, dict):
             ranked_rels = stats_data.get("ranked_relationships") or stats_data.get("relationships", [])
-            for rel in ranked_rels[:4]:
+            for rel in ranked_rels[:6]:
                 if isinstance(rel, dict):
-                    f1 = rel.get("feature_1") or rel.get("feature") or "Variable 1"
-                    f2 = rel.get("feature_2") or rel.get("target") or "Variable 2"
-                    corr_val = self._safe_float(rel.get("correlation", rel.get("coefficient", rel.get("r", 0.0))))
+                    f1 = rel.get("feature_x") or rel.get("feature_1") or rel.get("feature") or "Variable 1"
+                    f2 = rel.get("feature_y") or rel.get("feature_2") or rel.get("target") or "Variable 2"
+                    stat_val = self._safe_float(rel.get("statistic", rel.get("correlation", rel.get("coefficient", rel.get("r", 0.0)))))
                     p_val = self._safe_float(rel.get("p_value", 0.0))
-                    effect = self._safe_float(rel.get("effect_size", abs(corr_val)), abs(corr_val))
-                    method = rel.get("method", "Pearson correlation")
+                    adj_p = self._safe_float(rel.get("adjusted_p_value", p_val))
+                    effect = self._safe_float(rel.get("effect_size", abs(stat_val)), abs(stat_val))
+                    method = rel.get("primary_method", rel.get("method", "correlation"))
+                    strength = rel.get("strength", "moderate")
+                    outlier_sens = rel.get("outlier_sensitivity", False)
 
-                    corr_rounded = round(corr_val, 3)
-                    direction = "positive" if corr_val > 0 else "inverse"
-                    strength = "strong" if abs(corr_val) >= 0.60 else ("moderate" if abs(corr_val) >= 0.30 else "weak")
+                    p_info = rel.get("pearson", {})
+                    s_info = rel.get("spearman", {})
+                    r_str = f"Pearson r={p_info.get('r'):.3f}" if p_info.get("r") is not None else f"statistic={stat_val:.3f}"
+                    rho_str = f", Spearman rho={s_info.get('rho'):.3f}" if s_info.get("rho") is not None else ""
 
-                    statement = f"Attribute '{f1}' shows a {strength} {direction} statistical relationship with '{f2}' ({method} r={corr_rounded}, p={p_val:.4g})."
+                    direction = "positive" if stat_val > 0 else "negative" if stat_val < 0 else "neutral"
+
+                    statement = (
+                        f"Features '{f1}' and '{f2}' exhibit a {strength} {direction} statistical relationship "
+                        f"({r_str}{rho_str}, raw p={p_val:.4g}, FDR-adjusted p={adj_p:.4g})."
+                    )
+                    if outlier_sens:
+                        statement += " Relationship exhibits sensitivity to extreme outlier observations (divergence between Pearson and Spearman)."
+
                     statement = self._sanitize_causality(statement)
 
                     ev = Evidence(
-                        operation="statistical_analysis.bivariate_correlation",
+                        operation=f"statistical_analysis.{rel.get('pair_type', 'bivariate')}",
                         columns=[str(f1), str(f2)],
                         result=rel,
                         confidence=0.90,
-                        claim_type=ClaimType.OBSERVATION,
+                        claim_type=ClaimType.CORRELATION,
                     )
 
                     importance_score = min(1.0, 0.40 + 0.50 * float(effect))
@@ -526,6 +538,49 @@ class InsightSynthesisEngine:
                             importance=importance_score,
                             limitations=["Observational correlation does not imply a causal mechanism."],
                             provenance={"agent": "StatisticalAnalysisAgent", "pair": f"{f1}_{f2}"},
+                        )
+                    )
+
+            # Subgroup findings
+            subgroup_data = stats_data.get("subgroup_analysis", {})
+            weak_findings = subgroup_data.get("weak_global_strong_subgroup_findings", [])
+            for wf in weak_findings[:4]:
+                if isinstance(wf, dict):
+                    fx = wf.get("feature_x", "Feature X")
+                    fy = wf.get("feature_y", "Feature Y")
+                    dim = wf.get("subgroup_dimension", "Segment")
+                    val = wf.get("subgroup_value", "Group")
+                    gr = wf.get("global_r", 0.0)
+                    sr = wf.get("subgroup_r", 0.0)
+                    sp = wf.get("subgroup_p_value", 0.0)
+                    sn = wf.get("subgroup_valid_rows", 0)
+
+                    stmt = (
+                        f"Subgroup heterogeneity: Association between '{fx}' and '{fy}' is weak overall (r={gr:.3f}), "
+                        f"but becomes {wf.get('subgroup_strength', 'strong')} within {dim} = '{val}' "
+                        f"(subgroup r={sr:.3f}, p={sp:.4g}, n={sn})."
+                    )
+                    stmt = self._sanitize_causality(stmt)
+
+                    ev = Evidence(
+                        operation="statistical_analysis.subgroup_heterogeneity",
+                        columns=[str(fx), str(fy), str(dim)],
+                        result=wf,
+                        confidence=0.88,
+                        claim_type=ClaimType.OBSERVATION,
+                    )
+
+                    insights.append(
+                        SynthesizedInsight(
+                            category=InsightCategory.RELATIONSHIP.value,
+                            title=f"Subgroup Heterogeneity: {fx} & {fy} in {dim}='{val}'",
+                            statement=stmt,
+                            evidence_refs=[ev],
+                            supporting_metrics=wf,
+                            confidence=0.88,
+                            importance=0.82,
+                            limitations=["Subgroup findings reflect observational cohort differences."],
+                            provenance={"agent": "StatisticalAnalysisAgent", "subgroup": f"{dim}_{val}"},
                         )
                     )
 

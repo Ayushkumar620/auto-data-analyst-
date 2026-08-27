@@ -82,6 +82,9 @@ class StatisticalAnalysisAgent(BaseAgent):
             n_rows = result.get("rows_analyzed", 0)
             relationships = result.get("relationships", [])
             top_relationships = result.get("top_relationships", [])
+            subgroup_analysis = result.get("subgroup_analysis", {})
+            weak_findings = subgroup_analysis.get("weak_global_strong_subgroup_findings", [])
+            subgroup_rels = subgroup_analysis.get("subgroup_relationships", [])
 
             # Determine top effect size and min adjusted p-value
             top_eff = top_relationships[0].get("effect_size", 0.5) if top_relationships else 0.0
@@ -90,13 +93,18 @@ class StatisticalAnalysisAgent(BaseAgent):
 
             # 3. Canonical Evidence generation
             evidence_list: List[Evidence] = []
-            for rel in top_relationships[:5]:
+            for rel in top_relationships[:8]:
                 fx = rel.get("feature_x")
                 fy = rel.get("feature_y")
                 stat = rel.get("statistic")
                 p_val = rel.get("p_value")
                 adj_p = rel.get("adjusted_p_value")
                 method = rel.get("primary_method", "correlation")
+                eff = rel.get("effect_size")
+                valid_n = rel.get("valid_rows")
+                outlier_sens = rel.get("outlier_sensitivity", False)
+                p_dict = rel.get("pearson", {})
+                s_dict = rel.get("spearman", {})
 
                 evidence_list.append(
                     self.make_evidence(
@@ -108,16 +116,44 @@ class StatisticalAnalysisAgent(BaseAgent):
                             "statistic": stat,
                             "p_value": p_val,
                             "adjusted_p_value": adj_p,
-                            "effect_size": rel.get("effect_size"),
-                            "valid_rows": rel.get("valid_rows"),
+                            "effect_size": eff,
+                            "valid_rows": valid_n,
+                            "analysis_scope": "global",
+                            "outlier_sensitivity": outlier_sens,
+                            "pearson_r": p_dict.get("r"),
+                            "spearman_rho": s_dict.get("rho"),
                         },
-                        confidence=0.85,
+                        confidence=0.88,
                         claim_type=ClaimType.CORRELATION,
                         raw_value={
                             "statistic": stat,
+                            "p_value": p_val,
                             "adjusted_p_value": adj_p,
+                            "effect_size": eff,
                             "interpretation": rel.get("interpretation"),
                         },
+                    )
+                )
+
+            # Subgroup findings evidence
+            for wf in weak_findings[:5]:
+                evidence_list.append(
+                    self.make_evidence(
+                        method="stats.subgroup_analysis.heterogeneity",
+                        data_ref={
+                            "feature_x": wf.get("feature_x"),
+                            "feature_y": wf.get("feature_y"),
+                            "subgroup_dimension": wf.get("subgroup_dimension"),
+                            "subgroup_value": wf.get("subgroup_value"),
+                            "global_r": wf.get("global_r"),
+                            "subgroup_r": wf.get("subgroup_r"),
+                            "p_value": wf.get("subgroup_p_value"),
+                            "valid_rows": wf.get("subgroup_valid_rows"),
+                            "analysis_scope": "subgroup",
+                        },
+                        confidence=0.85,
+                        claim_type=ClaimType.OBSERVATION,
+                        raw_value=wf,
                     )
                 )
 
@@ -130,9 +166,20 @@ class StatisticalAnalysisAgent(BaseAgent):
                 outlier_sensitivity=has_outlier_sens,
             )
 
+            metrics_dict = {
+                "pairs_evaluated": len(relationships),
+                "significant_pairs": sum(1 for r in relationships if r.get("is_significant")),
+                "top_effect_size": top_eff,
+                "min_adjusted_p_value": min_adj_p,
+                "has_outlier_sensitivity": has_outlier_sens,
+                "subgroups_evaluated": len(subgroup_analysis.get("dimensions_evaluated", [])),
+                "weak_global_strong_subgroup_count": len(weak_findings),
+            }
+
             raw_res = self._finish(
                 result,
                 evidence=evidence_list,
+                metrics=metrics_dict,
                 confidence=conf_rep.confidence,
                 model_used="StatisticalAnalysisEngine",
             )
