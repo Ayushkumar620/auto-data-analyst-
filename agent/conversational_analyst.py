@@ -269,8 +269,75 @@ class ConversationalAnalystAgent(BaseAgent):
                 "turn_id": turn.turn_id,
             }
 
-        # Create structured intent for autonomous analysis
+        # 5b. Handle Statistical Relationship & Correlation Queries
+        is_rel_query = intent in (ConversationalIntent.RELATIONSHIPS, ConversationalIntent.CORRELATION) or any(w in command.lower() for w in ("correlation", "correlations", "relationship", "relationships", "pearson", "spearman", "effect size", "fdr", "outlier sensitivity", "subgroup"))
+        if is_rel_query:
+            from agent.statistical_analysis_agent import StatisticalAnalysisAgent
+            stat_agent_res = StatisticalAnalysisAgent().run({"data": df})
+            if stat_agent_res.is_success:
+                stat_data = stat_agent_res.data
+                top_rels = stat_data.get("top_relationships", []) or stat_data.get("relationships", [])
+                lines = [f"📊 **Statistical Relationship Analysis for: \"{command}\"**\n"]
+                if top_rels:
+                    lines.append("| Relationship | Pearson r | Spearman ρ | Raw p-value | FDR-adjusted p-value | Effect Strength | Valid N | Outlier Sensitivity |")
+                    lines.append("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
+                    for r in top_rels[:8]:
+                        fx = r.get("feature_x") or r.get("variable_x")
+                        fy = r.get("feature_y") or r.get("variable_y")
+                        p_info = r.get("pearson", {}) or {}
+                        s_info = r.get("spearman", {}) or {}
+                        p_r = p_info.get("r", r.get("statistic", 0.0))
+                        p_val = p_info.get("p_value", r.get("p_value", 0.0))
+                        rho_val = s_info.get("rho", 0.0)
+                        adj_p = r.get("adjusted_p_value", p_val)
+                        strength = r.get("strength", "moderate").replace("_", " ").title()
+                        outlier_sens = "Yes ⚠️" if r.get("outlier_sensitivity") else "No"
+                        v_n = r.get("valid_rows", len(df))
+                        lines.append(
+                            f"| **{fx}** ↔ **{fy}** | {p_r:.3f} | {rho_val:.3f} | {p_val:.4g} | {adj_p:.4g} | {strength} | {v_n} | {outlier_sens} |"
+                        )
 
+                    lines.append("\n**Key Statistical Observations**:")
+                    for i, r in enumerate(top_rels[:4], 1):
+                        fx = r.get("feature_x")
+                        fy = r.get("feature_y")
+                        p_r = r.get("pearson", {}).get("r", r.get("statistic", 0.0))
+                        rho_val = r.get("spearman", {}).get("rho", 0.0)
+                        p_val = r.get("p_value", 0.0)
+                        adj_p = r.get("adjusted_p_value", p_val)
+                        strength = r.get("strength", "moderate")
+                        lines.append(
+                            f"{i}. **{fx}** ↔ **{fy}**: {strength.replace('_', ' ').title()} association (Pearson r = {p_r:.3f}, Spearman ρ = {rho_val:.3f}, raw p = {p_val:.4g}, FDR-adjusted p = {adj_p:.4g}, valid N = {r.get('valid_rows')})."
+                        )
+
+                lines.append("\n> [!NOTE]\n> *All reported p-values are adjusted using Benjamini-Hochberg FDR control. Correlations describe mathematical associations without establishing causal mechanisms.*")
+                final_response = "\n".join(lines)
+
+                turn = ConversationTurn(
+                    session_id=session_id,
+                    user_message=command,
+                    resolved_intent=intent,
+                    referenced_entities=entities,
+                    evidence=stat_agent_res.evidence,
+                    assistant_response=final_response,
+                    result={
+                        "relationships": stat_data.get("relationships", []),
+                        "top_relationships": top_rels,
+                        "correlation_matrix": stat_data.get("correlation_matrix", {}),
+                        "subgroup_analysis": stat_data.get("subgroup_analysis", {}),
+                        "status": "completed",
+                    },
+                )
+                session.turns.append(turn)
+                return final_response, stat_agent_res.evidence, {
+                    "result": stat_data,
+                    "intent": intent.value,
+                    "resolved_command": resolved_cmd,
+                    "session_id": session_id,
+                    "turn_id": turn.turn_id,
+                }
+
+        # Create structured intent for autonomous analysis
         user_intent = UserIntent(
             intent_type=intent.value,
             objective=resolved_cmd,

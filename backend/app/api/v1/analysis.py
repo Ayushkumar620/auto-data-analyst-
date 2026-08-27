@@ -31,6 +31,10 @@ class AnalyzeCommandResponse(BaseModel):
     dataset_summary: Dict[str, Any]
     validation_summary: Dict[str, Any]
     duration_ms: float
+    relationships: Optional[List[Dict[str, Any]]] = None
+    top_relationships: Optional[List[Dict[str, Any]]] = None
+    subgroup_analysis: Optional[Dict[str, Any]]] = None
+    correlation_matrix: Optional[Dict[str, Any]]] = None
 
 
 @router.post("", response_model=AnalyzeCommandResponse)
@@ -65,4 +69,8 @@ def execute_autonomous_command(req: AnalyzeCommandRequest) -> AnalyzeCommandResp
         dataset_summary=result.dataset_summary,
         validation_summary=result.validation_summary,
         duration_ms=result.duration_ms,
+        relationships=result.relationships,
+        top_relationships=result.top_relationships,
+        subgroup_analysis=result.subgroup_analysis,
+        correlation_matrix=result.correlation_matrix,
     )
