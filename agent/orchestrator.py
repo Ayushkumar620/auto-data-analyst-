@@ -288,7 +288,13 @@ class UniversalOrchestrator:
         # Feature Resolution
         effective_features = features or classification.feature_columns
         if not effective_features:
-            effective_features = [c for c in df.columns if c != effective_target and c != effective_time_col]
+            non_id_cols = [c for c in df.columns if c != effective_target and c != effective_time_col and c not in profile.identifier_columns and c not in profile.constant_columns]
+            if non_id_cols:
+                effective_features = non_id_cols
+            else:
+                effective_features = [c for c in df.columns if c != effective_target and c != effective_time_col]
+        if not effective_features:
+            effective_features = list(df.columns)
 
         # D. Dynamic Task Generation based on Intent & Query Components
         # Check for Compound Commands (e.g. "profile data, find anomalies, and forecast next 6 months")
@@ -388,6 +394,7 @@ class UniversalOrchestrator:
             dependencies[t_trans.task_id] = [eda_task_id] if eda_task_id else []
 
         if needs_stats:
+            stats_cols = effective_features if len(effective_features) >= 2 else list(df.columns)
             t_stats = PlanTask(
                 task_id=f"task_stats_{uuid.uuid4().hex[:6]}",
                 task_type="statistical_analysis",
@@ -395,8 +402,8 @@ class UniversalOrchestrator:
                 agent_name="Statistical Analysis Agent",
                 purpose="Analyze statistical relationships, correlations, and feature dependencies.",
                 target_column=effective_target,
-                required_columns=effective_features,
-                parameters={"target": effective_target, "features": effective_features},
+                required_columns=stats_cols,
+                parameters={"target": effective_target, "features": stats_cols},
                 dependencies=[eda_task_id] if eda_task_id else [],
                 priority=2,
             )
