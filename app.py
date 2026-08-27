@@ -7,8 +7,10 @@ import json
 import io
 import base64
 from flask import Flask, request, jsonify, render_template, send_file
+from flask.json.provider import DefaultJSONProvider
 from werkzeug.utils import secure_filename
 
+from agent.json_utils import sanitize_for_json
 from agent.loader import load_data, DataLoadError
 from agent.command_parser import CommandParser
 from agent.insights import InsightsEngine
@@ -22,7 +24,23 @@ from backend.app.chat import chat_bp
 from backend.app.api.forecasting import forecasting_bp
 from backend.app.api.reports import reports_bp
 
+
+class SafeJSONProvider(DefaultJSONProvider):
+    """Flask JSON provider that sanitizes non-finite floats (NaN / +Infinity /
+    -Infinity) and non-standard numpy/pandas scalars to `null` before
+    serialization, and refuses to emit any NaN/Infinity token.
+
+    JavaScript's `JSON.parse` (used by templates/index.html via `resp.json()`)
+    rejects litteral `NaN`, so responses like a DataFrame `head()` containing
+    missing values must be normalized to valid RFC 8259 JSON (null).
+    """
+    def dumps(self, obj, **kwargs):
+        kwargs.setdefault("allow_nan", False)
+        return super().dumps(sanitize_for_json(obj), **kwargs)
+
+
 app = Flask(__name__)
+app.json = SafeJSONProvider(app)
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100MB
 app.config["UPLOAD_FOLDER"] = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
