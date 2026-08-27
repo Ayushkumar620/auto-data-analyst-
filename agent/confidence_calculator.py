@@ -584,6 +584,70 @@ class ConfidenceCalculator:
             explanations=explanations,
         )
 
+    @classmethod
+    def calculate_quality_gate_confidence(
+        cls,
+        status: str,
+        n_rows: int,
+        n_usable_features: int,
+        quality_score: float = 1.0,
+    ) -> ConfidenceReport:
+        """
+        Calculate confidence for task-aware data quality gate evaluation.
+        Bounded in [0.30, 0.98].
+        """
+        penalties: List[str] = []
+        explanations: List[str] = []
+        factors: Dict[str, float] = {}
+
+        # 1. Status Factor
+        status_norm = str(status).upper()
+        if status_norm == "READY":
+            status_factor = 1.0
+        elif status_norm == "READY_WITH_WARNINGS":
+            status_factor = 0.92
+            penalties.append("Non-blocking data quality warnings present")
+        elif status_norm == "NEEDS_TRANSFORMATION":
+            status_factor = 0.85
+            penalties.append("Transformations required before downstream analysis")
+        elif status_norm == "NEEDS_CLARIFICATION":
+            status_factor = 0.70
+            penalties.append("Target or configuration ambiguity detected")
+        else:  # BLOCKED
+            status_factor = 0.60
+            penalties.append("Dataset blocked due to fatal analytical incompatibility")
+        factors["status_factor"] = status_factor
+
+        # 2. Sample Size Factor
+        if n_rows < 5:
+            sample_factor = 0.60
+            penalties.append(f"Very small dataset (N={n_rows} < 5)")
+        elif n_rows < 20:
+            sample_factor = 0.85
+        else:
+            sample_factor = 1.0
+        factors["sample_size"] = sample_factor
+
+        # 3. Usable Features Factor
+        feat_factor = 0.75 if n_usable_features < 2 else 1.0
+        factors["feature_adequacy"] = feat_factor
+
+        # 4. Data Quality Score
+        qs_factor = max(0.50, min(1.0, float(quality_score)))
+        factors["quality_score"] = qs_factor
+
+        raw_conf = status_factor * sample_factor * feat_factor * (0.50 + 0.50 * qs_factor)
+        final_conf = cls._clamp(raw_conf, min_val=0.30, max_val=0.98)
+
+        return ConfidenceReport(
+            confidence=final_conf,
+            confidence_level=1.0,
+            validation_score=qs_factor,
+            factors=factors,
+            penalties=penalties,
+            explanations=explanations,
+        )
+
 
 
 
