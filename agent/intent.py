@@ -816,9 +816,9 @@ class IntentAnalyzer:
             primary = AnalyticalIntent.CORRELATION
         elif AnalyticalIntent.ANOMALIES in matched_intents:
             primary = AnalyticalIntent.ANOMALIES
-        elif AnalyticalIntent.CLEANING in matched_intents and any(w in q_norm for w in ("impute", "preprocess", "clean", "sanitize", "dedup", "fill", "remove")):
+        elif AnalyticalIntent.CLEANING in matched_intents and any(w in q_norm for w in ("impute", "preprocess", "clean", "sanitize", "dedup", "fill", "remove", "drop", "transform", "engineer", "scale", "encode")):
             primary = AnalyticalIntent.CLEANING
-        elif AnalyticalIntent.EDA in matched_intents and any(w in q_norm for w in ("quality", "profile", "statistics", "describe", "overview", "eda", "show")):
+        elif AnalyticalIntent.EDA in matched_intents:
             primary = AnalyticalIntent.EDA
         elif AnalyticalIntent.CLEANING in matched_intents:
             primary = AnalyticalIntent.CLEANING
