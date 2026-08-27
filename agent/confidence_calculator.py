@@ -407,5 +407,67 @@ class ConfidenceCalculator:
             explanations=explanations,
         )
 
+    @classmethod
+    def calculate_eda_confidence(
+        cls,
+        n_rows: int = 10,
+        n_cols: int = 2,
+        missing_rate: float = 0.0,
+        unusable_ratio: float = 0.0,
+        parse_success_rate: float = 1.0,
+    ) -> ConfidenceReport:
+        """
+        Calculate confidence for exploratory data analysis and profiling.
+        Separates epistemic profiling confidence from underlying data quality.
+        """
+        penalties: List[str] = []
+        explanations: List[str] = []
+        factors: Dict[str, float] = {}
+
+        # 1. Sample Size Adequacy (N observations)
+        if n_rows < 5:
+            sample_factor = 0.65
+            penalties.append(f"Very small row count (N={n_rows} < 5) limits statistical generalization")
+        elif n_rows < 20:
+            sample_factor = 0.85
+        else:
+            sample_factor = 1.0
+        factors["sample_size"] = sample_factor
+
+        # 2. Schema Clarity / Feature Count
+        if n_cols == 1:
+            col_factor = 0.80
+            penalties.append("Single-column dataset limits multivariate profiling")
+        else:
+            col_factor = 1.0
+        factors["schema_richness"] = col_factor
+
+        # 3. Parseability & Type Certainty
+        parse_factor = max(0.60, min(1.0, parse_success_rate))
+        if parse_success_rate < 0.90:
+            penalties.append(f"Some column values required type coercion/cleaning ({parse_success_rate*100:.1f}% success)")
+        factors["type_certainty"] = parse_factor
+
+        # 4. Usable Feature Availability
+        usable_factor = max(0.60, 1.0 - unusable_ratio)
+        factors["feature_usability"] = usable_factor
+
+        # 5. Data Completeness Factor
+        comp_factor = max(0.70, 1.0 - (missing_rate * 0.5))
+        factors["completeness"] = comp_factor
+
+        raw_conf = sample_factor * col_factor * parse_factor * usable_factor * comp_factor
+        final_conf = cls._clamp(raw_conf, min_val=0.30, max_val=0.98)
+
+        return ConfidenceReport(
+            confidence=final_conf,
+            confidence_level=1.0,
+            validation_score=parse_factor,
+            factors=factors,
+            penalties=penalties,
+            explanations=explanations,
+        )
+
+
 
 

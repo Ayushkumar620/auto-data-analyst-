@@ -269,6 +269,47 @@ class ResultValidator:
                                              f"Adjusted p-value ({adj_p}) at index {i} must be within [0, 1].",
                                              field=f"relationships[{i}].adjusted_p_value")
 
+            # 6. EDA & Data Quality Checks
+            data_quality = result.data.get("data_quality") or result.result.get("data_quality")
+            if isinstance(data_quality, dict):
+                qs = data_quality.get("quality_score")
+                if isinstance(qs, (int, float)):
+                    if not 0.0 <= float(qs) <= 1.0:
+                        vr.add_issue(ValidationSeverity.ERROR, "INVALID_QUALITY_SCORE",
+                                     f"Quality score ({qs}) must be within [0, 1].",
+                                     field="data_quality.quality_score")
+                comps = data_quality.get("components")
+                if isinstance(comps, dict):
+                    for comp_name, comp_val in comps.items():
+                        if isinstance(comp_val, (int, float)):
+                            if not 0.0 <= float(comp_val) <= 1.0:
+                                vr.add_issue(ValidationSeverity.ERROR, "INVALID_QUALITY_COMPONENT",
+                                             f"Quality component {comp_name} ({comp_val}) must be within [0, 1].",
+                                             field=f"data_quality.components.{comp_name}")
+
+            # 7. Numeric stats quantile checks (min <= median <= max, q25 <= median <= q75)
+            stats_sec = result.data.get("statistics") or result.result.get("statistics") or {}
+            if isinstance(stats_sec, dict):
+                num_stats = stats_sec.get("numeric") or {}
+                if isinstance(num_stats, dict):
+                    for col_name, st in num_stats.items():
+                        if isinstance(st, dict):
+                            c_min = st.get("min")
+                            c_med = st.get("median")
+                            c_max = st.get("max")
+                            c_q25 = st.get("q25")
+                            c_q75 = st.get("q75")
+                            if all(isinstance(x, (int, float)) for x in (c_min, c_med, c_max)):
+                                if c_min > c_med + 1e-6 or c_med > c_max + 1e-6:
+                                    vr.add_issue(ValidationSeverity.ERROR, "INVALID_QUANTILE_ORDER",
+                                                 f"Column '{col_name}' quantiles violate min ({c_min}) <= median ({c_med}) <= max ({c_max}).",
+                                                 field=f"statistics.numeric.{col_name}")
+                            if all(isinstance(x, (int, float)) for x in (c_q25, c_med, c_q75)):
+                                if c_q25 > c_med + 1e-6 or c_med > c_q75 + 1e-6:
+                                    vr.add_issue(ValidationSeverity.ERROR, "INVALID_IQR_ORDER",
+                                                 f"Column '{col_name}' IQR violates q25 ({c_q25}) <= median ({c_med}) <= q75 ({c_q75}).",
+                                                 field=f"statistics.numeric.{col_name}")
+
     def _forecast_bounds_check(self, result: AgentResult, vr: ValidationResult) -> None:
         """Verify prediction intervals satisfy lower <= prediction <= upper."""
         forecast_pts = result.data.get("forecast") or result.data.get("predictions") or []

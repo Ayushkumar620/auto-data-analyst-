@@ -169,7 +169,11 @@ class PreExecutionValidator:
         elif task_norm in ("correlation", "correlations", "relationship", "relationships", "statistical_analysis", "dependency", "association", "associations"):
             return cls._validate_statistical_relationship(main_df, profile, feature_columns, agent_name)
 
-        # TASK H: DESCRIPTIVE / EDA / GENERAL ANALYSIS
+        # TASK H: EDA / DATA PROFILING / DATA QUALITY
+        elif task_norm in ("eda", "profile", "data_profiling", "data_quality", "descriptive", "describe"):
+            return cls._validate_eda(main_df, profile, feature_columns, agent_name)
+
+        # TASK I: GENERAL ANALYSIS
         else:
             return PreExecutionValidationReport(
                 is_valid=True,
@@ -530,4 +534,39 @@ class PreExecutionValidator:
             return PreExecutionValidationReport(is_valid=False, task_type="statistical_analysis", error=err)
 
         return PreExecutionValidationReport(is_valid=True, task_type="statistical_analysis")
+
+    @classmethod
+    def _validate_eda(
+        cls,
+        df: pd.DataFrame,
+        profile: SemanticProfile,
+        features: Optional[List[str]],
+        agent_name: str,
+    ) -> PreExecutionValidationReport:
+        if len(df) == 0:
+            err = AgentError.create(
+                category=ErrorCategory.INSUFFICIENT_DATA,
+                user_message="Dataset contains 0 rows. Cannot perform exploratory data analysis on an empty dataset.",
+                agent_name=agent_name,
+            )
+            return PreExecutionValidationReport(is_valid=False, task_type="eda", error=err)
+
+        if len(df.columns) == 0:
+            err = AgentError.create(
+                category=ErrorCategory.DATA_INVALID,
+                user_message="Dataset contains 0 columns. EDA requires at least one column.",
+                agent_name=agent_name,
+            )
+            return PreExecutionValidationReport(is_valid=False, task_type="eda", error=err)
+
+        if df.isna().all().all():
+            err = AgentError.create(
+                category=ErrorCategory.DATA_INVALID,
+                user_message="Dataset contains only missing/null values across all columns.",
+                agent_name=agent_name,
+            )
+            return PreExecutionValidationReport(is_valid=False, task_type="eda", error=err)
+
+        return PreExecutionValidationReport(is_valid=True, task_type="eda", diagnostics={"rows": len(df), "columns": list(df.columns)})
+
 
