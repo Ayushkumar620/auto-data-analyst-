@@ -897,7 +897,8 @@ class UniversalOrchestrator:
             category=err.category,
             agent_name="Universal Orchestrator",
             task_type="orchestration",
-            execution_id=orchestration_id,
+            task_id=orchestration_id,
+            errors=[err],
         )
 
     def _build_clarification_result(self, plan: AnalyticalPlan, orchestration_id: str) -> AgentResult:
