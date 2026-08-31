@@ -152,23 +152,6 @@ class AnalysisAgent(BaseAgent):
             if request in ("summary", "overview", "info"):
                 request = "summary"
                 response = analyzer.summary()
-                if task.get("metric") or task.get("dimension"):
-                    request = "aggregation"
-                    response = analyzer.aggregate(
-                        metric=task.get("metric"),
-                        dimension=task.get("dimension"),
-                        agg=task.get("agg", "sum"),
-                    )
-                else:
-                    request = "summary"
-                    response = analyzer.summary()
-            elif request in ("aggregation", "group_by", "aggregate", "regional_analysis", "segmentation"):
-                request = "aggregation"
-                response = analyzer.aggregate(
-                    metric=task.get("metric"),
-                    dimension=task.get("dimension"),
-                    agg=task.get("agg", "sum"),
-                )
             elif request in ("describe", "stats"):
                 request = "describe"
                 response = analyzer.describe()

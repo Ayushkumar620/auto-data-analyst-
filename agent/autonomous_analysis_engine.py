@@ -405,8 +405,6 @@ class AutonomousAnalysisEngine:
             return {}, []
 
         s = df[metric_col].dropna()
-        from agent.canonical_data_layer import CanonicalDataLayer
-        s = CanonicalDataLayer.coerce_numeric_series(df[metric_col]).dropna()
         if len(s) < 15:
             return {}, []
 
@@ -472,13 +470,6 @@ class AutonomousAnalysisEngine:
             return {}, []
 
         grouped = df.groupby(dim_col)[metric_col].sum().sort_values(ascending=False)
-        from agent.canonical_data_layer import CanonicalDataLayer
-        work = df.copy()
-        work[metric_col] = CanonicalDataLayer.coerce_numeric_series(work[metric_col])
-        if work[metric_col].notna().sum() == 0:
-            return {}, []
-
-        grouped = work.groupby(dim_col)[metric_col].sum().sort_values(ascending=False)
         if len(grouped) < 3:
             return {}, []
 

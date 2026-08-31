@@ -443,7 +443,6 @@ class PreExecutionValidator:
             return PreExecutionValidationReport(is_valid=False, task_type="clustering", error=err)
 
         n_features = len(features) if features else (len(profile.numeric_columns) + len(profile.categorical_columns))
-        n_features = len(features) if (features and len(features) >= 2) else (len(profile.numeric_columns) + len(profile.categorical_columns))
         if n_features < 2:
             err = AgentError.create(
                 category=ErrorCategory.INSUFFICIENT_DATA,
@@ -451,14 +450,6 @@ class PreExecutionValidator:
                 agent_name=agent_name,
             )
             return PreExecutionValidationReport(is_valid=False, task_type="clustering", error=err)
-            non_const = [c for c in df.columns if df[c].nunique(dropna=True) > 1 and c not in profile.identifier_columns]
-            if len(non_const) < 2:
-                err = AgentError.create(
-                    category=ErrorCategory.INSUFFICIENT_DATA,
-                    user_message="Clustering requires at least 2 distinct feature columns.",
-                    agent_name=agent_name,
-                )
-                return PreExecutionValidationReport(is_valid=False, task_type="clustering", error=err)
 
         return PreExecutionValidationReport(is_valid=True, task_type="clustering")
 
@@ -542,7 +533,6 @@ class PreExecutionValidator:
             return PreExecutionValidationReport(is_valid=False, task_type="statistical_analysis", error=err)
 
         n_features = len(features) if features else (len(profile.numeric_columns) + len(profile.categorical_columns) + len(profile.datetime_candidates))
-        n_features = len(features) if (features and len(features) >= 2) else (len(profile.numeric_columns) + len(profile.categorical_columns) + len(profile.datetime_candidates))
         if n_features < 2:
             err = AgentError.create(
                 category=ErrorCategory.INSUFFICIENT_DATA,
@@ -550,14 +540,6 @@ class PreExecutionValidator:
                 agent_name=agent_name,
             )
             return PreExecutionValidationReport(is_valid=False, task_type="statistical_analysis", error=err)
-            non_const = [c for c in df.columns if df[c].nunique(dropna=True) > 1 and c not in profile.identifier_columns]
-            if len(non_const) < 2:
-                err = AgentError.create(
-                    category=ErrorCategory.INSUFFICIENT_DATA,
-                    user_message="Statistical relationship analysis requires at least 2 distinct feature columns.",
-                    agent_name=agent_name,
-                )
-                return PreExecutionValidationReport(is_valid=False, task_type="statistical_analysis", error=err)
 
         return PreExecutionValidationReport(is_valid=True, task_type="statistical_analysis")
 

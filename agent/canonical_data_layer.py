@@ -133,7 +133,6 @@ class CanonicalDataLayer:
 
         return series.map(clean_val)
         if hasattr(series, "cat"):
-        if hasattr(series, "cat") or str(series.dtype) == "category":
             mapped = series.astype(str).map(clean_val)
         else:
             mapped = series.map(clean_val)
@@ -267,9 +266,6 @@ class CanonicalDataLayer:
             try:
                 var_val = s_num.var()
                 variance = float(var_val) if not math.isnan(var_val) else 0.0
-                s_float = pd.to_numeric(s_num, errors="coerce").dropna()
-                var_val = s_float.var() if len(s_float) >= 2 else 0.0
-                variance = float(var_val) if not (var_val is None or math.isnan(var_val)) else 0.0
             except Exception:
                 variance = 0.0
             if variance <= 0:

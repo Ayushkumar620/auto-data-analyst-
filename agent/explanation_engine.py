@@ -856,9 +856,6 @@ class ExplanationEngine:
         f1 = top_rel.get("feature_1") or top_rel.get("feature") or "Variable A"
         f2 = top_rel.get("feature_2") or top_rel.get("target") or "Variable B"
         corr = top_rel.get("correlation") or top_rel.get("r") or 0.0
-        f1 = top_rel.get("feature_x") or top_rel.get("feature_1") or top_rel.get("feature") or "Variable A"
-        f2 = top_rel.get("feature_y") or top_rel.get("feature_2") or top_rel.get("target") or "Variable B"
-        corr = top_rel.get("pearson_r") or top_rel.get("correlation") or top_rel.get("r") or top_rel.get("statistic") or 0.0
         pval = top_rel.get("p_value") or top_rel.get("pvalue") or 0.001
         adj_p = top_rel.get("adjusted_p_value") or top_rel.get("fdr_p_value")
 
@@ -885,16 +882,10 @@ class ExplanationEngine:
 
         if len(ranked) > 1 and isinstance(ranked[1], dict):
             r2_obj = ranked[1]
-            r2_f1 = r2_obj.get("feature_x") or r2_obj.get("feature_1")
-            r2_f2 = r2_obj.get("feature_y") or r2_obj.get("feature_2")
-            r2_corr = r2_obj.get("pearson_r") or r2_obj.get("correlation") or r2_obj.get("r") or r2_obj.get("statistic") or 0.0
-            r2_pval = r2_obj.get("p_value") or r2_obj.get("pvalue") or 0.01
             findings.append(
                 ExplanationSection(
                     title=f"Secondary Relationship: {r2_obj.get('feature_1')} & {r2_obj.get('feature_2')}",
                     content=f"Measured correlation of r = {float(r2_obj.get('correlation', 0.0)):+.4f} (p = {float(r2_obj.get('p_value', 0.01)):.4f}).",
-                    title=f"Secondary Relationship: {r2_f1} & {r2_f2}",
-                    content=f"Measured correlation of r = {float(r2_corr):+.4f} (p = {float(r2_pval):.4f}).",
                     evidence_refs=ev_refs,
                     importance=0.80,
                 )
