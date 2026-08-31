@@ -128,3 +128,34 @@ class DataAnalyzer:
             uniques = {str(c): int(df[c].nunique()) for c in df.columns}
             reports.append({"name": name, "unique_counts": uniques})
         return reports
+
+    def aggregate(self, metric=None, dimension=None, agg="sum"):
+        """Calculate dimensional aggregation and summary."""
+        reports = []
+        for name, df in self._get_frames():
+            if not isinstance(df, pd.DataFrame) or df.empty:
+                continue
+            from agent.canonical_data_layer import CanonicalDataLayer
+            profile = CanonicalDataLayer.ingest(df).profile
+            m = metric or (profile.numeric_columns[0] if profile.numeric_columns else None)
+            d = dimension or (profile.categorical_columns[0] if profile.categorical_columns else None)
+            if not m or not d or m not in df.columns or d not in df.columns:
+                reports.append({"name": name, "note": "Valid metric and dimension required for aggregation."})
+                continue
+            s_num = CanonicalDataLayer.coerce_numeric_series(df[m])
+            temp_df = pd.DataFrame({d: df[d], m: s_num}).dropna()
+            if temp_df.empty:
+                reports.append({"name": name, "note": "No valid observations for aggregation."})
+                continue
+            grouped = temp_df.groupby(d)[m].agg(["sum", "mean", "count", "min", "max"]).reset_index()
+            grouped = grouped.sort_values("sum", ascending=False)
+            reports.append({
+                "name": name,
+                "metric": m,
+                "dimension": d,
+                "aggregation": agg,
+                "records": grouped.to_dict(orient="records"),
+                "total": float(s_num.sum()),
+                "mean": float(s_num.mean()),
+            })
+        return reports

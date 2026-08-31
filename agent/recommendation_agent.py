@@ -188,9 +188,35 @@ class RecommendationAgent(BaseAgent):
             mode = task.get("mode", task.get("query_type", "recommend"))
             command = task.get("command") or task.get("user_intent") or task.get("query") or ""
 
+            insights_list = list(task.get("insights") or [])
+            if not insights_list and task.get("data") is not None:
+                import pandas as pd
+                from agent.autonomous_analysis_engine import AutonomousAnalysisEngine
+                raw_df = task.get("data")
+                if isinstance(raw_df, pd.DataFrame) and not raw_df.empty:
+                    auto_engine = AutonomousAnalysisEngine()
+                    num_cols = [c for c in raw_df.columns if pd.api.types.is_numeric_dtype(raw_df[c])]
+                    cat_cols = [c for c in raw_df.columns if not pd.api.types.is_numeric_dtype(raw_df[c])]
+                    try:
+                        _, dq_ins = auto_engine.analyze_data_quality(raw_df)
+                        insights_list.extend(dq_ins)
+                        if num_cols:
+                            _, desc_ins = auto_engine.analyze_descriptive_stats(raw_df, num_cols)
+                            insights_list.extend(desc_ins)
+                        if cat_cols and num_cols:
+                            _, seg_ins = auto_engine.analyze_segmentation(raw_df, cat_cols[0], num_cols[0])
+                            insights_list.extend(seg_ins)
+                            _, conc_ins = auto_engine.analyze_concentration(raw_df, cat_cols[0], num_cols[0])
+                            insights_list.extend(conc_ins)
+                        if len(num_cols) >= 2:
+                            _, corr_ins = auto_engine.analyze_correlations(raw_df, num_cols[:5])
+                            insights_list.extend(corr_ins)
+                    except Exception:
+                        pass
+
             data_map: Dict[str, Any] = {
                 "user_intent": command or None,
-                "insights": task.get("insights") or [],
+                "insights": insights_list,
                 "forecasts": task.get("forecasts") or [],
                 "scenarios": task.get("scenarios") or [],
                 "monitoring_results": task.get("monitoring_results") or [],
