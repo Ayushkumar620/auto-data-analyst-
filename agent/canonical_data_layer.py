@@ -131,8 +131,7 @@ class CanonicalDataLayer:
             except ValueError:
                 return np.nan
 
-        return series.map(clean_val)
-        if hasattr(series, "cat"):
+        if hasattr(series, "cat") or str(series.dtype) == "category":
             mapped = series.astype(str).map(clean_val)
         else:
             mapped = series.map(clean_val)
