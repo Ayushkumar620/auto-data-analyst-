@@ -360,10 +360,8 @@ class UniversalOrchestrator:
 
         # Feature Resolution
         effective_features = features or classification.feature_columns
-        if not effective_features:
         if not effective_features or len(effective_features) < 2:
             non_id_cols = [c for c in df.columns if c != effective_target and c != effective_time_col and c not in profile.identifier_columns and c not in profile.constant_columns]
-            if non_id_cols:
             if effective_features and len(effective_features) == 1:
                 remaining = [c for c in non_id_cols if c not in effective_features]
                 effective_features = effective_features + remaining

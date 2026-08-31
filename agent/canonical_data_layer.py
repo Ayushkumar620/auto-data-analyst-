@@ -262,10 +262,10 @@ class CanonicalDataLayer:
             s_num = cls.coerce_numeric_series(df[col]).dropna()
             if len(s_num) < 3:
                 continue
-            variance = float(s_num.var()) if not math.isnan(s_num.var()) else 0.0
             try:
-                var_val = s_num.var()
-                variance = float(var_val) if not math.isnan(var_val) else 0.0
+                s_float = pd.to_numeric(s_num, errors="coerce").dropna()
+                var_val = s_float.var() if len(s_float) >= 2 else 0.0
+                variance = float(var_val) if not (var_val is None or math.isnan(var_val)) else 0.0
             except Exception:
                 variance = 0.0
             if variance <= 0:

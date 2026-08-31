@@ -74,7 +74,6 @@ class AutonomousForecastEngine:
 
         # 1. Clean and Aggregate Series
         from agent.canonical_data_layer import CanonicalDataLayer
-        dt_series = pd.to_datetime(df[time_col], errors="coerce")
         dt_series = CanonicalDataLayer.coerce_datetime_series(df[time_col])
         target_series = CanonicalDataLayer.coerce_numeric_series(df[target_col])
         series_df = pd.DataFrame({"__time": dt_series, "__target": target_series}).dropna().sort_values("__time")
