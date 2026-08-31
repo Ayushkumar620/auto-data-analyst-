@@ -201,6 +201,7 @@ class ClusteringEngine:
         excluded: List[str] = []
         feature_meta: Dict[str, Dict[str, Any]] = {}
 
+        if requested_features is not None and len(requested_features) > 0:
         if requested_features is not None and len(requested_features) >= 2:
             candidate_cols = [c for c in requested_features if c in df.columns]
             is_explicit = True
