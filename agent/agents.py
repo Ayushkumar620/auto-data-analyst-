@@ -150,6 +150,8 @@ class AnalysisAgent(BaseAgent):
             response = {}
 
             if request in ("summary", "overview", "info"):
+                request = "summary"
+                response = analyzer.summary()
                 if task.get("metric") or task.get("dimension"):
                     request = "aggregation"
                     response = analyzer.aggregate(
@@ -168,14 +170,19 @@ class AnalysisAgent(BaseAgent):
                     agg=task.get("agg", "sum"),
                 )
             elif request in ("describe", "stats"):
+                request = "describe"
                 response = analyzer.describe()
             elif request in ("nulls", "missing"):
+                request = "nulls"
                 response = analyzer.nulls()
             elif request in ("correlation", "corr"):
+                request = "correlation"
                 response = analyzer.correlation()
             elif request in ("head", "view"):
+                request = "head"
                 response = analyzer.head()
             elif request in ("unique", "uniques"):
+                request = "unique"
                 response = analyzer.unique_values()
             else:
                 request = "summary"
