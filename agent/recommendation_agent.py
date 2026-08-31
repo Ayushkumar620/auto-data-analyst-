@@ -216,7 +216,6 @@ class RecommendationAgent(BaseAgent):
 
             data_map: Dict[str, Any] = {
                 "user_intent": command or None,
-                "insights": task.get("insights") or [],
                 "insights": insights_list,
                 "forecasts": task.get("forecasts") or [],
                 "scenarios": task.get("scenarios") or [],
