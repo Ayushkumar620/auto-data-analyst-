@@ -1,4 +1,4 @@
-﻿"""
+"""
 Universal, Dataset-Agnostic Clustering & Segmentation Engine.
 
 Single source of truth for clustering and segmentation.
@@ -201,9 +201,14 @@ class ClusteringEngine:
         excluded: List[str] = []
         feature_meta: Dict[str, Dict[str, Any]] = {}
 
-        if requested_features is not None and len(requested_features) > 0:
+        if requested_features is not None and len(requested_features) >= 2:
             candidate_cols = [c for c in requested_features if c in df.columns]
             is_explicit = True
+        elif requested_features is not None and len(requested_features) == 1:
+            explicit_col = requested_features[0]
+            other_cols = [c for c in df.columns if c != explicit_col and c not in profile.identifier_columns and c not in profile.constant_columns]
+            candidate_cols = [explicit_col] + other_cols if explicit_col in df.columns else other_cols
+            is_explicit = False
         else:
             is_explicit = False
             candidate_cols = list(df.columns)
