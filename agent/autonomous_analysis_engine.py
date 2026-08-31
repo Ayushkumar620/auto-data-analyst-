@@ -401,6 +401,10 @@ class AutonomousAnalysisEngine:
     # --------------------------------------------------------------------------
     def analyze_anomalies(self, df: pd.DataFrame, metric_col: str) -> Tuple[Dict[str, Any], List[Insight]]:
         """Identify numerical outliers using Interquartile Range (IQR) bounds."""
+        if metric_col not in df.columns:
+            return {}, []
+
+        s = df[metric_col].dropna()
         from agent.canonical_data_layer import CanonicalDataLayer
         s = CanonicalDataLayer.coerce_numeric_series(df[metric_col]).dropna()
         if len(s) < 15:
@@ -467,6 +471,7 @@ class AutonomousAnalysisEngine:
         if dim_col not in df.columns or metric_col not in df.columns:
             return {}, []
 
+        grouped = df.groupby(dim_col)[metric_col].sum().sort_values(ascending=False)
         from agent.canonical_data_layer import CanonicalDataLayer
         work = df.copy()
         work[metric_col] = CanonicalDataLayer.coerce_numeric_series(work[metric_col])
