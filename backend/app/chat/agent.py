@@ -51,9 +51,21 @@ class ChatAgent:
                     "filtered_data": filter_res.filtered_df.head(10).to_dict(orient="records"),
                     "group_by": filter_res.group_by,
                     "grouped_records": filter_res.grouped_records,
+                    "highest_record": filter_res.highest_record,
+                    "lowest_record": filter_res.lowest_record,
+                    "secondary_results": filter_res.secondary_results,
                 },
                 suggested_questions=self._metric_questions(dataframe),
             )
+            diag_resp = (
+                f"\nFINAL_RESPONSE\n"
+                f"type=ChatResponse\n"
+                f"keys={list(resp_obj.__dict__.keys())}\n"
+            )
+            print(diag_resp)
+            import logging
+            logging.getLogger("diagnostic").info(diag_resp)
+            return resp_obj
 
         if any(word in text for word in ("schema", "columns", "fields")):
             evidence = self.tools.execute("get_dataset_schema", dataframe)
