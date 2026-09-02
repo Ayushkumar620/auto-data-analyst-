@@ -681,6 +681,8 @@
             reports.forEach(function (rep) {
                 let nullTotal = 0;
                 Object.values(rep.nulls).forEach(function (n) { nullTotal += n; });
+                html += '<div class="card">' +
+                    '<div class="card-header"><span>📋 Summary</span><span class="badge">' + escapeHtml(rep.name) + '</span></div>' +
                 const datasetTitle = escapeHtml(rep.name || 'Dataset');
 
                 html += '<div class="summary-dashboard-container" style="display: grid; gap: 20px; width: 100%; margin-bottom: 20px;">';
@@ -689,6 +691,17 @@
                 html += '<div class="card" style="margin: 0;">' +
                     '<div class="card-header"><span>📋 Dataset Summary: ' + datasetTitle + '</span></div>' +
                     '<div class="stats-grid">' +
+                    '<div class="stat"><span class="label">Rows</span><span class="value">' + rep.shape.rows + '</span></div>' +
+                    '<div class="stat"><span class="label">Columns</span><span class="value">' + rep.shape.columns + '</span></div>' +
+                    '<div class="stat"><span class="label">Nulls</span><span class="value">' + nullTotal + '</span></div>' +
+                    '</div>' +
+                    '<h4>Columns &amp; Types</h4>' +
+                    '<div class="table-wrap"><table><tr><th>Column</th><th>Type</th></tr>';
+                Object.entries(rep.dtypes).forEach(function (entry) {
+                    html += '<tr><td>' + escapeHtml(entry[0]) + '</td><td>' + escapeHtml(entry[1]) + '</td></tr>';
+                });
+                html += '</table></div>';
+                html += '<h4>Preview (first 10 rows)</h4><div class="table-wrap">' + buildTable(rep.head) + '</div></div>';
                     '<div class="stat"><span class="label">ROWS ↕</span><span class="value">' + Number(rep.shape.rows).toLocaleString() + '</span></div>' +
                     '<div class="stat"><span class="label">COLUMNS ↔</span><span class="value">' + Number(rep.shape.columns).toLocaleString() + '</span></div>' +
                     '<div class="stat"><span class="label">NULL VALUES ⊘</span><span class="value" style="color: ' + (nullTotal > 0 ? '#f59e0b' : '#10b981') + ';">' + nullTotal.toLocaleString() + '</span></div>' +
@@ -1157,6 +1170,11 @@ function renderInsight(result, intent) {
         function buildTable(rows) {
             if (!rows || !rows.length) return '<p>No data rows.</p>';
             const cols = Object.keys(rows[0]);
+            let html = '<table><tr>';
+            cols.forEach(function (c) { html += '<th>' + escapeHtml(c) + '</th>'; });
+            html += '</tr>';
+            rows.forEach(function (row) {
+                html += '<tr>';
             let html = '<table class="result-table" style="width: 100%; border-collapse: collapse;"><thead><tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">';
             cols.forEach(function (c) {
                 html += '<th style="padding: 10px 14px; text-align: left; white-space: nowrap; border-right: 1px solid #f1f5f9;">' + escapeHtml(c) + '</th>';
@@ -1167,6 +1185,8 @@ function renderInsight(result, intent) {
                 html += '<tr style="background: ' + (isEven ? '#ffffff' : '#fcfdfe') + '; border-bottom: 1px solid #f1f5f9;">';
                 cols.forEach(function (c) {
                     let val = row[c];
+                    if (typeof val === 'object' && val !== null) val = JSON.stringify(val);
+                    html += '<td>' + escapeHtml(String(val)) + '</td>';
                     const isNull = val === null || val === undefined || (typeof val === 'number' && isNaN(val)) || String(val).trim() === '';
                     const isNum = typeof val === 'number';
                     let displayVal = isNull ? '<span style="color: #94a3b8; font-style: italic;">—</span>' : escapeHtml(typeof val === 'object' ? JSON.stringify(val) : String(val));
@@ -1174,6 +1194,7 @@ function renderInsight(result, intent) {
                 });
                 html += '</tr>';
             });
+            html += '</table>';
             html += '</tbody></table>';
             return html;
         }

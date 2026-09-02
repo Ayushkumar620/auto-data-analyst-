@@ -553,3 +553,4 @@ export default function SummaryData({ data, profile, className }: SummaryDataPro
     </div>
   );
 }
+
