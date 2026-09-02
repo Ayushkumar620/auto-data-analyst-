@@ -216,6 +216,10 @@ def analyze():
         result["top_relationships"] = orch_res.top_relationships
         result["correlation_matrix"] = orch_res.correlation_matrix
         result["subgroup_analysis"] = orch_res.subgroup_analysis
+        if orch_res.filter_result:
+            for k in ("grouped_records", "group_by", "highest_record", "lowest_record", "secondary_results", "query_plan"):
+                if k in orch_res.filter_result:
+                    result[k] = orch_res.filter_result[k]
     except Exception:
         pass
 
@@ -250,6 +254,14 @@ def analyze():
         "adjusted_p_value" in first_r,
         bool(result.get("evidence")),
     )
+
+    diag_resp = (
+        f"\nFINAL_RESPONSE\n"
+        f"type=dict\n"
+        f"keys={list(result.keys())}\n"
+    )
+    print(diag_resp)
+    logger.info(diag_resp)
 
     try:
         return jsonify(result)
@@ -341,6 +353,13 @@ def chat_with_data():
         "answer": _build_chat_answer(result),
         "result": result,
     }
+    diag_resp = (
+        f"\nFINAL_RESPONSE\n"
+        f"type=dict\n"
+        f"keys={list(response.keys())}\n"
+    )
+    print(diag_resp)
+    app.logger.info(diag_resp)
     return jsonify(response)
 
 
@@ -352,6 +371,10 @@ def _build_chat_answer(result):
         return result.get("message", "I couldn't analyze that.")
 
     if rtype == "filter_result":
+        if result.get("markdown_response"):
+            return result["markdown_response"]
+        if result.get("final_explanation"):
+            return result["final_explanation"]
         matching = result.get("matching_rows", 0)
         total = result.get("total_rows", 0)
         f_desc = result.get("filter", "Filter")

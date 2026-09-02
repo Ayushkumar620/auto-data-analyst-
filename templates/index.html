@@ -849,7 +849,21 @@
             html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">';
             html += '<div style="display: flex; align-items: center; gap: 10px;">';
             html += '<div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99, 102, 241, 0.4); display: flex; align-items: center; justify-content: center; font-size: 1.15rem;">🎯</div>';
-            html += '<div><h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: #f1f5f9;">Filtered Analysis</h3><p style="margin: 2px 0 0; font-size: 0.8rem; color: #94a3b8;">Filter: <code style="color: #a5b4fc; background: rgba(99, 102, 241, 0.15); padding: 2px 6px; border-radius: 4px;">' + escapeHtml(data.filter || 'Filtered Subset') + '</code></p></div>';
+            
+            const isGrouped = !!(data.grouped_records && data.grouped_records.length);
+            const title = isGrouped ? 'Grouped & Ranked Analysis' : 'Filtered Analysis';
+            let subtitle = '';
+            if (data.filter && data.filter !== 'None') {
+                subtitle += 'Filter: <code style="color: #a5b4fc; background: rgba(99, 102, 241, 0.15); padding: 2px 6px; border-radius: 4px;">' + escapeHtml(data.filter) + '</code> ';
+            }
+            if (data.group_by && data.group_by.length) {
+                subtitle += 'Dimensions: <code style="color: #38bdf8; background: rgba(56, 189, 248, 0.15); padding: 2px 6px; border-radius: 4px;">' + escapeHtml(data.group_by.join(' × ')) + '</code>';
+            }
+            if (!subtitle) {
+                subtitle = 'Filter: <code style="color: #a5b4fc; background: rgba(99, 102, 241, 0.15); padding: 2px 6px; border-radius: 4px;">' + escapeHtml(data.filter || 'None') + '</code>';
+            }
+
+            html += '<div><h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: #f1f5f9;">' + title + '</h3><p style="margin: 2px 0 0; font-size: 0.8rem; color: #94a3b8;">' + subtitle + '</p></div>';
             html += '</div>';
             html += '<span class="badge" style="background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4); font-size: 0.82rem; padding: 4px 12px; border-radius: 20px;">' + Number(data.matching_rows).toLocaleString() + ' of ' + Number(data.total_rows).toLocaleString() + ' records</span>';
             html += '</div>';
@@ -865,7 +879,40 @@
             }
             html += '</div>';
 
-            if (data.filtered_data && data.filtered_data.length) {
+            if (isGrouped) {
+                const dimsLabel = (data.group_by && data.group_by.length)
+                    ? data.group_by.map(c => c.charAt(0).toUpperCase() + c.slice(1)).join(' & ')
+                    : 'Group';
+                html += '<h4 style="margin: 0 0 10px; font-size: 0.95rem; font-weight: 600; color: #e2e8f0;">' + escapeHtml(dimsLabel) + ' Combinations (Ranked by Total Sales):</h4>';
+                html += '<div class="table-wrap" style="overflow-x: auto; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 18px;">' + buildTable(data.grouped_records) + '</div>';
+
+                if (data.highest_record || data.lowest_record) {
+                    html += '<div style="margin-bottom: 18px; padding: 12px 16px; background: rgba(255, 255, 255, 0.04); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.08);">';
+                    html += '<h4 style="margin: 0 0 8px; font-size: 0.9rem; font-weight: 600; color: #e2e8f0;">Extreme Combinations:</h4>';
+                    if (data.highest_record) {
+                        html += '<p style="margin: 4px 0; font-size: 0.85rem; color: #cbd5e1;">- <strong>Highest Sales Combination</strong>: <span style="color: #38bdf8; font-weight: 600;">' + escapeHtml(data.highest_record.combination) + '</span> (Sales: <strong>' + (data.highest_record.formatted_sales || Number(data.highest_record.sales).toLocaleString()) + '</strong>, Units: <strong>' + Number(data.highest_record.units).toLocaleString() + '</strong>)</p>';
+                    }
+                    if (data.lowest_record) {
+                        html += '<p style="margin: 4px 0; font-size: 0.85rem; color: #cbd5e1;">- <strong>Lowest Sales Combination</strong>: <span style="color: #f87171; font-weight: 600;">' + escapeHtml(data.lowest_record.combination) + '</span> (Sales: <strong>' + (data.lowest_record.formatted_sales || Number(data.lowest_record.sales).toLocaleString()) + '</strong>, Units: <strong>' + Number(data.lowest_record.units).toLocaleString() + '</strong>)</p>';
+                    }
+                    html += '</div>';
+                }
+
+                if (data.secondary_results && data.secondary_results.length) {
+                    data.secondary_results.forEach(function(sec) {
+                        html += '<div style="margin-bottom: 16px;">';
+                        html += '<h4 style="margin: 0 0 8px; font-size: 0.9rem; font-weight: 600; color: #e2e8f0;">' + escapeHtml(sec.display || 'Secondary Analysis') + ':</h4>';
+                        html += '<ul style="margin: 0; padding-left: 20px; font-size: 0.85rem; color: #cbd5e1;">';
+                        (sec.records || []).forEach(function(r) {
+                            const grpVal = r[sec.group_by] || Object.values(r)[0];
+                            const mVal = r[sec.metric] !== undefined ? r[sec.metric] : Object.values(r)[1];
+                            const formatted = typeof mVal === 'number' ? (Number.isInteger(mVal) ? mVal.toLocaleString() : mVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})) : mVal;
+                            html += '<li style="margin-bottom: 3px;"><strong>' + escapeHtml(grpVal) + '</strong>: ' + formatted + '</li>';
+                        });
+                        html += '</ul></div>';
+                    });
+                }
+            } else if (data.filtered_data && data.filtered_data.length) {
                 html += '<h4 style="margin: 0 0 10px; font-size: 0.95rem; font-weight: 600; color: #e2e8f0;">Filtered Records Preview:</h4>';
                 html += '<div class="table-wrap" style="overflow-x: auto; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.1);">' + buildTable(data.filtered_data) + '</div>';
             }
