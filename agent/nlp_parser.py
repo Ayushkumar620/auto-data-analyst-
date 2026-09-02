@@ -4,6 +4,7 @@ intent, metrics, time filters, and aggregation targets from them.
 """
 import re
 from datetime import datetime, timedelta
+from agent.filter_engine import FilterEngine
 
 
 MONTH_NAMES = {
@@ -18,7 +19,7 @@ class CommandIntent:
     """Represents the parsed intent of a natural language command."""
 
     def __init__(self):
-        self.action = ""            # summary, chart, predict, text, transaction, etc.
+        self.action = ""            # summary, chart, predict, text, transaction, filter, etc.
         self.metric = ""            # total, sum, average, count, max, min
         self.amount_type = ""       # paid, received, debit, credit
         self.time_filter = {}       # dict with start/end or month/year
@@ -28,6 +29,9 @@ class CommandIntent:
         self.chart_type = ""        # bar, line, pie, scatter, histogram
         self.limit = None
         self.raw = ""
+        self.filters = []           # extracted filter expressions
+        self.filter_expr = None     # CompoundFilter or FilterCondition
+        self.aggregations = []      # AggregationRequest list
 
 
 class NLPCommandParser:
