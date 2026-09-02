@@ -277,10 +277,10 @@ class FilterEngine:
     NUMERIC_PATTERNS = [
         (re.compile(r"(?:is\s+)?(?:less\s+than\s+or\s+equal\s+to|at\s+most|no\s+more\s+than|<=)\s*([0-9]+(?:\.[0-9]+)?)\%?", re.I), "<="),
         (re.compile(r"(?:is\s+)?(?:greater\s+than\s+or\s+equal\s+to|at\s+least|no\s+less\s+than|>=)\s*([0-9]+(?:\.[0-9]+)?)\%?", re.I), ">="),
-        (re.compile(r"(?:is\s+)?([0-9]+(?:\.[0-9]+)?)\%?\s+or\s+less", re.I), "<="),
-        (re.compile(r"(?:is\s+)?([0-9]+(?:\.[0-9]+)?)\%?\s+or\s+fewer", re.I), "<="),
-        (re.compile(r"(?:is\s+)?([0-9]+(?:\.[0-9]+)?)\%?\s+or\s+more", re.I), ">="),
-        (re.compile(r"(?:is\s+)?([0-9]+(?:\.[0-9]+)?)\%?\s+or\s+greater", re.I), ">="),
+        (re.compile(r"(?:is\s+)?([0-9]+(?:\.[0-9]+)?)\%?\s+or\s+less\b", re.I), "<="),
+        (re.compile(r"(?:is\s+)?([0-9]+(?:\.[0-9]+)?)\%?\s+or\s+fewer\b", re.I), "<="),
+        (re.compile(r"(?:is\s+)?([0-9]+(?:\.[0-9]+)?)\%?\s+or\s+more\b", re.I), ">="),
+        (re.compile(r"(?:is\s+)?([0-9]+(?:\.[0-9]+)?)\%?\s+or\s+greater\b", re.I), ">="),
         (re.compile(r"(?:is\s+)?(?:strictly\s+)?(?:less\s+than|below|under|<)\s*([0-9]+(?:\.[0-9]+)?)\%?", re.I), "<"),
         (re.compile(r"(?:is\s+)?(?:strictly\s+)?(?:greater\s+than|above|over|more\s+than|exceeding|>)\s*([0-9]+(?:\.[0-9]+)?)\%?", re.I), ">"),
         (re.compile(r"(?:is\s+)?(?:not\s+equal\s+to|not\s+equals?|!=)\s*([0-9]+(?:\.[0-9]+)?)\%?", re.I), "!="),
@@ -289,34 +289,34 @@ class FilterEngine:
 
     # Filter indicator keywords - strictly discriminates genuine filters from grouping/ranking
     FILTER_INDICATORS = [
-        re.compile(r"where", re.I),
-        re.compile(r"filter(?:ed)?", re.I),
-        re.compile(r"only\s+(?:the\s+)?records", re.I),
-        re.compile(r"only\s+(?:the\s+)?rows", re.I),
-        re.compile(r"which\s+have", re.I),
-        re.compile(r"having", re.I),
-        re.compile(r"with\s+[a-z0-9_]+\s*(?:<=|>=|<|>|=|!=|is|in)", re.I),
+        re.compile(r"\bwhere\b", re.I),
+        re.compile(r"\bfilter(?:ed)?\b", re.I),
+        re.compile(r"\bonly\s+(?:the\s+)?records\b", re.I),
+        re.compile(r"\bonly\s+(?:the\s+)?rows\b", re.I),
+        re.compile(r"\bwhich\s+have\b", re.I),
+        re.compile(r"\bhaving\b", re.I),
+        re.compile(r"\bwith\s+[a-z0-9_]+\s*(?:<=|>=|<|>|=|!=|is\b|in\b)", re.I),
         re.compile(r"[a-z0-9_]+\s*(?:<=|>=|<|>|!=)\s*[0-9]+", re.I),
         re.compile(r"[a-z0-9_]+\s+(?:is\s+)?[0-9]+\s+or\s+less", re.I),
         re.compile(r"[a-z0-9_]+\s+(?:is\s+)?[0-9]+\s+or\s+more", re.I),
         re.compile(r"[a-z0-9_]+\s+(?:is\s+)?[0-9]+\s+or\s+fewer", re.I),
         re.compile(r"[a-z0-9_]+\s+(?:is\s+)?at\s+most\s+[0-9]+", re.I),
         re.compile(r"[a-z0-9_]+\s+(?:is\s+)?at\s+least\s+[0-9]+", re.I),
-        re.compile(r"either.+or", re.I),
-        re.compile(r"(?:is|in|equals?|can\s+be|one\s+of)\s+(?:either\s+)?[a-zA-Z0-9_'"]+\s+or\s+[a-zA-Z0-9_'"]+", re.I),
+        re.compile(r"\beither\b.+\bor\b", re.I),
+        re.compile(r"\b(?:is|in|equals?|can\s+be|one\s+of)\s+(?:either\s+)?[a-zA-Z0-9_'\"]+\s+or\s+[a-zA-Z0-9_'\"]+", re.I),
         # Date filter indicators - require an actual date token following preposition
-        re.compile(r"from\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?|\d{4}-\d{2}-\d{2})", re.I),
-        re.compile(r"(?:on|between|after|before|through|until|since)\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?|\d{4}-\d{2}-\d{2})", re.I),
-        re.compile(r"\d{4}-\d{2}-\d{2}", re.I),
-        re.compile(r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?", re.I),
-        re.compile(r"(?:records|sales|data)\s+(?:from|between|on|after|before)\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{2,4})", re.I),
+        re.compile(r"\bfrom\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?|\d{4}-\d{2}-\d{2})\b", re.I),
+        re.compile(r"\b(?:on|between|after|before|through|until|since)\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?|\d{4}-\d{2}-\d{2})\b", re.I),
+        re.compile(r"\b\d{4}-\d{2}-\d{2}\b", re.I),
+        re.compile(r"\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?\b", re.I),
+        re.compile(r"\b(?:records|sales|data)\s+(?:from|between|on|after|before)\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{2,4})\b", re.I),
     ]
 
     # Explicit preview indicators
     LEGITIMATE_PREVIEW_INDICATORS = [
-        re.compile(r"(?:show|view|display|give)\s+(?:me\s+)?(?:the\s+)?first\s+\d+\s*(?:rows|records|items)?", re.I),
-        re.compile(r"(?:show|view|display|give)\s+(?:me\s+)?(?:the\s+)?top\s+\d+\s*(?:rows|records|items)?", re.I),
-        re.compile(r"(?:show|view|display|give)\s+(?:me\s+)?(?:a\s+)?(?:sample|preview)", re.I),
+        re.compile(r"\b(?:show|view|display|give)\s+(?:me\s+)?(?:the\s+)?first\s+\d+\s*(?:rows|records|items)?\b", re.I),
+        re.compile(r"\b(?:show|view|display|give)\s+(?:me\s+)?(?:the\s+)?top\s+\d+\s*(?:rows|records|items)?\b", re.I),
+        re.compile(r"\b(?:show|view|display|give)\s+(?:me\s+)?(?:a\s+)?(?:sample|preview)\b", re.I),
         re.compile(r"^head(?:\s+\d+)?$", re.I),
         re.compile(r"^preview(?:\s+data(?:set)?)?$", re.I),
     ]
@@ -384,7 +384,7 @@ class FilterEngine:
         # 3. Check if user explicitly mentioned one of the detected temporal columns in query
         mentioned = []
         for tc in detected_temporal_cols:
-            if re.search(rf"{re.escape(tc)}", query, re.I):
+            if re.search(rf"\b{re.escape(tc)}\b", query, re.I):
                 mentioned.append(tc)
 
         if len(mentioned) == 1:
@@ -428,10 +428,10 @@ class FilterEngine:
         token = cls.DATE_TOKEN_REGEX
 
         # 1. Range: between <d1> and <d2>
-        m_between = re.search(rf"between\s+({token})\s+and\s+({token})", query, re.I)
+        m_between = re.search(rf"\bbetween\s+({token})\s+and\s+({token})\b", query, re.I)
         if m_between:
             d1_raw, d2_raw = m_between.group(1), m_between.group(2)
-            y2 = re.search(r"(20\d\d|19\d\d)", d2_raw)
+            y2 = re.search(r"\b(20\d\d|19\d\d)\b", d2_raw)
             def_y = y2.group(1) if y2 else None
             iso1 = cls._parse_iso_date(d1_raw, def_y)
             iso2 = cls._parse_iso_date(d2_raw)
@@ -444,10 +444,10 @@ class FilterEngine:
                 return CompoundFilter(conditions=[cond_start, cond_end], logical_op="AND"), col_name, None
 
         # 2. Range: from <d1> (through|to|until|–|-) <d2> (inclusive)?
-        m_range = re.search(rf"(?:from\s+)?({token})\s*(?:through|to|until|thru|–|-)\s*({token})(?:\s+inclusive)?", query, re.I)
+        m_range = re.search(rf"\b(?:from\s+)?({token})\s*(?:through|to|until|thru|–|-)\s*({token})(?:\s+inclusive)?\b", query, re.I)
         if m_range:
             d1_raw, d2_raw = m_range.group(1), m_range.group(2)
-            y2 = re.search(r"(20\d\d|19\d\d)", d2_raw)
+            y2 = re.search(r"\b(20\d\d|19\d\d)\b", d2_raw)
             def_y = y2.group(1) if y2 else None
             iso1 = cls._parse_iso_date(d1_raw, def_y)
             iso2 = cls._parse_iso_date(d2_raw)
@@ -460,7 +460,7 @@ class FilterEngine:
                 return CompoundFilter(conditions=[cond_start, cond_end], logical_op="AND"), col_name, None
 
         # 3. Single date: on or after / after / since
-        m_after = re.search(rf"(?:on\s+or\s+after|after|since)\s+({token})", query, re.I)
+        m_after = re.search(rf"\b(?:on\s+or\s+after|after|since)\s+({token})\b", query, re.I)
         if m_after:
             iso = cls._parse_iso_date(m_after.group(1))
             if iso:
@@ -470,7 +470,7 @@ class FilterEngine:
                 return FilterCondition(column=col_name, operator=">=", value=iso, is_date=True, raw_expression=f"{col_name} >= {iso}"), col_name, None
 
         # 4. Single date: on or before / before / until
-        m_before = re.search(rf"(?:on\s+or\s+before|before|until|prior\s+to)\s+({token})", query, re.I)
+        m_before = re.search(rf"\b(?:on\s+or\s+before|before|until|prior\s+to)\s+({token})\b", query, re.I)
         if m_before:
             iso = cls._parse_iso_date(m_before.group(1))
             if iso:
@@ -480,7 +480,7 @@ class FilterEngine:
                 return FilterCondition(column=col_name, operator="<=", value=iso, is_date=True, raw_expression=f"{col_name} <= {iso}"), col_name, None
 
         # 5. Single date: on / from / for / at <date>
-        m_on = re.search(rf"(?:on|from|for|at|records\s+from)\s+({token})", query, re.I)
+        m_on = re.search(rf"\b(?:on|from|for|at|records\s+from)\s+({token})\b", query, re.I)
         if m_on:
             iso = cls._parse_iso_date(m_on.group(1))
             if iso:
@@ -490,7 +490,7 @@ class FilterEngine:
                 return FilterCondition(column=col_name, operator="==", value=iso, is_date=True, raw_expression=f"{col_name} == {iso}"), col_name, None
 
         # 6. Fallback: lone date mention
-        m_lone = re.search(rf"({token})", query, re.I)
+        m_lone = re.search(rf"\b({token})\b", query, re.I)
         if m_lone:
             iso = cls._parse_iso_date(m_lone.group(1))
             if iso:
@@ -500,7 +500,7 @@ class FilterEngine:
                 return FilterCondition(column=col_name, operator="==", value=iso, is_date=True, raw_expression=f"{col_name} == {iso}"), col_name, None
 
         # Check if user mentioned an invalid date
-        m_inv = re.search(r"(?:from|on|between|before|after)\s+([A-Za-z]+ \d{1,2}(?:, \d{4})?)", query, re.I)
+        m_inv = re.search(r"\b(?:from|on|between|before|after)\s+([A-Za-z]+ \d{1,2}(?:, \d{4})?)\b", query, re.I)
         if m_inv:
             raw_cand = m_inv.group(1)
             if not cls._parse_iso_date(raw_cand):
@@ -511,12 +511,11 @@ class FilterEngine:
     @classmethod
     def _extract_filter_clause(cls, query: str) -> str:
         """Extract the specific substring containing filter conditions respecting sentence boundaries."""
-        where_match = re.search(r"(?:where|filter(?:ed)?(?:\s+by|\s+on)?|having|with)\s+([^.;!
-]+)", query, re.I)
+        where_match = re.search(r"\b(?:where|filter(?:ed)?(?:\s+by|\s+on)?|having|with)\s+([^.;!\n]+)", query, re.I)
         if where_match:
             clause = where_match.group(1).strip()
             end_match = re.search(
-                r"(?:calculate|compute|aggregate|break\s+down|showing|and\s+calculate|then\s+calculate|do\s+not\s+include|rank|group\s+by)",
+                r"\b(?:calculate|compute|aggregate|break\s+down|showing|and\s+calculate|then\s+calculate|do\s+not\s+include|rank|group\s+by)\b",
                 clause,
                 re.I,
             )
@@ -563,7 +562,7 @@ class FilterEngine:
             # Skip if this part was only the date expression already parsed
             if date_cond and (
                 "january" in part_cleaned.lower() or "february" in part_cleaned.lower()
-                or re.search(r"\d{4}-\d{2}-\d{2}", part_cleaned)
+                or re.search(r"\b\d{4}-\d{2}-\d{2}\b", part_cleaned)
             ):
                 if not any(kw in part_cleaned.lower() for kw in ("<", ">", "=", "discount", "sales", "region", "product")):
                     continue
@@ -578,7 +577,7 @@ class FilterEngine:
                 conditions.append(cat_or)
                 continue
 
-            if re.search(r"or", part_cleaned, re.I):
+            if re.search(r"\bor\b", part_cleaned, re.I):
                 or_cond = cls._parse_compound_or_condition(part_cleaned, col_map, columns, dataframe)
                 if or_cond:
                     conditions.append(or_cond)
@@ -587,7 +586,7 @@ class FilterEngine:
         if not conditions:
             # Fallback: scan whole query text for explicit numeric comparison patterns with column names
             for op_regex, op_symbol in cls.NUMERIC_PATTERNS:
-                pat = re.compile(rf"([a-zA-Z_][a-zA-Z0-9_]*)\s*{op_regex.pattern}", re.I)
+                pat = re.compile(rf"\b([a-zA-Z_][a-zA-Z0-9_]*)\b\s*{op_regex.pattern}", re.I)
                 for m in pat.finditer(query):
                     col_name = m.group(1)
                     if columns and col_name.lower() not in col_map:
@@ -640,7 +639,7 @@ class FilterEngine:
         clean_text = re.sub(r"^(?:the|a|an|where|that)\s+", "", text.strip(), flags=re.I).strip("()")
 
         for op_regex, op_symbol in cls.NUMERIC_PATTERNS:
-            pat = re.compile(rf"([a-zA-Z_][a-zA-Z0-9_]*)\s*{op_regex.pattern}", re.I)
+            pat = re.compile(rf"\b([a-zA-Z_][a-zA-Z0-9_]*)\b\s*{op_regex.pattern}", re.I)
             m = pat.search(clean_text)
             if m:
                 col_name = m.group(1)
@@ -676,7 +675,7 @@ class FilterEngine:
         if col_map:
             for c_low, c_orig in col_map.items():
                 pat = re.compile(
-                    rf"^{re.escape(c_low)}\s+(?:is|can\s+be|equals?|==?|!=|in|one\s+of)\s+(.+)",
+                    rf"^\b{re.escape(c_low)}\b\s+(?:is|can\s+be|equals?|==?|!=|in|one\s+of)\s+(.+)",
                     re.I,
                 )
                 m = pat.match(clean_text)
@@ -708,8 +707,8 @@ class FilterEngine:
             return None
 
         raw_vals = [
-            v.strip().strip("'"()")
-            for v in re.split(r",?\s+or\s*|,\s*", rest, flags=re.I)
+            v.strip().strip("'\"()")
+            for v in re.split(r",?\s+\bor\b\s*|,\s*", rest, flags=re.I)
             if v.strip()
         ]
 
@@ -770,7 +769,7 @@ class FilterEngine:
         dataframe: Optional[pd.DataFrame] = None,
     ) -> Optional[CompoundFilter]:
         """Parse multiple distinct expressions connected by OR."""
-        sub_exprs = re.split(r"\s+or\s+", text, flags=re.I)
+        sub_exprs = re.split(r"\s+\bor\b\s+", text, flags=re.I)
         sub_conds = []
         for se in sub_exprs:
             clean_se = se.strip().strip("()")
@@ -796,28 +795,28 @@ class FilterEngine:
             return []
 
         # 1. Multi-dimension: 'by <col1> and <col2>' or 'by <col1>, <col2>'
-        m_by_multi = re.search(r"by\s+([a-zA-Z0-9_]+)(?:\s+and\s+|,\s*)([a-zA-Z0-9_]+)", query, re.I)
+        m_by_multi = re.search(r"\bby\s+([a-zA-Z0-9_]+)(?:\s+and\s+|,\s*)([a-zA-Z0-9_]+)\b", query, re.I)
         if m_by_multi:
             c1, c2 = m_by_multi.group(1).lower(), m_by_multi.group(2).lower()
             if c1 in col_map and c2 in col_map:
                 return [col_map[c1], col_map[c2]]
 
         # 2. Multi-dimension combination: 'every <col1>-<col2> combination' or '<col1>-<col2> combinations'
-        m_comb = re.search(r"([a-zA-Z0-9_]+)[-–/]([a-zA-Z0-9_]+)\s+combinations?", query, re.I)
+        m_comb = re.search(r"\b([a-zA-Z0-9_]+)[-–/]([a-zA-Z0-9_]+)\s+combinations?\b", query, re.I)
         if m_comb:
             c1, c2 = m_comb.group(1).lower(), m_comb.group(2).lower()
             if c1 in col_map and c2 in col_map:
                 return [col_map[c1], col_map[c2]]
 
         # 3. Single dimension: 'by <col>'
-        m_by_single = re.search(r"by\s+([a-zA-Z0-9_]+)", query, re.I)
+        m_by_single = re.search(r"\bby\s+([a-zA-Z0-9_]+)\b", query, re.I)
         if m_by_single:
             c = m_by_single.group(1).lower()
             if c in col_map and c not in ("day", "date", "time", "month", "year", "total", "sales", "units"):
                 return [col_map[c]]
 
         # 4. Group by 'for each <col>' if not followed by a comparison
-        m_for_each = re.search(r"for\s+each\s+([a-zA-Z0-9_]+)", query, re.I)
+        m_for_each = re.search(r"\bfor\s+each\s+([a-zA-Z0-9_]+)\b", query, re.I)
         if m_for_each:
             c = m_for_each.group(1).lower()
             if c in col_map:
@@ -843,7 +842,7 @@ class FilterEngine:
         group_by = cls.parse_group_by(query, columns=cols)
 
         # 2. Filter parsing (Step 3: If group_by exists and query contains no explicit filter words, filter = None)
-        has_explicit_filter = bool(re.search(r"(?:where|filter(?:ed)?(?:\s+by|\s+on)?|having|with\s+[a-z0-9_]+\s*(?:<=|>=|<|>|=|!=|is|in)|only\s+(?:the\s+)?records?\s+where)", query, re.I))
+        has_explicit_filter = bool(re.search(r"\b(?:where|filter(?:ed)?(?:\s+by|\s+on)?|having|with\s+[a-z0-9_]+\s*(?:<=|>=|<|>|=|!=|is\b|in\b)|only\s+(?:the\s+)?records?\s+where)\b", query, re.I))
         if group_by and not has_explicit_filter:
             filter_node = None
         else:
@@ -854,9 +853,9 @@ class FilterEngine:
 
         # 4. Ranking
         ranking = None
-        if re.search(r"(rank|sort|order)", query, re.I):
+        if re.search(r"\b(rank|sort|order)\b", query, re.I):
             direction = "desc"
-            if re.search(r"(?:lowest\s+to\s+highest|ascending|from\s+lowest|bottom)", query, re.I):
+            if re.search(r"\b(?:lowest\s+to\s+highest|ascending|from\s+lowest|bottom)\b", query, re.I):
                 direction = "asc"
             m_col = None
             for c in ("sales", "units", "amount", "revenue", "salary", "profit", "cost"):
@@ -870,14 +869,14 @@ class FilterEngine:
 
         # 5. Extremes
         extremes = []
-        if re.search(r"(?:highest|max|maximum|top)", query, re.I):
+        if re.search(r"\b(?:highest|max|maximum|top)\b", query, re.I):
             extremes.append("highest")
-        if re.search(r"(?:lowest|min|minimum|bottom)", query, re.I):
+        if re.search(r"\b(?:lowest|min|minimum|bottom)\b", query, re.I):
             extremes.append("lowest")
 
         # 6. Secondary Analysis (e.g. 'average sales for each product')
         secondary = []
-        m_sec = re.search(r"(?:average|mean)\s+([a-zA-Z0-9_]+)\s+for\s+each\s+([a-zA-Z0-9_]+)", query, re.I)
+        m_sec = re.search(r"\b(?:average|mean)\s+([a-zA-Z0-9_]+)\s+for\s+each\s+([a-zA-Z0-9_]+)\b", query, re.I)
         if m_sec:
             m_met, m_dim = m_sec.group(1).lower(), m_sec.group(2).lower()
             if m_met in col_map and m_dim in col_map:
@@ -911,13 +910,13 @@ class FilterEngine:
         if columns:
             candidates = list(col_map.values())
         else:
-            raw_tokens = re.findall(r"([a-zA-Z_][a-zA-Z0-9_]*)", q)
+            raw_tokens = re.findall(r"\b([a-zA-Z_][a-zA-Z0-9_]*)\b", q)
             candidates = [c for c in raw_tokens if c.lower() not in GRAMMAR_STOPWORDS]
 
         for col in candidates:
             c_esc = re.escape(col)
             # Sum / Total patterns
-            sum_pat = re.compile(rf"(?:total|sum(?:\s+of)?)\s+{c_esc}|{c_esc}\s+(?:total|sum)", re.I)
+            sum_pat = re.compile(rf"\b(?:total|sum(?:\s+of)?)\s+{c_esc}\b|\b{c_esc}\s+(?:total|sum)\b", re.I)
             if sum_pat.search(q):
                 aggregations.append(AggregationRequest(
                     column=col_map.get(col.lower(), col),
@@ -927,8 +926,8 @@ class FilterEngine:
                 continue
 
             # Average / Mean patterns (only if not a regional breakdown instruction)
-            avg_pat = re.compile(rf"(?:average|mean(?:\s+of)?|avg)\s+{c_esc}|{c_esc}\s+(?:average|mean)", re.I)
-            if avg_pat.search(q) and not re.search(rf"average\s+{c_esc}\s+for\s+each", q, re.I):
+            avg_pat = re.compile(rf"\b(?:average|mean(?:\s+of)?|avg)\s+{c_esc}\b|\b{c_esc}\s+(?:average|mean)\b", re.I)
+            if avg_pat.search(q) and not re.search(rf"\baverage\s+{c_esc}\s+for\s+each\b", q, re.I):
                 aggregations.append(AggregationRequest(
                     column=col_map.get(col.lower(), col),
                     function="mean",
@@ -937,7 +936,7 @@ class FilterEngine:
                 continue
 
             # Maximum patterns
-            max_pat = re.compile(rf"(?:max|maximum|highest)\s+{c_esc}|{c_esc}\s+(?:max|maximum)", re.I)
+            max_pat = re.compile(rf"\b(?:max|maximum|highest)\s+{c_esc}\b|\b{c_esc}\s+(?:max|maximum)\b", re.I)
             if max_pat.search(q):
                 aggregations.append(AggregationRequest(
                     column=col_map.get(col.lower(), col),
@@ -947,7 +946,7 @@ class FilterEngine:
                 continue
 
             # Minimum patterns
-            min_pat = re.compile(rf"(?:min|minimum|lowest)\s+{c_esc}|{c_esc}\s+(?:min|minimum)", re.I)
+            min_pat = re.compile(rf"\b(?:min|minimum|lowest)\s+{c_esc}\b|\b{c_esc}\s+(?:min|minimum)\b", re.I)
             if min_pat.search(q):
                 aggregations.append(AggregationRequest(
                     column=col_map.get(col.lower(), col),
@@ -965,28 +964,28 @@ class FilterEngine:
         requests: List[BreakdownRequest] = []
         col_map = {c.lower(): c for c in columns} if columns else {}
 
-        bd_match = re.search(r"(?:break\s+down(?:\s+the\s+filtered\s+results?)?|group(?:\s+by)?)\s+by\s+([a-zA-Z0-9_]+)", q, re.I)
+        bd_match = re.search(r"\b(?:break\s+down(?:\s+the\s+filtered\s+results?)?|group(?:\s+by)?)\s+by\s+([a-zA-Z0-9_]+)", q, re.I)
         if bd_match:
             raw_dim = bd_match.group(1).lower()
             resolved_dim = col_map.get(raw_dim, raw_dim)
             metrics = []
-            if re.search(r"total\s+sales", q, re.I):
+            if re.search(r"\btotal\s+sales\b", q, re.I):
                 metrics.append(("sales", "sum"))
-            if re.search(r"total\s+units", q, re.I):
+            if re.search(r"\btotal\s+units\b", q, re.I):
                 metrics.append(("units", "sum"))
             if not metrics:
                 metrics = [("sales", "sum")]
             requests.append(BreakdownRequest(dimension=resolved_dim, metrics=metrics))
 
-        avg_match = re.search(r"average\s+([a-zA-Z0-9_]+)\s+for\s+each\s+(?:matching\s+)?([a-zA-Z0-9_]+)", q, re.I)
+        avg_match = re.search(r"\baverage\s+([a-zA-Z0-9_]+)\s+for\s+each\s+(?:matching\s+)?([a-zA-Z0-9_]+)", q, re.I)
         if avg_match:
             met_name = avg_match.group(1).lower()
             raw_dim = avg_match.group(2).lower()
             resolved_dim = col_map.get(raw_dim, raw_dim)
             resolved_met = col_map.get(met_name, met_name)
 
-            find_high = bool(re.search(rf"(highest|max|maximum)\s+(?:average\s+)?{re.escape(met_name)}", q, re.I))
-            find_low = bool(re.search(rf"(lowest|min|minimum)\s+(?:average\s+)?{re.escape(met_name)}", q, re.I))
+            find_high = bool(re.search(rf"\b(highest|max|maximum)\s+(?:average\s+)?{re.escape(met_name)}\b", q, re.I))
+            find_low = bool(re.search(rf"\b(lowest|min|minimum)\s+(?:average\s+)?{re.escape(met_name)}\b", q, re.I))
 
             requests.append(BreakdownRequest(
                 dimension=resolved_dim,
@@ -1052,33 +1051,19 @@ class FilterEngine:
 
         # Step 1 Temporary Structured Trace Logging
         logger.info(
-            "
-[ANALYTICAL_EXECUTION_TRACE]
-"
-            "  RAW USER QUERY: %r
-"
-            "  INTENT: %s
-"
-            "  EXTRACTED FILTER: %s
-"
-            "  FILTER AST: %s
-"
-            "  GROUP BY COLUMNS: %s
-"
-            "  AGGREGATIONS: %s
-"
-            "  SORT/RANK: %s
-"
-            "  EXTREME REQUEST: %s
-"
-            "  SELECTED COLUMNS: %s
-"
-            "  DATASET ROW COUNT BEFORE FILTER: %d
-"
-            "  DATASET ROW COUNT AFTER FILTER: %d
-"
-            "  FINAL EXECUTION PLAN: %s
-",
+            "\n[ANALYTICAL_EXECUTION_TRACE]\n"
+            "  RAW USER QUERY: %r\n"
+            "  INTENT: %s\n"
+            "  EXTRACTED FILTER: %s\n"
+            "  FILTER AST: %s\n"
+            "  GROUP BY COLUMNS: %s\n"
+            "  AGGREGATIONS: %s\n"
+            "  SORT/RANK: %s\n"
+            "  EXTREME REQUEST: %s\n"
+            "  SELECTED COLUMNS: %s\n"
+            "  DATASET ROW COUNT BEFORE FILTER: %d\n"
+            "  DATASET ROW COUNT AFTER FILTER: %d\n"
+            "  FINAL EXECUTION PLAN: %s\n",
             query,
             "grouping_and_ranking" if plan.group_by else ("filtering" if plan.filter else "aggregation"),
             filter_desc,
@@ -1185,9 +1170,7 @@ class FilterEngine:
 
             # Format Combination Table
             title_dims = " & ".join(c.title() for c in plan.group_by)
-            grouped_summary_lines.append(f"
-### {title_dims} Combinations (Ranked by Total Sales):
-")
+            grouped_summary_lines.append(f"\n### {title_dims} Combinations (Ranked by Total Sales):\n")
             headers = ["Rank"] + [c.title() for c in plan.group_by] + [f"Total {k.title()}" for k in agg_map.keys()]
             alignments = [":---"] + [":---"] * len(plan.group_by) + ["---:"] * len(agg_map)
             grouped_summary_lines.append("| " + " | ".join(headers) + " |")
@@ -1204,8 +1187,7 @@ class FilterEngine:
                 grouped_summary_lines.append("| " + " | ".join(row_vals) + " |")
 
             if highest_record_dict or lowest_record_dict:
-                grouped_summary_lines.append("
-### Extreme Combinations:")
+                grouped_summary_lines.append("\n### Extreme Combinations:")
                 if highest_record_dict:
                     grouped_summary_lines.append(f"- **Highest Sales Combination**: **{highest_record_dict['combination']}** (Sales: **{highest_record_dict['formatted_sales']}**, Units: **{int(highest_record_dict['units'])}**)")
                 if lowest_record_dict:
@@ -1238,9 +1220,7 @@ class FilterEngine:
                 sec_df = filtered_df.groupby(sec_dim)[sec_met].agg(sec_fn).reset_index()
 
                 sec_records = []
-                secondary_lines.append(f"
-### {sec['display']} by {sec_dim.title()}:
-")
+                secondary_lines.append(f"\n### {sec['display']} by {sec_dim.title()}:\n")
                 for _, r in sec_df.iterrows():
                     val = float(r[sec_met])
                     fmt = f"{int(val):,}" if val.is_integer() else f"{val:,.2f}"
@@ -1298,8 +1278,7 @@ class FilterEngine:
 
         # Format markdown response
         lines = [
-            f"🎯 **Analytical Query Result**:
-",
+            f"🎯 **Analytical Query Result**:\n",
             f"- **Filter Applied**: `{filter_desc}`",
             f"- **Matching Records**: **{matching_rows:,}** (out of {total_rows:,} total rows)",
         ]
@@ -1321,9 +1300,7 @@ class FilterEngine:
                     continue
                 metric_keys = [k for k in records[0].keys() if k != dim_col and not k.endswith("_formatted")]
                 if len(metric_keys) >= 2:
-                    lines.append(f"
-### {dim_col.title()} Breakdown:
-")
+                    lines.append(f"\n### {dim_col.title()} Breakdown:\n")
                     headers = [dim_col.title()] + [k.title() for k in metric_keys]
                     lines.append("| " + " | ".join(headers) + " |")
                     lines.append("| :--- | " + " | ".join(["---:"] * len(metric_keys)) + " |")
@@ -1332,9 +1309,7 @@ class FilterEngine:
                         lines.append("| " + " | ".join(row_vals) + " |")
                 else:
                     met_key = metric_keys[0] if metric_keys else "metric"
-                    lines.append(f"
-### Regional Analysis ({dim_col.title()} Averages):
-")
+                    lines.append(f"\n### Regional Analysis ({dim_col.title()} Averages):\n")
                     for r in records:
                         lines.append(f"- **{r[dim_col]}**: Average {met_key.title()} = **{r[f'{met_key}_formatted']}**")
                     if "highest" in b_data:
@@ -1345,15 +1320,11 @@ class FilterEngine:
             lines.extend(secondary_lines)
 
         if "causal" in query.lower():
-            lines.append("
-> [!NOTE]
-> *Projections and aggregations reflect observed mathematical associations without asserting causal claims.*")
+            lines.append("\n> [!NOTE]\n> *Projections and aggregations reflect observed mathematical associations without asserting causal claims.*")
 
         # Add preview table if not already displaying grouped combinations table
         if not plan.group_by and not breakdowns_output and matching_rows > 0:
-            lines.append("
-**Filtered Records Preview**:
-")
+            lines.append("\n**Filtered Records Preview**:\n")
             preview_rows = filtered_df.head(10)
             headers = list(preview_rows.columns)
             alignments = []
@@ -1378,8 +1349,7 @@ class FilterEngine:
                         row_vals.append(str(v))
                 lines.append("| " + " | ".join(row_vals) + " |")
 
-        markdown_resp = "
-".join(lines)
+        markdown_resp = "\n".join(lines)
 
         return FilterExecutionResult(
             filter_description=filter_desc,
