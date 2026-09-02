@@ -405,7 +405,13 @@ class FilterEngine:
         aggregations: List[AggregationRequest] = []
         col_map = {c.lower(): c for c in columns} if columns else {}
 
-        candidates = list(col_map.values()) if columns else re.findall(r"\b([a-zA-Z_][a-zA-Z0-9_]*)\b", q)
+        STOPWORDS = {
+            "the", "a", "an", "and", "or", "of", "to", "in", "for", "these", "those",
+            "this", "that", "filtered", "records", "rows", "only", "all", "show",
+            "calculate", "compute", "me", "is", "are", "where", "with", "from",
+        }
+        raw_candidates = list(col_map.values()) if columns else re.findall(r"\b([a-zA-Z_][a-zA-Z0-9_]*)\b", q)
+        candidates = [c for c in raw_candidates if c.lower() not in STOPWORDS]
 
         for col in candidates:
             c_esc = re.escape(col)

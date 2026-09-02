@@ -88,6 +88,17 @@ class NLPCommandParser:
         self.intent.raw = command
         text = command.lower().strip()
 
+        # Check filter intent first to prevent analytical queries from falling back to preview
+        if FilterEngine.has_filter_intent(command):
+            self.intent.action = "filter"
+            self.intent.filter_expr = FilterEngine.parse_filters(command)
+            self.intent.aggregations = FilterEngine.parse_aggregations(command)
+            if self.intent.filter_expr and hasattr(self.intent.filter_expr, "conditions"):
+                self.intent.filters = [
+                    c.raw_expression for c in self.intent.filter_expr.conditions
+                    if hasattr(c, "raw_expression") and c.raw_expression
+                ]
+
         # Detect action
         self._detect_action(text)
         # Detect metric
@@ -108,7 +119,9 @@ class NLPCommandParser:
         return self.intent
 
     def _detect_action(self, text):
-        if any(kw in text for kw in self.FORECAST_KEYWORDS):
+        if FilterEngine.has_filter_intent(text):
+            self.intent.action = "filter"
+        elif any(kw in text for kw in self.FORECAST_KEYWORDS):
             self.intent.action = "forecast"
         elif any(kw in text for kw in self.PREDICT_KEYWORDS):
             self.intent.action = "predict"
@@ -123,7 +136,10 @@ class NLPCommandParser:
         elif any(kw in text for kw in self.UNIQUE_KEYWORDS):
             self.intent.action = "unique"
         elif any(kw in text for kw in self.HEAD_KEYWORDS) and any(w in text for w in ["data", "rows", "table", "record"]):
-            self.intent.action = "head"
+            if FilterEngine.is_legitimate_preview_request(text):
+                self.intent.action = "head"
+            else:
+                self.intent.action = "filter"
         # If it's a transaction/financial query, default to transaction analysis
         elif any(w in text for w in ["paid", "received", "spent", "expense", "spending", "revenue", "income", "transaction", "upi"]):
             self.intent.action = "transaction"

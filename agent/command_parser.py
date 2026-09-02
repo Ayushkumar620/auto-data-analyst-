@@ -10,6 +10,7 @@ from .nlp_parser import NLPCommandParser
 from .insights import InsightsEngine
 from .cleaner import DataCleaner
 from .report_generator import ReportGenerator
+from .filter_engine import FilterEngine
 
 
 class CommandParser:
@@ -67,8 +68,8 @@ class CommandParser:
         "report": "report",
         "executive report": "report",
         "summary report": "report",
-        "download report": "report",
-        "pdf": "report",
+        "filter": "filter",
+        "filtering": "filter",
         "help": "help",
     }
 
@@ -276,6 +277,21 @@ class CommandParser:
             charts = self.visualizer.chart(chart_type=ctype, x=intent.column or None, y=intent.column or None)
             return {"type": "chart", "charts": charts}
 
+        if intent.action == "filter" or FilterEngine.has_filter_intent(command):
+            df = self._get_dataframe()
+            if df is not None:
+                filter_res = FilterEngine.execute(df, command)
+                return {
+                    "type": "filter_result",
+                    "filter": filter_res.filter_description,
+                    "matching_rows": filter_res.matching_rows,
+                    "total_rows": filter_res.total_rows,
+                    "aggregations": filter_res.aggregations,
+                    "markdown_response": filter_res.markdown_response,
+                    "filtered_data": filter_res.filtered_df.head(10).to_dict(orient="records"),
+                    "columns": filter_res.columns,
+                }
+
         if intent.action == "summary":
             return {"type": "summary", "reports": self._summary_with_transactions()}
 
@@ -289,6 +305,20 @@ class CommandParser:
             return {"type": "unique", "reports": self.analyzer.unique_values()}
 
         if intent.action == "head":
+            if FilterEngine.has_filter_intent(command):
+                df = self._get_dataframe()
+                if df is not None:
+                    filter_res = FilterEngine.execute(df, command)
+                    return {
+                        "type": "filter_result",
+                        "filter": filter_res.filter_description,
+                        "matching_rows": filter_res.matching_rows,
+                        "total_rows": filter_res.total_rows,
+                        "aggregations": filter_res.aggregations,
+                        "markdown_response": filter_res.markdown_response,
+                        "filtered_data": filter_res.filtered_df.head(10).to_dict(orient="records"),
+                        "columns": filter_res.columns,
+                    }
             return {"type": "head", "reports": self.analyzer.head()}
 
         # Default: try generic aggregation
