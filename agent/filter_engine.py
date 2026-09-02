@@ -264,6 +264,24 @@ class FilterExecutionResult:
     grouped_records: Optional[List[Dict[str, Any]]] = None
     secondary_results: Optional[List[Dict[str, Any]]] = None
 
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "filter_description": self.filter_description,
+            "matching_rows": self.matching_rows,
+            "total_rows": self.total_rows,
+            "aggregations": self.aggregations,
+            "columns": self.columns,
+            "markdown_response": self.markdown_response,
+            "breakdowns": self.breakdowns,
+            "filter_ast": self.filter_ast,
+            "highest_record": self.highest_record,
+            "lowest_record": self.lowest_record,
+            "query_plan": self.query_plan,
+            "group_by": self.group_by,
+            "grouped_records": self.grouped_records,
+            "secondary_results": self.secondary_results,
+        }
+
 
 class FilterEngine:
     """
