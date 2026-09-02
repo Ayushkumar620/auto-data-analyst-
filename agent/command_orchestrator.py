@@ -321,6 +321,31 @@ class AutonomousCommandOrchestrator:
                 has_ev,
             )
 
+        # Check if filtering requested
+        from agent.filter_engine import FilterEngine
+        is_filter_request = (
+            intent_res.primary_intent == AnalyticalIntent.FILTERING
+            or FilterEngine.has_filter_intent(command)
+        )
+        filter_res = None
+        filter_dict = None
+        if is_filter_request:
+            filter_res = FilterEngine.execute(dataframe, command)
+            filter_dict = {
+                "filter": filter_res.filter_description,
+                "matching_rows": filter_res.matching_rows,
+                "total_rows": filter_res.total_rows,
+                "aggregations": filter_res.aggregations,
+                "filtered_data": filter_res.filtered_df.head(10).to_dict(orient="records"),
+            }
+            evidence_list.append({
+                "source": "FilterEngine",
+                "method": "vectorized_filtering",
+                "claim_type": "FACT",
+                "confidence": 1.0,
+                "raw_value": filter_dict,
+            })
+
         # Synthesize final narrative explanation based on user's exact outcome goal
         explanation = self._synthesize_explanation(
             command=command,
@@ -333,6 +358,9 @@ class AutonomousCommandOrchestrator:
             text_report=text_report,
             sampling_info=sampling_info,
         )
+
+        if filter_res is not None:
+            explanation = filter_res.markdown_response
 
         # Fallback visualization if none created yet
         if visualization is None:
@@ -455,6 +483,7 @@ class AutonomousCommandOrchestrator:
             top_relationships=stats_top_relationships,
             subgroup_analysis=stats_subgroup,
             correlation_matrix=stats_corr_matrix,
+            filter_result=filter_dict,
         )
 
     def _determine_required_operations(
