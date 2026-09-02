@@ -396,3 +396,199 @@ def test_result_validator_catches_incomplete_preview():
     is_valid, msg = validator.validate_analytical_execution(query, success_resp)
     assert is_valid
     assert msg == "SUCCESS"
+
+
+# ==============================================================================
+# Date Filtering Regression Tests (Steps 6 to 13)
+# ==============================================================================
+
+def test_date_1_single_date(sales_df):
+    """
+    Step 6: Single Date Test
+    Query: 'Show me only the records from January 3, 2025. Calculate the total sales and total units for that date.'
+    Expected:
+    - filter: date == 2025-01-03
+    - rows: 1
+    - sales: 15,000
+    - units: 12
+    - matching row: 2025-01-03 | Laptop | North | 15000 | 12 | discount 5
+    """
+    query = "Show me only the records from January 3, 2025. Calculate the total sales and total units for that date."
+    res = FilterEngine.execute(sales_df, query)
+
+    assert res.matching_rows == 1, f"Expected 1 matching row, got {res.matching_rows}"
+    assert "date == 2025-01-03" in res.filter_description
+    assert res.aggregations["sales"]["value"] == 15000.0
+    assert res.aggregations["units"]["value"] == 12.0
+    assert len(res.filtered_df) == 1
+    matched_row = res.filtered_df.iloc[0]
+    assert matched_row["date"] == "2025-01-03"
+    assert matched_row["product"] == "Laptop"
+    assert matched_row["sales"] == 15000
+    assert matched_row["units"] == 12
+
+
+def test_date_2_date_range_inclusive(sales_df):
+    """
+    Step 7: Date Range Test
+    Query: 'Show me all sales records from January 3, 2025 through January 8, 2025 inclusive.'
+    Expected:
+    - date >= 2025-01-03 AND date <= 2025-01-08
+    - rows = 6
+    - sales = 66,000
+    - units = 105
+    - average sales = 11,000
+    - highest sales = 18,000
+    - highest-sales date = 2025-01-06
+    """
+    query = "Show me all sales records from January 3, 2025 through January 8, 2025 inclusive."
+    res = FilterEngine.execute(sales_df, query)
+
+    assert res.matching_rows == 6, f"Expected 6 matching rows, got {res.matching_rows}"
+    assert "date >= 2025-01-03" in res.filter_description
+    assert "date <= 2025-01-08" in res.filter_description
+    assert res.aggregations["sales"]["value"] == 66000.0
+    assert res.aggregations["units"]["value"] == 105.0
+    assert res.aggregations["sales_mean"]["value"] == 11000.0
+    assert res.highest_record is not None
+    assert res.highest_record["sales"] == 18000.0
+    assert res.highest_record["date"] == "2025-01-06"
+
+
+def test_date_3_inclusive_boundaries(sales_df):
+    """
+    Step 8: Inclusive Boundaries Test
+    'from January 3 through January 8 inclusive'
+    MUST include: January 3, 4, 5, 6, 7, 8
+    MUST exclude: January 1, 2, 9, 10
+    """
+    query = "from January 3 through January 8, 2025 inclusive"
+    res = FilterEngine.execute(sales_df, query)
+
+    matched_dates = set(res.filtered_df["date"].tolist())
+    expected_included = {"2025-01-03", "2025-01-04", "2025-01-05", "2025-01-06", "2025-01-07", "2025-01-08"}
+    expected_excluded = {"2025-01-01", "2025-01-02", "2025-01-09", "2025-01-10"}
+
+    assert expected_included.issubset(matched_dates), f"Missing boundary dates: {expected_included - matched_dates}"
+    for ex in expected_excluded:
+        assert ex not in matched_dates, f"Date {ex} should have been excluded!"
+
+
+def test_date_4_date_plus_numeric_filter(sales_df):
+    """
+    Step 9: Date + Numeric Filter Composition
+    Query: 'Calculate total sales for records from January 3 through January 8, 2025 where discount is 5 or less.'
+    Expected:
+    - matching rows: Jan 3, Jan 6, Jan 8 (3 rows)
+    - sales: 15,000 + 18,000 + 11,000 = 44,000
+    - units: 12 + 14 + 25 = 51
+    """
+    query = "Calculate total sales and total units for records from January 3 through January 8, 2025 where discount is 5 or less."
+    res = FilterEngine.execute(sales_df, query)
+
+    assert res.matching_rows == 3, f"Expected 3 matching rows, got {res.matching_rows}"
+    assert res.aggregations["sales"]["value"] == 44000.0
+    assert res.aggregations["units"]["value"] == 51.0
+    matched_dates = set(res.filtered_df["date"].tolist())
+    assert matched_dates == {"2025-01-03", "2025-01-06", "2025-01-08"}
+
+
+def test_date_5_date_plus_categorical_or(sales_df):
+    """
+    Step 10: Date + Categorical OR Composition
+    Query: 'Calculate total sales from January 3 through January 8, 2025 where region is North or West.'
+    Expected:
+    - matching rows: Jan 3 (North: 15k), Jan 6 (West: 18k), Jan 8 (North: 11k) = 3 rows
+    - sales = 44,000
+    - units = 51
+    """
+    query = "Calculate total sales and total units from January 3 through January 8, 2025 where region is North or West."
+    res = FilterEngine.execute(sales_df, query)
+
+    assert res.matching_rows == 3, f"Expected 3 matching rows, got {res.matching_rows}"
+    assert res.aggregations["sales"]["value"] == 44000.0
+    assert res.aggregations["units"]["value"] == 51.0
+    assert "date >= 2025-01-03" in res.filter_description
+    assert "date <= 2025-01-08" in res.filter_description
+    assert "region == 'North'" in res.filter_description or "North" in res.filter_description
+
+
+def test_date_6_column_stored_as_string():
+    """
+    Step 13.6: Verify date filtering works when the date column is stored as str/object.
+    """
+    df_str = pd.DataFrame([
+        {"date": "2025-01-01", "sales": 100},
+        {"date": "2025-01-03", "sales": 200},
+        {"date": "2025-01-05", "sales": 300},
+    ])
+    assert pd.api.types.is_string_dtype(df_str["date"]) or pd.api.types.is_object_dtype(df_str["date"])
+
+    res = FilterEngine.execute(df_str, "records from January 3, 2025. Calculate total sales.")
+    assert res.matching_rows == 1
+    assert res.aggregations["sales"]["value"] == 200.0
+
+
+def test_date_7_column_stored_as_datetime():
+    """
+    Step 13.7: Verify date filtering works when the date column is stored as pandas datetime64[ns].
+    """
+    df_dt = pd.DataFrame([
+        {"date": pd.to_datetime("2025-01-01 10:30:00"), "sales": 100},
+        {"date": pd.to_datetime("2025-01-03 14:15:00"), "sales": 200},
+        {"date": pd.to_datetime("2025-01-05 09:00:00"), "sales": 300},
+    ])
+    assert pd.api.types.is_datetime64_any_dtype(df_dt["date"])
+
+    res = FilterEngine.execute(df_dt, "records from January 3, 2025. Calculate total sales.")
+    assert res.matching_rows == 1
+    assert res.aggregations["sales"]["value"] == 200.0
+
+
+def test_date_8_different_column_names():
+    """
+    Step 13.8: Verify detection of non-'date' column names (order_date, transaction_date, created_at).
+    """
+    # 1. order_date
+    df_order = pd.DataFrame([
+        {"order_date": "2025-01-01", "revenue": 500},
+        {"order_date": "2025-01-03", "revenue": 1500},
+    ])
+    r1 = FilterEngine.execute(df_order, "records from January 3, 2025. Calculate total revenue.")
+    assert r1.matching_rows == 1
+    assert "order_date == 2025-01-03" in r1.filter_description
+    assert r1.aggregations["revenue"]["value"] == 1500.0
+
+    # 2. transaction_date
+    df_tx = pd.DataFrame([
+        {"transaction_date": "2025-01-03", "amount": 750},
+        {"transaction_date": "2025-01-09", "amount": 850},
+    ])
+    r2 = FilterEngine.execute(df_tx, "records from January 3, 2025. Calculate total amount.")
+    assert r2.matching_rows == 1
+    assert "transaction_date == 2025-01-03" in r2.filter_description
+    assert r2.aggregations["amount"]["value"] == 750.0
+
+
+def test_date_9_invalid_date_expression():
+    """
+    Step 13.9: Verify that invalid date expressions do NOT silently fall back to all records.
+    """
+    df_sample = pd.DataFrame([{"date": "2025-01-01", "val": 10}, {"date": "2025-01-02", "val": 20}])
+    res = FilterEngine.execute(df_sample, "records from InvalidMonth 99, 2025")
+    assert res.matching_rows == 0
+    assert "All Records" not in res.filter_description
+    assert "could not parse" in res.filter_description or "could not" in res.filter_description.lower()
+
+
+def test_date_10_ambiguous_multiple_date_columns():
+    """
+    Step 13.10: Ambiguous multiple date columns should trigger a clarification request rather than picking blindly.
+    """
+    df_multi = pd.DataFrame([
+        {"order_date": ["2025-01-01"], "ship_date": ["2025-01-05"], "sales": [100]}
+    ])
+    res = FilterEngine.execute(df_multi, "records from January 3, 2025")
+    assert res.matching_rows == 0
+    assert "multiple date columns" in res.filter_description.lower() or "multiple temporal columns" in res.filter_description.lower()
+
