@@ -133,6 +133,7 @@ class ConversationalAnalystAgent(BaseAgent):
         session_id: str = "default_session",
         data: Optional[Any] = None,
         dataset: Optional[Any] = None,
+        df: Optional[Any] = None,
     ) -> Tuple[str, List[Evidence], Dict[str, Any]]:
         """
         Process a single natural language conversational turn.
@@ -143,7 +144,7 @@ class ConversationalAnalystAgent(BaseAgent):
         session = self.get_or_create_session(session_id)
 
         # 1. Update Dataset Context if provided
-        active_input_data = data if data is not None else dataset
+        active_input_data = data if data is not None else (dataset if dataset is not None else df)
         if active_input_data is not None:
             if isinstance(active_input_data, pd.DataFrame):
                 df = active_input_data
@@ -338,6 +339,59 @@ class ConversationalAnalystAgent(BaseAgent):
                     "session_id": session_id,
                     "turn_id": turn.turn_id,
                 }
+
+        # 5c. Handle Filtering & Filtered Aggregations
+        from agent.filter_engine import FilterEngine
+        if intent == ConversationalIntent.FILTER or FilterEngine.has_filter_intent(command):
+            filter_res = FilterEngine.execute(df, command)
+            final_response = filter_res.markdown_response
+
+            from agent.schemas import ClaimType, Evidence
+            evidence_objs = [
+                Evidence(
+                    source="FilterEngine",
+                    method="vectorized_filtering",
+                    claim_type=ClaimType.FACT,
+                    confidence=1.0,
+                    raw_value={
+                        "filter": filter_res.filter_description,
+                        "matching_rows": filter_res.matching_rows,
+                        "total_rows": filter_res.total_rows,
+                        "aggregations": filter_res.aggregations,
+                    },
+                )
+            ]
+
+            turn = ConversationTurn(
+                session_id=session_id,
+                user_message=command,
+                resolved_intent=intent,
+                referenced_entities=entities,
+                evidence=evidence_objs,
+                assistant_response=final_response,
+                result={
+                    "filter": filter_res.filter_description,
+                    "matching_rows": filter_res.matching_rows,
+                    "total_rows": filter_res.total_rows,
+                    "aggregations": filter_res.aggregations,
+                    "filtered_data": filter_res.filtered_df.head(10).to_dict(orient="records"),
+                    "status": "completed",
+                },
+            )
+            session.turns.append(turn)
+            return final_response, evidence_objs, {
+                "result": {
+                    "filter": filter_res.filter_description,
+                    "matching_rows": filter_res.matching_rows,
+                    "total_rows": filter_res.total_rows,
+                    "aggregations": filter_res.aggregations,
+                    "filtered_data": filter_res.filtered_df.head(10).to_dict(orient="records"),
+                },
+                "intent": intent.value if hasattr(intent, "value") else str(intent),
+                "resolved_command": resolved_cmd,
+                "session_id": session_id,
+                "turn_id": turn.turn_id,
+            }
 
         # Create structured intent for autonomous analysis
         user_intent = UserIntent(
