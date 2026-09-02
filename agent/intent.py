@@ -45,6 +45,7 @@ class AnalyticalIntent(str, Enum):
     CLUSTERING = "clustering"
     CORRELATION = "correlation"
     HYPOTHESIS_TESTING = "hypothesis_testing"
+    FILTERING = "filtering"
     REPORT = "report"
     UNKNOWN = "unknown"
 
@@ -53,6 +54,7 @@ class IntentType(str, Enum):
     """Controlled set of analytical and operational intent types."""
     DATASET_ANALYSIS = "dataset_analysis"
     DATA_CLEANING = "data_cleaning"
+    FILTERING = "filtering"
     AGGREGATION = "aggregation"
     COMPARISON = "comparison"
     TREND_ANALYSIS = "trend_analysis"
@@ -570,6 +572,20 @@ class CommandIntelligenceAgent(BaseAgent):
         if reg_match:
             filters["region"] = reg_match.group(1).capitalize()
 
+        try:
+            from agent.filter_engine import FilterEngine
+            parsed_f = FilterEngine.parse_filters(text)
+            if parsed_f and hasattr(parsed_f, "conditions"):
+                for cond in parsed_f.conditions:
+                    if hasattr(cond, "column") and hasattr(cond, "value"):
+                        filters[cond.column] = {
+                            "operator": getattr(cond, "operator", "=="),
+                            "value": cond.value,
+                            "raw": getattr(cond, "raw_expression", str(cond)),
+                        }
+        except Exception:
+            pass
+
         return filters
 
     # ------------------------------------------------------------------
@@ -812,11 +828,18 @@ class IntentAnalyzer:
                 matched_intents.append(intent)
                 reasoning.append(f"Matched {intent.value} via keywords: {', '.join(hits)}")
 
-        # Distinguish prediction vs forecasting vs deep learning vs correlation vs hypothesis testing
+        from agent.filter_engine import FilterEngine
+        if FilterEngine.has_filter_intent(query):
+            matched_intents.insert(0, AnalyticalIntent.FILTERING)
+            reasoning.append("Detected analytical filtering criteria in query")
+
+        # Distinguish prediction vs forecasting vs deep learning vs correlation vs hypothesis testing vs filtering
         primary = AnalyticalIntent.EDA
         secondary: List[AnalyticalIntent] = []
 
-        if AnalyticalIntent.CNN in matched_intents:
+        if AnalyticalIntent.FILTERING in matched_intents:
+            primary = AnalyticalIntent.FILTERING
+        elif AnalyticalIntent.CNN in matched_intents:
             primary = AnalyticalIntent.CNN
         elif AnalyticalIntent.DEEP_LEARNING in matched_intents:
             primary = AnalyticalIntent.DEEP_LEARNING

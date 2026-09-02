@@ -74,6 +74,7 @@ class CommandExecutionResult:
     top_relationships: Optional[List[Dict[str, Any]]] = None
     subgroup_analysis: Optional[Dict[str, Any]] = None
     correlation_matrix: Optional[Dict[str, Any]] = None
+    filter_result: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return sanitize_for_json({
@@ -97,6 +98,7 @@ class CommandExecutionResult:
             "top_relationships": self.top_relationships or [],
             "subgroup_analysis": self.subgroup_analysis or {},
             "correlation_matrix": self.correlation_matrix or {},
+            "filter_result": self.filter_result,
         })
 
 
