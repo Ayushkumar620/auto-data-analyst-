@@ -144,6 +144,7 @@ class ConversationalAnalystAgent(BaseAgent):
         session = self.get_or_create_session(session_id)
 
         # 1. Update Dataset Context if provided
+        active_input_data = data if data is not None else dataset
         active_input_data = data if data is not None else (dataset if dataset is not None else df)
         if active_input_data is not None:
             if isinstance(active_input_data, pd.DataFrame):

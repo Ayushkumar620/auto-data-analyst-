@@ -233,3 +233,4 @@ def test_result_validator_catches_incomplete_preview():
     is_valid, msg = validator.validate_analytical_execution(query, success_resp)
     assert is_valid
     assert msg == "SUCCESS"
+

@@ -68,6 +68,8 @@ class CommandParser:
         "report": "report",
         "executive report": "report",
         "summary report": "report",
+        "download report": "report",
+        "pdf": "report",
         "filter": "filter",
         "filtering": "filter",
         "help": "help",
