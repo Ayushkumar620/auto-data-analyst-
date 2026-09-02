@@ -33,7 +33,7 @@ describe('SummaryData Component', () => {
     ],
   };
 
-  it('renders SummaryData dashboard container', () => {
+  it('renders SummaryData dashboard container with professional cards', () => {
     const { container } = render(<SummaryData data={basicSalesData} />);
     const dashboard = screen.getByTestId('summary-data-dashboard');
     expect(dashboard).toBeInTheDocument();
@@ -77,6 +77,24 @@ describe('SummaryData Component', () => {
     expect(discountRow!.textContent).toContain('integer');
   });
 
+  it('renders Data Preview header with structured title and "First 10 rows" subtitle', () => {
+    const { container } = render(<SummaryData data={basicSalesData} />);
+    const header = container.querySelector('.data-preview-header');
+    expect(header).toBeInTheDocument();
+
+    const title = container.querySelector('.data-preview-title');
+    expect(title).toBeInTheDocument();
+    expect(title?.textContent).toBe('Data Preview');
+
+    const subtitle = container.querySelector('.data-preview-subtitle');
+    expect(subtitle).toBeInTheDocument();
+    expect(subtitle?.textContent).toBe('First 10 rows');
+
+    const countPill = container.querySelector('.data-preview-count-pill');
+    expect(countPill).toBeInTheDocument();
+    expect(countPill?.textContent).toContain('6 columns · 10 rows');
+  });
+
   it('renders Data Preview as a proper HTML table with independent <th> cells and no merged header', () => {
     const { container } = render(<SummaryData data={basicSalesData} />);
     const previewTable = container.querySelector('.data-preview-card table');
@@ -106,32 +124,62 @@ describe('SummaryData Component', () => {
     });
   });
 
-  it('renders null/undefined/empty values cleanly as "—"', () => {
-    const dataWithNulls = {
-      dataset_name: 'test_nulls.csv',
-      rows: 3,
-      columns: 3,
-      nulls: 2,
-      data_types: { id: 'integer', name: 'string', score: 'float' },
+  it('aligns numeric columns to the right and text/date columns to the left', () => {
+    const { container } = render(<SummaryData data={basicSalesData} />);
+    const previewTable = container.querySelector('.data-preview-card table');
+    const ths = previewTable!.querySelectorAll('thead th');
+
+    // date (text) -> left
+    expect(ths[0]).toHaveStyle({ textAlign: 'left' });
+    // product (text) -> left
+    expect(ths[1]).toHaveStyle({ textAlign: 'left' });
+    // sales (numeric) -> right
+    expect(ths[3]).toHaveStyle({ textAlign: 'right' });
+    // units (numeric) -> right
+    expect(ths[4]).toHaveStyle({ textAlign: 'right' });
+
+    // Verify tbody cells match alignment
+    const firstRowTds = previewTable!.querySelectorAll('tbody tr')[0].querySelectorAll('td');
+    expect(firstRowTds[0]).toHaveStyle({ textAlign: 'left' }); // date
+    expect(firstRowTds[3]).toHaveStyle({ textAlign: 'right' }); // sales
+  });
+
+  it('renders null, undefined, and NaN as "—" while preserving 0, false, and empty string', () => {
+    const dataWithSpecialValues = {
+      dataset_name: 'test_special_values.csv',
+      rows: 4,
+      columns: 4,
+      nulls: 3,
+      data_types: { id: 'integer', label: 'string', count: 'integer', ratio: 'float' },
       preview: [
-        { id: 1, name: 'Alice', score: 95.5 },
-        { id: 2, name: null, score: undefined },
-        { id: 3, name: '', score: NaN },
+        { id: 1, label: 'Active', count: 0, ratio: 0.75 }, // valid 0 preserved
+        { id: 2, label: null, count: 5, ratio: undefined }, // null and undefined -> '—'
+        { id: 3, label: '', count: 12, ratio: NaN }, // empty string preserved, NaN -> '—'
+        { id: 0, label: 'ZeroId', count: 0, ratio: 0 }, // 0 preserved
       ],
     };
 
-    const { container } = render(<SummaryData data={dataWithNulls} />);
+    const { container } = render(<SummaryData data={dataWithSpecialValues} />);
     const previewTable = container.querySelector('.data-preview-card table');
     const rows = previewTable!.querySelectorAll('tbody tr');
 
-    const secondRowTds = rows[1].querySelectorAll('td');
-    expect(secondRowTds[0].textContent?.trim()).toBe('2');
-    expect(secondRowTds[1].textContent?.trim()).toBe('—');
-    expect(secondRowTds[2].textContent?.trim()).toBe('—');
+    // Row 1: count is 0 -> should be rendered as "0"
+    const row1Tds = rows[0].querySelectorAll('td');
+    expect(row1Tds[2].textContent?.trim()).toBe('0');
 
-    const thirdRowTds = rows[2].querySelectorAll('td');
-    expect(thirdRowTds[1].textContent?.trim()).toBe('—');
-    expect(thirdRowTds[2].textContent?.trim()).toBe('—');
+    // Row 2: label is null -> "—", ratio is undefined -> "—"
+    const row2Tds = rows[1].querySelectorAll('td');
+    expect(row2Tds[1].textContent?.trim()).toBe('—');
+    expect(row2Tds[3].textContent?.trim()).toBe('—');
+
+    // Row 3: label is empty string -> "", ratio is NaN -> "—"
+    const row3Tds = rows[2].querySelectorAll('td');
+    expect(row3Tds[1].textContent?.trim()).toBe('');
+    expect(row3Tds[3].textContent?.trim()).toBe('—');
+
+    // Row 4: id 0 is preserved
+    const row4Tds = rows[3].querySelectorAll('td');
+    expect(row4Tds[0].textContent?.trim()).toBe('0');
   });
 
   it('supports wide datasets with 15 columns inside a horizontally scrollable container', () => {
@@ -153,10 +201,7 @@ describe('SummaryData Component', () => {
     };
 
     const { container } = render(<SummaryData data={wideData} />);
-    const scrollContainers = container.querySelectorAll('.table-responsive-container');
-    expect(scrollContainers.length).toBeGreaterThanOrEqual(1);
-
-    const previewContainer = container.querySelector('.data-preview-card .table-responsive-container');
+    const previewContainer = container.querySelector('.data-preview-table-container');
     expect(previewContainer).toBeInTheDocument();
     expect(previewContainer).toHaveStyle({ overflowX: 'auto' });
 
@@ -254,4 +299,3 @@ Here is an analysis with bullet points:
     expect(container.querySelector('[data-testid="summary-data-dashboard"]')).toBeNull();
   });
 });
-

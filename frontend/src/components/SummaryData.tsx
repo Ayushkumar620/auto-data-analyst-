@@ -342,7 +342,21 @@ export function ColumnTypesTable({ columns }: { columns: ColumnTypeItem[] }) {
 }
 
 /**
+ * Helper to determine if a column in the preview rows contains numeric values
+ */
+function isColumnNumeric(col: string, rows: Array<Record<string, unknown>>): boolean {
+  for (const r of rows) {
+    const val = r[col];
+    if (val !== null && val !== undefined && val !== '') {
+      return typeof val === 'number';
+    }
+  }
+  return false;
+}
+
+/**
  * DataPreviewTable Sub-component
+ * Renders dataset preview as a professional BI dashboard card.
  */
 export function DataPreviewTable({
   columns,
@@ -354,96 +368,66 @@ export function DataPreviewTable({
   if (!rows || rows.length === 0) return null;
 
   return (
-    <div
-      className="data-preview-card"
-      style={{
-        backgroundColor: '#ffffff',
-        border: '1px solid var(--border, #e2e8f0)',
-        borderRadius: '14px',
-        padding: '1.25rem',
-        boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-        <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 700, color: 'var(--ink, #0f172a)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-          <span>👀</span> Data Preview
-        </h4>
-        <span
-          style={{
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            color: 'var(--muted, #64748b)',
-            backgroundColor: '#f8fafc',
-            padding: '0.2rem 0.55rem',
-            borderRadius: '6px',
-            border: '1px solid #e2e8f0',
-          }}
-        >
-          First {rows.length} rows
+    <div className="data-preview-card" data-testid="data-preview-card">
+      <div className="data-preview-header">
+        <div className="data-preview-header-left">
+          <div className="data-preview-icon-badge" aria-hidden="true">
+            👀
+          </div>
+          <div>
+            <h4 className="data-preview-title">Data Preview</h4>
+            <p className="data-preview-subtitle">First {rows.length} rows</p>
+          </div>
+        </div>
+        <span className="data-preview-count-pill">
+          {columns.length} columns · {rows.length} rows
         </span>
       </div>
 
       <div
-        className="table-responsive-container"
-        style={{
-          overflowX: 'auto',
-          maxWidth: '100%',
-          borderRadius: '8px',
-          border: '1px solid var(--border, #e2e8f0)',
-          margin: 0,
-        }}
+        className="data-preview-table-container table-responsive-container"
+        style={{ overflowX: 'auto' }}
       >
-        <table className="result-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+        <table className="data-preview-table result-table" aria-label="Dataset Preview">
           <thead>
-            <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-              {columns.map((col, idx) => (
-                <th
-                  key={col}
-                  style={{
-                    padding: '0.55rem 0.85rem',
-                    textAlign: 'left',
-                    fontWeight: 600,
-                    color: 'var(--ink-secondary, #334155)',
-                    whiteSpace: 'nowrap',
-                    borderRight: idx < columns.length - 1 ? '1px solid #f1f5f9' : undefined,
-                  }}
-                >
-                  {col}
-                </th>
-              ))}
+            <tr>
+              {columns.map((col) => {
+                const isNumeric = isColumnNumeric(col, rows);
+                return (
+                  <th
+                    key={col}
+                    style={{
+                      textAlign: isNumeric ? 'right' : 'left',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {col}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
             {rows.map((row, rIdx) => (
-              <tr
-                key={rIdx}
-                style={{
-                  backgroundColor: rIdx % 2 === 0 ? '#ffffff' : '#fcfdfe',
-                  borderBottom: '1px solid #f1f5f9',
-                }}
-              >
-                {columns.map((col, cIdx) => {
+              <tr key={rIdx}>
+                {columns.map((col) => {
                   const val = row[col];
                   const isNull =
                     val === null ||
                     val === undefined ||
-                    (typeof val === 'number' && isNaN(val)) ||
-                    (typeof val === 'string' && val.trim() === '');
+                    (typeof val === 'number' && isNaN(val));
                   const isNum = typeof val === 'number';
 
                   return (
                     <td
                       key={col}
                       style={{
-                        padding: '0.5rem 0.85rem',
                         textAlign: isNum ? 'right' : 'left',
                         whiteSpace: 'nowrap',
-                        color: isNull ? 'var(--muted, #94a3b8)' : 'var(--ink, #0f172a)',
-                        borderRight: cIdx < columns.length - 1 ? '1px solid #f8fafc' : undefined,
                       }}
                     >
                       {isNull ? (
-                        <span style={{ fontStyle: 'italic', fontWeight: 500 }}>—</span>
+                        <span className="data-preview-null-cell">—</span>
                       ) : isNum ? (
                         val.toLocaleString()
                       ) : (
