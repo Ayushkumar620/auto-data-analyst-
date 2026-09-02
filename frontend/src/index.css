@@ -504,3 +504,73 @@ button {
     flex-direction: column;
   }
 }
+
+/* ==========================================================================
+   Markdown Tables & Response Content
+   ========================================================================== */
+.table-responsive-container {
+  overflow-x: auto;
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  margin: 0.85rem 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.result-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+  font-family: var(--font-main);
+  text-align: left;
+}
+
+.result-table thead tr {
+  background: #f8fafc;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.result-table th {
+  padding: 0.55rem 0.85rem;
+  font-size: 0.80rem;
+  font-weight: 600;
+  color: var(--ink-secondary);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  border-right: 1px solid #f1f5f9;
+}
+
+.result-table th:last-child {
+  border-right: none;
+}
+
+.result-table tbody tr {
+  border-bottom: 1px solid #f1f5f9;
+  transition: background-color 120ms ease;
+}
+
+.result-table tbody tr:nth-child(even) {
+  background: #ffffff;
+}
+
+.result-table tbody tr:nth-child(odd) {
+  background: #fcfdfe;
+}
+
+.result-table tbody tr:hover {
+  background: #f1f5f9;
+}
+
+.result-table td {
+  padding: 0.5rem 0.85rem;
+  font-size: 0.82rem;
+  color: var(--ink);
+  border-right: 1px solid #f8fafc;
+}
+
+.result-table td:last-child {
+  border-right: none;
+}
+
