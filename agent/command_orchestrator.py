@@ -321,15 +321,18 @@ class AutonomousCommandOrchestrator:
                 has_ev,
             )
 
-        # Check if filtering requested
+        # Check if analytical plan (filtering or multi-dimensional grouping/ranking) requested
         from agent.filter_engine import FilterEngine
-        is_filter_request = (
+        query_plan = FilterEngine.parse_query_plan(command, list(dataframe.columns), dataframe)
+        is_analytical_request = (
             intent_res.primary_intent == AnalyticalIntent.FILTERING
             or FilterEngine.has_filter_intent(command)
+            or query_plan.filter is not None
+            or bool(query_plan.group_by and (len(query_plan.group_by) > 1 or query_plan.ranking or query_plan.secondary_analysis))
         )
         filter_res = None
         filter_dict = None
-        if is_filter_request:
+        if is_analytical_request:
             filter_res = FilterEngine.execute(dataframe, command)
             filter_dict = {
                 "filter": filter_res.filter_description,
@@ -337,10 +340,16 @@ class AutonomousCommandOrchestrator:
                 "total_rows": filter_res.total_rows,
                 "aggregations": filter_res.aggregations,
                 "filtered_data": filter_res.filtered_df.head(10).to_dict(orient="records"),
+                "group_by": filter_res.group_by,
+                "grouped_records": filter_res.grouped_records,
+                "highest_record": filter_res.highest_record,
+                "lowest_record": filter_res.lowest_record,
+                "secondary_results": filter_res.secondary_results,
+                "query_plan": filter_res.query_plan,
             }
             evidence_list.append({
                 "source": "FilterEngine",
-                "method": "vectorized_filtering",
+                "method": "analytical_query_execution",
                 "claim_type": "FACT",
                 "confidence": 1.0,
                 "raw_value": filter_dict,
@@ -462,11 +471,24 @@ class AutonomousCommandOrchestrator:
             },
         ]
 
+        if filter_res is not None and filter_res.query_plan:
+            dag_nodes[2]["details"] = (
+                f"Parsed analytical query plan: Group By: {filter_res.group_by or 'None'}, "
+                f"Filter: {filter_res.filter_description}, "
+                f"Ranking: {filter_res.query_plan.get('ranking') or 'None'}. "
+                f"Specialized tools selected: {', '.join(selected_agents[:3])}."
+            )
+            dag_nodes[2]["query_plan"] = filter_res.query_plan
+
+        user_intent_label = intent_res.primary_intent.value
+        if filter_res is not None and filter_res.group_by:
+            user_intent_label = "grouping_and_ranking"
+
         return CommandExecutionResult(
             command=command,
             resolved_command=resolved_command,
             session_id=session_id,
-            user_intent=intent_res.primary_intent.value,
+            user_intent=user_intent_label,
             required_operations=required_ops,
             selected_agents=selected_agents,
             model_selection_summary=model_selection_summary,
