@@ -321,10 +321,8 @@ class AutonomousCommandOrchestrator:
                 has_ev,
             )
 
-        # Check if filtering requested
         # Check if analytical plan (filtering or multi-dimensional grouping/ranking) requested
         from agent.filter_engine import FilterEngine
-        is_filter_request = (
         query_plan = FilterEngine.parse_query_plan(command, list(dataframe.columns), dataframe)
         is_analytical_request = (
             intent_res.primary_intent == AnalyticalIntent.FILTERING
@@ -334,7 +332,6 @@ class AutonomousCommandOrchestrator:
         )
         filter_res = None
         filter_dict = None
-        if is_filter_request:
         if is_analytical_request:
             filter_res = FilterEngine.execute(dataframe, command)
             filter_dict = {
@@ -352,7 +349,6 @@ class AutonomousCommandOrchestrator:
             }
             evidence_list.append({
                 "source": "FilterEngine",
-                "method": "vectorized_filtering",
                 "method": "analytical_query_execution",
                 "claim_type": "FACT",
                 "confidence": 1.0,
@@ -492,7 +488,6 @@ class AutonomousCommandOrchestrator:
             command=command,
             resolved_command=resolved_command,
             session_id=session_id,
-            user_intent=intent_res.primary_intent.value,
             user_intent=user_intent_label,
             required_operations=required_ops,
             selected_agents=selected_agents,

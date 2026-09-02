@@ -306,7 +306,6 @@ class CommandParser:
             charts = self.visualizer.chart(chart_type=ctype, x=intent.column or None, y=intent.column or None)
             return {"type": "chart", "charts": charts}
 
-        if intent.action == "filter" or FilterEngine.has_filter_intent(command):
         _cmd_plan = FilterEngine.parse_query_plan(command, dataframe=self._get_dataframe())
         if intent.action == "filter" or FilterEngine.has_filter_intent(command) or _cmd_plan.filter is not None or bool(_cmd_plan.group_by and (len(_cmd_plan.group_by) > 1 or _cmd_plan.ranking or _cmd_plan.secondary_analysis)):
             df = self._get_dataframe()
