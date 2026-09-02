@@ -928,6 +928,32 @@ class UniversalOrchestrator:
             aggregated_data["correlation_matrix"] = stat_d.get("correlation_matrix", {})
             aggregated_data["subgroup_analysis"] = stat_d.get("subgroup_analysis", {})
 
+        # Project grouping / analytical fields to top-level result
+        if "aggregation" in task_outputs and isinstance(task_outputs["aggregation"], dict):
+            agg_d = task_outputs["aggregation"]
+            aggregated_data["grouped_records"] = agg_d.get("grouped_records", [])
+            aggregated_data["ranking"] = agg_d.get("ranking")
+            aggregated_data["highest_record"] = agg_d.get("highest_record")
+            aggregated_data["lowest_record"] = agg_d.get("lowest_record")
+            aggregated_data["secondary_results"] = agg_d.get("secondary_results", [])
+            aggregated_data["aggregations"] = agg_d.get("aggregations", {})
+            aggregated_data["group_by"] = agg_d.get("group_by", [])
+            aggregated_data["filter"] = agg_d.get("filter")
+            aggregated_data["matching_rows"] = agg_d.get("matching_rows")
+            aggregated_data["total_rows"] = agg_d.get("total_rows")
+            if agg_d.get("markdown_response"):
+                aggregated_data["summary"] = agg_d["markdown_response"]
+                aggregated_data["executive_summary"] = agg_d["markdown_response"]
+
+        diag_orch = (
+            f"\nORCHESTRATOR_RESULT\n"
+            f"type=AgentResult\n"
+            f"keys={list(aggregated_data.keys())}\n"
+        )
+        print(diag_orch)
+        import logging
+        logging.getLogger("diagnostic").info(diag_orch)
+
         agent_result = AgentResult(
             status=overall_status,
             task_type="orchestration",

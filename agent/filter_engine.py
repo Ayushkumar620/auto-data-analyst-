@@ -1351,7 +1351,7 @@ class FilterEngine:
 
         markdown_resp = "\n".join(lines)
 
-        return FilterExecutionResult(
+        result_obj = FilterExecutionResult(
             filter_description=filter_desc,
             matching_rows=matching_rows,
             total_rows=total_rows,
@@ -1368,3 +1368,14 @@ class FilterEngine:
             grouped_records=grouped_records,
             secondary_results=sec_results,
         )
+
+        diag_exec = (
+            f"\nEXECUTION_RESULT\n"
+            f"type={type(result_obj).__name__}\n"
+            f"keys={list(result_obj.to_dict().keys())}\n"
+        )
+        print(diag_exec)
+        import logging
+        logging.getLogger("diagnostic").info(diag_exec)
+
+        return result_obj

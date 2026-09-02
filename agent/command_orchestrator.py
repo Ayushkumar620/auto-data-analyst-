@@ -484,6 +484,20 @@ class AutonomousCommandOrchestrator:
         if filter_res is not None and filter_res.group_by:
             user_intent_label = "grouping_and_ranking"
 
+        orch_keys = [
+            "command", "session_id", "user_intent", "required_operations",
+            "selected_agents", "execution_steps", "validation_summary",
+            "final_explanation", "evidence", "execution_graph", "filter_result",
+        ]
+        diag_orch = (
+            f"\nORCHESTRATOR_RESULT\n"
+            f"type=CommandExecutionResult\n"
+            f"keys={orch_keys}\n"
+        )
+        print(diag_orch)
+        import logging
+        logging.getLogger("diagnostic").info(diag_orch)
+
         return CommandExecutionResult(
             command=command,
             resolved_command=resolved_command,
