@@ -6,7 +6,7 @@ import pytest
 import pandas as pd
 import numpy as np
 
-from agent.engine import HighPerformanceExecutionEngine
+from backend.app.core.high_performance_engine import HighPerformanceExecutionEngine
 from agent.filter_engine import FilterEngine
 from agent.agents import AnalysisAgent, ReportAgent
 from agent.dynamic_planner import DynamicTaskPlanner
@@ -37,7 +37,7 @@ def test_1_execution_engine_grouped_aggregation(sales_df):
     res = engine.aggregate(
         sales_df,
         group_by=["product", "region"],
-        metrics={"sales": ["sum"], "units": ["sum"]},
+        aggregations={"sales": ["sum"], "units": ["sum"]},
         sort_by="sales_sum",
         ascending=False,
     )
@@ -115,7 +115,7 @@ def test_5_dynamic_task_planner_full_plan_and_execution(sales_df, repro_query):
     assert plan.steps[0].action == "group_by"
 
     out = planner.execute_plan(plan, sales_df)
-    assert out.plan_id == plan.plan_id
+    assert out.is_success
     step1_out = out.output["step_outputs"][str(plan.steps[0].step_id)]
     assert len(step1_out["grouped_records"]) == 6
 
@@ -162,7 +162,7 @@ def test_8_api_analyze_endpoint(sales_df, repro_query):
 
 def test_9_chat_agent_command_result(sales_df, repro_query):
     agent = ChatAgent()
-    resp = agent.respond(repro_query, dataframe=sales_df)
+    resp = agent.respond(dataframe=sales_df, message=repro_query)
     assert resp.status == "success"
     assert "Laptop / West" in resp.message
     assert "Tablet / South" in resp.message
