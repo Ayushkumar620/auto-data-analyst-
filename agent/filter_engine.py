@@ -21,15 +21,10 @@ LOGICAL_MODIFIERS = {
     "either of", "one of", "any of",
 }
 
-# Non-value stopwords in SQL/analytical queries
-STOPWORDS = {
+# Pure grammatical function words that can never be categorical values
+GRAMMAR_STOPWORDS = {
     "the", "a", "an", "and", "or", "of", "to", "in", "for", "these", "those",
-    "this", "that", "filtered", "records", "rows", "only", "all", "show",
-    "calculate", "compute", "me", "is", "are", "where", "with", "from", "be",
-    "can", "either", "each", "by", "do", "not", "include", "fail", "condition",
-    "conditions", "result", "results", "showing", "break", "down", "breakdown",
-    "also", "identify", "which", "has", "highest", "lowest", "average", "total",
-    "units", "sales", "sold", "matching", "fail", "causal", "claims", "claim",
+    "this", "that", "where", "with", "from", "is", "are", "be", "by", "do", "not",
 }
 
 
