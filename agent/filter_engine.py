@@ -572,7 +572,7 @@ class FilterEngine:
             candidates = list(col_map.values())
         else:
             raw_tokens = re.findall(r"\b([a-zA-Z_][a-zA-Z0-9_]*)\b", q)
-            candidates = [c for c in raw_tokens if c.lower() not in STOPWORDS]
+            candidates = [c for c in raw_tokens if c.lower() not in GRAMMAR_STOPWORDS]
 
         for col in candidates:
             c_esc = re.escape(col)
