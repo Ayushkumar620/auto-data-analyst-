@@ -892,17 +892,40 @@ class DynamicTaskPlanner(BaseAgent):
             )
             step_counter += 1
         else:
-            target = intent_res.target_column or knowledge.get_primary_metric()
-            steps.append(
-                PlanStep(
-                    step_id=main_step_id,
-                    name=f"Exploratory Data Analysis on '{target or 'dataset'}'",
-                    agent_class_name="AnalysisAgent",
-                    action="summary",
-                    parameters={"request": "summary"},
-                    dependencies=primary_deps,
+            from agent.filter_engine import FilterEngine
+            cols = list(dataframe.columns) if dataframe is not None else []
+            q_plan = FilterEngine.parse_query_plan(query, cols, dataframe)
+            if q_plan.group_by or q_plan.ranking or q_plan.secondary_analysis or q_plan.filter is not None:
+                steps.append(
+                    PlanStep(
+                        step_id=main_step_id,
+                        name="Grouped Aggregation & Analytical Query Execution",
+                        agent_class_name="AnalysisAgent",
+                        action="group_by",
+                        parameters={
+                            "request": "group_by",
+                            "group_by": q_plan.group_by,
+                            "aggregations": q_plan.aggregations,
+                            "ranking": q_plan.ranking,
+                            "extremes": q_plan.extremes,
+                            "secondary_analysis": q_plan.secondary_analysis,
+                            "query": query,
+                        },
+                        dependencies=primary_deps,
+                    )
                 )
-            )
+            else:
+                target = intent_res.target_column or knowledge.get_primary_metric()
+                steps.append(
+                    PlanStep(
+                        step_id=main_step_id,
+                        name=f"Exploratory Data Analysis on '{target or 'dataset'}'",
+                        agent_class_name="AnalysisAgent",
+                        action="summary",
+                        parameters={"request": "summary"},
+                        dependencies=primary_deps,
+                    )
+                )
             step_counter += 1
 
         if intent_res.needs_explanation or intent_res.primary_intent == AnalyticalIntent.EXPLANATION:
@@ -932,6 +955,21 @@ class DynamicTaskPlanner(BaseAgent):
                 dependencies=all_prior_step_ids,
             )
         )
+
+        from agent.filter_engine import FilterEngine
+        cols = list(dataframe.columns) if dataframe is not None else []
+        q_plan = FilterEngine.parse_query_plan(query, cols, dataframe)
+        rank_str = f"{q_plan.ranking.get('column')} {q_plan.ranking.get('direction', '').upper()}" if q_plan.ranking else "None"
+        filt_str = q_plan.filter.to_expression() if q_plan.filter else "None"
+        diag_plan = (
+            f"\nPLAN\n"
+            f"group_by={q_plan.group_by}\n"
+            f"filter={filt_str}\n"
+            f"ranking={rank_str}\n"
+        )
+        print(diag_plan)
+        import logging
+        logging.getLogger("diagnostic").info(diag_plan)
 
         return TaskPlan(
             plan_id=f"plan_{uuid.uuid4().hex[:8]}",

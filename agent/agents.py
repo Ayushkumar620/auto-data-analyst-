@@ -149,6 +149,60 @@ class AnalysisAgent(BaseAgent):
             analyzer = DataAnalyzer(data)
             response = {}
 
+            if request in ("group_by", "aggregate", "aggregation", "analytical_query") or "group_by" in task:
+                from agent.filter_engine import FilterEngine
+                df = data if isinstance(data, pd.DataFrame) else pd.DataFrame(data)
+                cmd = task.get("query") or ""
+                if not cmd and "group_by" in task:
+                    grp_cols = task["group_by"]
+                    if isinstance(grp_cols, str):
+                        grp_cols = [grp_cols]
+                    cmd = f"Analyze by {' and '.join(grp_cols)}"
+                filter_res = FilterEngine.execute(df, cmd)
+                response = {
+                    "request": "group_by",
+                    "grouped_records": filter_res.grouped_records,
+                    "highest_record": filter_res.highest_record,
+                    "lowest_record": filter_res.lowest_record,
+                    "secondary_results": filter_res.secondary_results,
+                    "markdown_response": filter_res.markdown_response,
+                    "aggregations": filter_res.aggregations,
+                    "group_by": filter_res.group_by,
+                    "ranking": filter_res.query_plan.get("ranking") if filter_res.query_plan else None,
+                    "reports": filter_res.grouped_records,
+                    "filter": filter_res.filter_description,
+                    "matching_rows": filter_res.matching_rows,
+                    "total_rows": filter_res.total_rows,
+                }
+                
+                # Diagnostic output
+                diag_msg = (
+                    f"\nANALYSIS_RESULT\n"
+                    f"type={type(response).__name__}\n"
+                    f"keys={list(response.keys())}\n"
+                )
+                print(diag_msg)
+                import logging
+                logging.getLogger("diagnostic").info(diag_msg)
+
+                evidence = [
+                    self.make_evidence(
+                        method="HighPerformanceExecutionEngine.aggregate",
+                        data_ref={
+                            "group_by": filter_res.group_by,
+                            "aggregations": list(filter_res.aggregations.keys()) if filter_res.aggregations else [],
+                            "groups_count": len(filter_res.grouped_records) if filter_res.grouped_records else 0,
+                        },
+                        confidence=1.0,
+                        claim_type=ClaimType.FACT,
+                    )
+                ]
+                return self._finish(
+                    response,
+                    evidence=evidence,
+                    confidence=1.0,
+                )
+
             if request in ("summary", "overview", "info"):
                 request = "summary"
                 response = analyzer.summary()
@@ -583,8 +637,29 @@ class ReportAgent(BaseAgent):
             completed_count = sum(
                 1 for out in agent_outputs if str(out.get("status", "")).lower() in ("completed", "success")
             )
+            report_dict = {"report": report}
+            for out in agent_outputs:
+                out_dict = out.get("output") if isinstance(out, dict) else (getattr(out, "data", None) or getattr(out, "output", None) or {})
+                if isinstance(out_dict, dict) and "grouped_records" in out_dict:
+                    report_dict["grouped_records"] = out_dict["grouped_records"]
+                    report_dict["highest_record"] = out_dict.get("highest_record")
+                    report_dict["lowest_record"] = out_dict.get("lowest_record")
+                    report_dict["secondary_results"] = out_dict.get("secondary_results")
+                    report_dict["aggregations"] = out_dict.get("aggregations")
+                    break
+
+            # Diagnostic output
+            diag_msg = (
+                f"\nREPORT_RESULT\n"
+                f"type=dict\n"
+                f"keys={list(report_dict.keys())}\n"
+            )
+            print(diag_msg)
+            import logging
+            logging.getLogger("diagnostic").info(diag_msg)
+
             return self._finish(
-                {"report": report},
+                report_dict,
                 evidence=evidence,
                 confidence=0.9 if completed_count else 0.0,
                 metadata={"upstream_agents": len(agent_outputs),
@@ -635,14 +710,21 @@ class ReportAgent(BaseAgent):
                 continue
             output = out.get("output", {})
             agent_name = out.get("agent", "")
-            if "reports" in output:
+            if "markdown_response" in output:
+                lines.append(f"### {agent_name} - Analytical Results")
+                lines.append(output["markdown_response"])
+            elif "reports" in output:
                 rep = output["reports"]
                 if isinstance(rep, list) and rep:
                     first = rep[0]
-                    if "shape" in first:
+                    if isinstance(first, dict) and "shape" in first:
                         lines.append(f"### {agent_name} - Data Shape")
                         lines.append(f"- Rows: {first['shape']['rows']}, Columns: {first['shape']['columns']}")
                         lines.append(f"- Columns: {', '.join(first.get('columns', []))}")
+                    elif isinstance(first, dict) and ("product" in first or "sales" in first):
+                        lines.append(f"### {agent_name} - Grouped Results")
+                        for r in rep:
+                            lines.append(f"- {r}")
             elif "result" in output and isinstance(output["result"], dict):
                 res = output["result"]
                 if "value" in res:
