@@ -488,22 +488,20 @@ class FilterEngine:
             if v.strip()
         ]
 
-        # Clean and filter candidate values (Step 7 & Step 10: NEVER allow 'either' or stopwords)
-        clean_vals = [
-            v for v in raw_vals
-            if v.lower() not in LOGICAL_MODIFIERS and v.lower() not in STOPWORDS
-        ]
-
-        # Schema validation (Step 10: validate against dataframe unique values if available)
+        # Clean and filter candidate values (Step 7 & Step 10: NEVER allow 'either' or grammar stopwords)
+        actual_uniques = {}
         if dataframe is not None and col_name in dataframe.columns:
             actual_uniques = {str(x).strip().lower(): str(x) for x in dataframe[col_name].dropna().unique()}
-            validated_vals = []
-            for cv in clean_vals:
-                if cv.lower() in actual_uniques:
-                    validated_vals.append(actual_uniques[cv.lower()])
-                else:
-                    validated_vals.append(cv)
-            clean_vals = validated_vals
+
+        clean_vals = []
+        for v in raw_vals:
+            v_low = v.lower()
+            if v_low in LOGICAL_MODIFIERS:
+                continue
+            if v_low in actual_uniques:
+                clean_vals.append(actual_uniques[v_low])
+            elif v_low not in GRAMMAR_STOPWORDS:
+                clean_vals.append(v)
 
         if not clean_vals:
             return None
