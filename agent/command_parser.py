@@ -306,7 +306,8 @@ class CommandParser:
             charts = self.visualizer.chart(chart_type=ctype, x=intent.column or None, y=intent.column or None)
             return {"type": "chart", "charts": charts}
 
-        if intent.action == "filter" or FilterEngine.has_filter_intent(command):
+        _cmd_plan = FilterEngine.parse_query_plan(command, dataframe=self._get_dataframe())
+        if intent.action == "filter" or FilterEngine.has_filter_intent(command) or _cmd_plan.filter is not None or bool(_cmd_plan.group_by and (len(_cmd_plan.group_by) > 1 or _cmd_plan.ranking or _cmd_plan.secondary_analysis)):
             df = self._get_dataframe()
             if df is not None:
                 filter_res = FilterEngine.execute(df, command)
@@ -319,6 +320,12 @@ class CommandParser:
                     "markdown_response": filter_res.markdown_response,
                     "filtered_data": filter_res.filtered_df.head(10).to_dict(orient="records"),
                     "columns": filter_res.columns,
+                    "group_by": filter_res.group_by,
+                    "grouped_records": filter_res.grouped_records,
+                    "highest_record": filter_res.highest_record,
+                    "lowest_record": filter_res.lowest_record,
+                    "secondary_results": filter_res.secondary_results,
+                    "query_plan": filter_res.query_plan,
                 }
 
         if intent.action == "summary":
