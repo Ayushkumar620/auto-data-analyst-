@@ -578,6 +578,16 @@ class InsightsEngine:
         if not target_col:
             return {"error": "No numeric column found for aggregation."}
 
+        # Apply row-level filter expressions if present
+        from agent.filter_engine import FilterEngine
+        raw_cmd = getattr(intent, "raw", "")
+        f_expr = getattr(intent, "filter_expr", None) or (FilterEngine.parse_filters(raw_cmd, columns=list(df.columns)) if raw_cmd else None)
+        if f_expr:
+            mask = f_expr.evaluate(df)
+            df = df[mask].copy()
+            result["filter_applied"] = [c.raw_expression for c in f_expr.conditions if hasattr(c, "raw_expression")]
+            result["matching_rows"] = int(len(df))
+
         # Apply time filter if a date column exists
         date_col = None
         for col in df.columns:

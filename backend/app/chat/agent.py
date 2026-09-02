@@ -21,6 +21,32 @@ class ChatAgent:
         group = self._group(mentioned, dataframe, context)
         if self._ambiguous(text, metric, group):
             return ChatResponse("How should I define best—highest sales, highest profit, or most units sold?", "clarification", "needs_clarification", suggested_questions=self._metric_questions(dataframe))
+        
+        from agent.filter_engine import FilterEngine
+        if FilterEngine.has_filter_intent(text):
+            filter_res = FilterEngine.execute(dataframe, message)
+            evidence = {
+                "filter": filter_res.filter_description,
+                "matching_rows": filter_res.matching_rows,
+                "total_rows": filter_res.total_rows,
+                "aggregations": filter_res.aggregations,
+                "columns": filter_res.columns,
+            }
+            return ChatResponse(
+                filter_res.markdown_response,
+                "filtering",
+                "success",
+                evidence=evidence,
+                command_result={
+                    "filter": filter_res.filter_description,
+                    "matching_rows": filter_res.matching_rows,
+                    "total_rows": filter_res.total_rows,
+                    "aggregations": filter_res.aggregations,
+                    "filtered_data": filter_res.filtered_df.head(10).to_dict(orient="records"),
+                },
+                suggested_questions=self._metric_questions(dataframe),
+            )
+
         if any(word in text for word in ("schema", "columns", "fields")):
             evidence = self.tools.execute("get_dataset_schema", dataframe)
             return ChatResponse(f"This dataset has {evidence['rows']} rows and these columns: {', '.join(evidence['columns'])}.", "schema", "success", evidence, suggested_questions=self._metric_questions(dataframe))
