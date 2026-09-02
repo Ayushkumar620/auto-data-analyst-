@@ -399,6 +399,10 @@ class UniversalOrchestrator:
         if any(w in cmd_lower for w in ("clean", "transform", "preprocess", "impute", "encode", "scale")):
             needs_transform = True
 
+        from agent.filter_engine import FilterEngine
+        q_plan = FilterEngine.parse_query_plan(cmd_clean, list(df.columns), df)
+        needs_aggregation = bool(q_plan.group_by or q_plan.ranking or q_plan.secondary_analysis or q_plan.filter is not None)
+
         # Default to primary intent if no specific sub-flags matched
         if not any([needs_eda, needs_anomaly, needs_clustering, needs_stats, needs_hyp, needs_forecast, needs_prediction, needs_transform]):
             if primary_intent == "forecasting":
@@ -451,6 +455,28 @@ class UniversalOrchestrator:
             tasks.append(t_eda)
             eda_task_id = t_eda.task_id
             dependencies[eda_task_id] = []
+
+        if needs_aggregation:
+            t_agg = PlanTask(
+                task_id=f"task_agg_{uuid.uuid4().hex[:6]}",
+                task_type="aggregation",
+                tool_name="aggregation",
+                agent_name="Analysis Agent",
+                purpose="Execute analytical grouping, multi-dimensional combinations, and metric ranking.",
+                parameters={
+                    "request": "group_by",
+                    "group_by": q_plan.group_by,
+                    "aggregations": q_plan.aggregations,
+                    "ranking": q_plan.ranking,
+                    "extremes": q_plan.extremes,
+                    "secondary_analysis": q_plan.secondary_analysis,
+                    "query": cmd_clean,
+                },
+                dependencies=[eda_task_id] if eda_task_id else [],
+                priority=2 if eda_task_id else 1,
+            )
+            tasks.append(t_agg)
+            dependencies[t_agg.task_id] = [eda_task_id] if eda_task_id else []
 
         if needs_transform:
             t_trans = PlanTask(
