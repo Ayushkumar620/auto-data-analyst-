@@ -895,15 +895,14 @@ class FilterEngine:
 
         matching_rows = len(filtered_df)
 
-        # Default aggregations for sales/units if none explicitly parsed but columns exist in dataset
+        # Default aggregations for numeric columns if none explicitly parsed but columns exist in dataset
         if not aggs and matching_rows > 0:
             default_aggs = []
-            if "sales" in df.columns and re.search(r"\bsales\b", query, re.I):
-                default_aggs.append(AggregationRequest(column="sales", function="sum", display_name="Total Sales"))
-            if "units" in df.columns and re.search(r"\bunits\b", query, re.I):
-                default_aggs.append(AggregationRequest(column="units", function="sum", display_name="Total Units"))
-            if re.search(r"\baverage\s+sales\b", query, re.I) and "sales" in df.columns:
-                default_aggs.append(AggregationRequest(column="sales", function="mean", display_name="Average Sales"))
+            num_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c]) and c.lower() not in ("id", "index", "discount")]
+            for nc in num_cols[:2]:
+                default_aggs.append(AggregationRequest(column=nc, function="sum", display_name=f"Total {nc.title()}"))
+                if nc.lower() in ("sales", "revenue", "amount", "price", "salary"):
+                    default_aggs.append(AggregationRequest(column=nc, function="mean", display_name=f"Average {nc.title()}"))
             aggs = default_aggs
 
         # Compute top-level aggregations
@@ -926,7 +925,8 @@ class FilterEngine:
                     val = int(len(series))
 
                 formatted_val = f"{int(val):,}" if val.is_integer() else f"{val:,.2f}"
-                agg_results[resolved_col] = {
+                key = resolved_col if resolved_col not in agg_results else f"{resolved_col}_{agg.function}"
+                agg_results[key] = {
                     "function": agg.function,
                     "value": val,
                     "formatted": formatted_val,
@@ -935,7 +935,7 @@ class FilterEngine:
 
         # Check for highest sales record (Step 7 requirement)
         highest_record_dict = None
-        if matching_rows > 0 and re.search(r"\bhighest(?:\s+sales)?(?:\s+record)?\b", query, re.I) and "sales" in filtered_df.columns:
+        if matching_rows > 0 and "sales" in filtered_df.columns:
             try:
                 max_idx = filtered_df["sales"].idxmax()
                 max_row = filtered_df.loc[max_idx]
