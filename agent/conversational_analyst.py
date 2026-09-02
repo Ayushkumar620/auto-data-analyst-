@@ -340,9 +340,10 @@ class ConversationalAnalystAgent(BaseAgent):
                     "turn_id": turn.turn_id,
                 }
 
-        # 5c. Handle Filtering & Filtered Aggregations
+        # 5c. Handle Filtering, Grouping & Analytical Plans
         from agent.filter_engine import FilterEngine
-        if intent == ConversationalIntent.FILTER or FilterEngine.has_filter_intent(command):
+        _conv_plan = FilterEngine.parse_query_plan(command, dataframe=df)
+        if intent == ConversationalIntent.FILTER or FilterEngine.has_filter_intent(command) or _conv_plan.filter is not None or bool(_conv_plan.group_by and (len(_conv_plan.group_by) > 1 or _conv_plan.ranking or _conv_plan.secondary_analysis)):
             filter_res = FilterEngine.execute(df, command)
             final_response = filter_res.markdown_response
 
