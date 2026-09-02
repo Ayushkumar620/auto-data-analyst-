@@ -79,9 +79,6 @@ export default function AnalysisDetailPage() {
           <h2 className="section-title" style={{ margin: '0 0 0.5rem', color: 'var(--primary)' }}>
             Executive Synthesis & Findings
           </h2>
-          <p style={{ margin: 0, fontSize: '0.96rem', lineHeight: 1.65, color: 'var(--ink)', whiteSpace: 'pre-wrap' }}>
-            {analysis.final_explanation}
-          </p>
           <AnalysisResponseRenderer content={analysis.final_explanation} />
         </div>
       )}
