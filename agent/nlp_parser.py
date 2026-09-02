@@ -19,7 +19,6 @@ class CommandIntent:
     """Represents the parsed intent of a natural language command."""
 
     def __init__(self):
-        self.action = ""            # summary, chart, predict, text, transaction, etc.
         self.action = ""            # summary, chart, predict, text, transaction, filter, etc.
         self.metric = ""            # total, sum, average, count, max, min
         self.amount_type = ""       # paid, received, debit, credit
@@ -120,7 +119,6 @@ class NLPCommandParser:
         return self.intent
 
     def _detect_action(self, text):
-        if any(kw in text for kw in self.FORECAST_KEYWORDS):
         if FilterEngine.has_filter_intent(text):
             self.intent.action = "filter"
         elif any(kw in text for kw in self.FORECAST_KEYWORDS):
@@ -138,7 +136,6 @@ class NLPCommandParser:
         elif any(kw in text for kw in self.UNIQUE_KEYWORDS):
             self.intent.action = "unique"
         elif any(kw in text for kw in self.HEAD_KEYWORDS) and any(w in text for w in ["data", "rows", "table", "record"]):
-            self.intent.action = "head"
             if FilterEngine.is_legitimate_preview_request(text):
                 self.intent.action = "head"
             else:

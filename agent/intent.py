@@ -828,7 +828,6 @@ class IntentAnalyzer:
                 matched_intents.append(intent)
                 reasoning.append(f"Matched {intent.value} via keywords: {', '.join(hits)}")
 
-        # Distinguish prediction vs forecasting vs deep learning vs correlation vs hypothesis testing
         from agent.filter_engine import FilterEngine
         if FilterEngine.has_filter_intent(query):
             matched_intents.insert(0, AnalyticalIntent.FILTERING)
@@ -838,7 +837,6 @@ class IntentAnalyzer:
         primary = AnalyticalIntent.EDA
         secondary: List[AnalyticalIntent] = []
 
-        if AnalyticalIntent.CNN in matched_intents:
         if AnalyticalIntent.FILTERING in matched_intents:
             primary = AnalyticalIntent.FILTERING
         elif AnalyticalIntent.CNN in matched_intents:
