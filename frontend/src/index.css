@@ -44,6 +44,70 @@
   --radius-md: 14px;
   --radius-lg: 20px;
   --radius-full: 9999px;
+
+  /* Data Preview & Table Tokens — Light Theme (Default) */
+  --preview-card-bg: var(--panel, rgba(255, 255, 255, 0.92));
+  --preview-card-border: var(--border, rgba(226, 232, 240, 0.9));
+  --preview-table-bg: var(--surface, #ffffff);
+  --preview-header-bg: #f8fafc;
+  --preview-header-text: #1e293b;
+  --preview-row-even: #ffffff;
+  --preview-row-odd: #fcfdfe;
+  --preview-row-hover: #f1f5f9;
+  --preview-row-border: #f1f5f9;
+  --preview-text-primary: #0f172a;
+  --preview-text-secondary: #64748b;
+  --preview-cell-border: #f8fafc;
+  --preview-badge-bg: #f1f5f9;
+  --preview-badge-text: #475569;
+  --preview-badge-border: #e2e8f0;
+  --preview-null-text: #94a3b8;
+  --preview-icon-color: var(--primary, #4f46e5);
+}
+
+/* Dark Theme Tokens for Data Preview & Tables */
+.dark,
+[data-theme='dark'],
+body.dark {
+  --preview-card-bg: rgba(30, 41, 59, 0.65);
+  --preview-card-border: rgba(255, 255, 255, 0.1);
+  --preview-table-bg: rgba(15, 23, 42, 0.8);
+  --preview-header-bg: rgba(30, 41, 59, 0.9);
+  --preview-header-text: #f8fafc;
+  --preview-row-even: rgba(15, 23, 42, 0.6);
+  --preview-row-odd: rgba(20, 30, 50, 0.6);
+  --preview-row-hover: rgba(99, 102, 241, 0.15);
+  --preview-row-border: rgba(255, 255, 255, 0.07);
+  --preview-text-primary: #f1f5f9;
+  --preview-text-secondary: #94a3b8;
+  --preview-cell-border: rgba(255, 255, 255, 0.05);
+  --preview-badge-bg: rgba(99, 102, 241, 0.15);
+  --preview-badge-text: #a5b4fc;
+  --preview-badge-border: rgba(99, 102, 241, 0.35);
+  --preview-null-text: #64748b;
+  --preview-icon-color: #818cf8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --preview-card-bg: rgba(30, 41, 59, 0.65);
+    --preview-card-border: rgba(255, 255, 255, 0.1);
+    --preview-table-bg: rgba(15, 23, 42, 0.8);
+    --preview-header-bg: rgba(30, 41, 59, 0.9);
+    --preview-header-text: #f8fafc;
+    --preview-row-even: rgba(15, 23, 42, 0.6);
+    --preview-row-odd: rgba(20, 30, 50, 0.6);
+    --preview-row-hover: rgba(99, 102, 241, 0.15);
+    --preview-row-border: rgba(255, 255, 255, 0.07);
+    --preview-text-primary: #f1f5f9;
+    --preview-text-secondary: #94a3b8;
+    --preview-cell-border: rgba(255, 255, 255, 0.05);
+    --preview-badge-bg: rgba(99, 102, 241, 0.15);
+    --preview-badge-text: #a5b4fc;
+    --preview-badge-border: rgba(99, 102, 241, 0.35);
+    --preview-null-text: #64748b;
+    --preview-icon-color: #818cf8;
+  }
 }
 
 * {
@@ -573,4 +637,156 @@ button {
 .result-table td:last-child {
   border-right: none;
 }
+
+/* ==========================================================================
+   Data Preview BI Dashboard Card & Table Styling
+   ========================================================================== */
+.data-preview-card {
+  background: var(--preview-card-bg);
+  border: 1px solid var(--preview-card-border);
+  border-radius: var(--radius-md, 14px);
+  padding: 1.25rem;
+  box-shadow: 0 4px 20px -4px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.data-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.data-preview-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.data-preview-icon-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--preview-badge-bg);
+  color: var(--preview-icon-color);
+  border: 1px solid var(--preview-badge-border);
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.data-preview-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-family: var(--font-heading, sans-serif);
+  color: var(--preview-text-primary);
+  line-height: 1.2;
+}
+
+.data-preview-subtitle {
+  margin: 0.15rem 0 0 0;
+  font-size: 0.78rem;
+  color: var(--preview-text-secondary);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.data-preview-count-pill {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--preview-badge-text);
+  background: var(--preview-badge-bg);
+  border: 1px solid var(--preview-badge-border);
+  padding: 0.25rem 0.65rem;
+  border-radius: 20px;
+  letter-spacing: 0.02em;
+}
+
+.data-preview-table-container {
+  overflow-x: auto;
+  max-width: 100%;
+  border-radius: var(--radius-sm, 10px);
+  border: 1px solid var(--preview-card-border);
+  background: var(--preview-table-bg);
+  margin: 0;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+}
+
+.data-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+  font-family: var(--font-main, sans-serif);
+  text-align: left;
+}
+
+.data-preview-table thead tr {
+  background: var(--preview-header-bg);
+  border-bottom: 2px solid var(--preview-card-border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.data-preview-table th {
+  padding: 0.7rem 1rem;
+  font-size: 0.80rem;
+  font-weight: 600;
+  color: var(--preview-header-text);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  border-right: 1px solid var(--preview-cell-border);
+}
+
+.data-preview-table th:last-child {
+  border-right: none;
+}
+
+.data-preview-table tbody tr {
+  border-bottom: 1px solid var(--preview-row-border);
+  transition: background-color 140ms ease;
+}
+
+.data-preview-table tbody tr:nth-child(even) {
+  background: var(--preview-row-even);
+}
+
+.data-preview-table tbody tr:nth-child(odd) {
+  background: var(--preview-row-odd);
+}
+
+.data-preview-table tbody tr:hover {
+  background: var(--preview-row-hover);
+}
+
+.data-preview-table td {
+  padding: 0.6rem 1rem;
+  font-size: 0.82rem;
+  color: var(--preview-text-primary);
+  border-right: 1px solid var(--preview-cell-border);
+  white-space: nowrap;
+}
+
+.data-preview-table td:last-child {
+  border-right: none;
+}
+
+.data-preview-null-cell {
+  color: var(--preview-null-text);
+  font-style: italic;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
 
