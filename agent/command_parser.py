@@ -217,8 +217,37 @@ class CommandParser:
                     "charts": charts,
                     "available_types": list(self.visualizer.SUPPORTED_CHARTS.keys()),
                 }
+            elif action == "filter":
+                df = self._get_dataframe()
+                if df is not None:
+                    filter_res = FilterEngine.execute(df, command)
+                    return {
+                        "type": "filter_result",
+                        "filter": filter_res.filter_description,
+                        "matching_rows": filter_res.matching_rows,
+                        "total_rows": filter_res.total_rows,
+                        "aggregations": filter_res.aggregations,
+                        "markdown_response": filter_res.markdown_response,
+                        "filtered_data": filter_res.filtered_df.head(10).to_dict(orient="records"),
+                        "columns": filter_res.columns,
+                    }
         except Exception as e:
             return {"type": "error", "message": f"Error executing command: {str(e)}"}
+        return None
+
+    def _get_dataframe(self):
+        """Helper to get active DataFrame from data or analyzer."""
+        import pandas as pd
+        if isinstance(self.data, pd.DataFrame):
+            return self.data
+        if hasattr(self.analyzer, "_get_main_df"):
+            name, df = self.analyzer._get_main_df()
+            if df is not None:
+                return df
+        if isinstance(self.data, dict):
+            for v in self.data.values():
+                if isinstance(v, pd.DataFrame) and not v.empty:
+                    return v
         return None
 
     def _summary_with_transactions(self):

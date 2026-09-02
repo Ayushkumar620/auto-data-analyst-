@@ -351,6 +351,16 @@ def _build_chat_answer(result):
     if rtype == "error":
         return result.get("message", "I couldn't analyze that.")
 
+    if rtype == "filter_result":
+        matching = result.get("matching_rows", 0)
+        total = result.get("total_rows", 0)
+        f_desc = result.get("filter", "Filter")
+        aggs = result.get("aggregations", {})
+        parts = [f"Filtered Records: {matching} (out of {total}) for {f_desc}"]
+        for agg in aggs.values():
+            parts.append(f"{agg['display_name']}: {agg['formatted']}")
+        return "\n".join(parts)
+
     if rtype == "summary":
         reps = result.get("reports", [])
         if reps:

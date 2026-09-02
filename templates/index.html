@@ -540,6 +540,8 @@
                 renderCorrelation(data.reports);
             } else if (data.type === 'head') {
                 renderHead(data.reports);
+            } else if (data.type === 'filter_result') {
+                renderFilterResult(data);
             } else if (data.type === 'unique') {
                 renderUnique(data.reports);
             } else if (data.type === 'text') {
