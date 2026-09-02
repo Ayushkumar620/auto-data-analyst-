@@ -145,14 +145,15 @@ function tryParseSummaryData(content: string) {
       if (isTableRow(pl)) {
         if (!isTableSeparator(pl)) {
           const cells = splitRowCells(pl);
-          if (
-            previewHeaders.length === 0 &&
-            j + 1 < previewLines.length &&
-            isTableSeparator(previewLines[j + 1])
-          ) {
+          if (previewHeaders.length === 0) {
             previewHeaders = cells;
-            j++; // skip separator
-          } else if (previewHeaders.length > 0) {
+            if (
+              j + 1 < previewLines.length &&
+              isTableSeparator(previewLines[j + 1])
+            ) {
+              j++; // skip separator
+            }
+          } else {
             const rowObj: Record<string, unknown> = {};
             previewHeaders.forEach((h, idx) => {
               const val = cells[idx] ?? '';
