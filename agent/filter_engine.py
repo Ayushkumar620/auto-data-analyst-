@@ -1192,6 +1192,7 @@ class FilterEngine:
 
         # Secondary Analysis Execution (e.g. average sales for each product)
         secondary_lines = []
+        sec_results = []
         if plan.secondary_analysis and matching_rows > 0:
             for sec in plan.secondary_analysis:
                 sec_dim = sec["group_by"][0]
@@ -1199,11 +1200,20 @@ class FilterEngine:
                 sec_fn = sec["function"]
                 sec_df = filtered_df.groupby(sec_dim)[sec_met].agg(sec_fn).reset_index()
 
+                sec_records = []
                 secondary_lines.append(f"\n### {sec['display']} by {sec_dim.title()}:\n")
                 for _, r in sec_df.iterrows():
                     val = float(r[sec_met])
                     fmt = f"{int(val):,}" if val.is_integer() else f"{val:,.2f}"
                     secondary_lines.append(f"- **{r[sec_dim]}**: **{fmt}**")
+                    sec_records.append({sec_dim: str(r[sec_dim]), sec_met: val, "formatted": fmt})
+                sec_results.append({
+                    "group_by": sec_dim,
+                    "metric": sec_met,
+                    "function": sec_fn,
+                    "display": sec["display"],
+                    "records": sec_records,
+                })
 
         # Format markdown response
         lines = [
@@ -1267,7 +1277,9 @@ class FilterEngine:
             breakdowns={},
             filter_ast=filter_ast,
             highest_record=highest_record_dict,
+            lowest_record=lowest_record_dict if plan.group_by else None,
             query_plan=plan.to_dict(),
             group_by=plan.group_by,
             grouped_records=grouped_records,
+            secondary_results=sec_results,
         )
