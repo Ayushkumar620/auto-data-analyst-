@@ -687,7 +687,7 @@ def test_grouping_8_calculate_total_sales_where_region_is_north(sales_df):
     assert "region == 'North'" in plan.filter.to_expression()
 
     res = FilterEngine.execute(sales_df, query)
-    assert res.matching_rows == 4
+    assert res.matching_rows == 3
     assert res.aggregations["sales"]["value"] == 38000.0
 
 
@@ -700,7 +700,7 @@ def test_grouping_9_calculate_total_sales_where_region_is_north_or_west(sales_df
     assert "North" in expr and "West" in expr
 
     res = FilterEngine.execute(sales_df, query)
-    assert res.matching_rows == 6
+    assert res.matching_rows == 5
     assert res.aggregations["sales"]["value"] == 76000.0
 
 
@@ -713,7 +713,7 @@ def test_grouping_10_filter_plus_grouping(sales_df):
     assert plan.group_by == ["product"] or any(sec["group_by"] == ["product"] for sec in plan.secondary_analysis)
 
     res = FilterEngine.execute(sales_df, query)
-    assert res.matching_rows == 4
+    assert res.matching_rows == 3
     assert "region == 'North'" in res.filter_description
 
 

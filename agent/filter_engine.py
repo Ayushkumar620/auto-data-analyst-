@@ -737,17 +737,19 @@ class FilterEngine:
             if v_low in LOGICAL_MODIFIERS:
                 continue
 
-            # Check if token contains analytical instructions or verbs
+            # Check actual dataset uniques first!
+            if actual_uniques:
+                if v_low in actual_uniques:
+                    clean_vals.append(actual_uniques[v_low])
+                continue
+
+            # Fallback if dataframe not provided:
             v_tokens = set(v_low.split())
             if v_tokens.intersection(ANALYTICAL_INSTRUCTION_KEYWORDS):
                 continue
             if len(v_tokens) > 3:
                 continue
-
-            if actual_uniques:
-                if v_low in actual_uniques:
-                    clean_vals.append(actual_uniques[v_low])
-            elif v_low not in GRAMMAR_STOPWORDS:
+            if v_low not in GRAMMAR_STOPWORDS:
                 clean_vals.append(v)
 
         if not clean_vals:
@@ -1215,6 +1217,48 @@ class FilterEngine:
                     "records": sec_records,
                 })
 
+        # Compute dimensional breakdowns
+        b_reqs = breakdown_requests if breakdown_requests is not None else cls.parse_breakdowns(query, columns=cols)
+        breakdowns_output: Dict[str, Any] = {}
+        for breq in b_reqs:
+            dim_col = next((col for col in filtered_df.columns if col.lower() == breq.dimension.lower()), None)
+            if not dim_col or filtered_df.empty:
+                continue
+
+            agg_dict = {}
+            for met, fn in breq.metrics:
+                m_col = next((col for col in filtered_df.columns if col.lower() == met.lower()), None)
+                if m_col:
+                    agg_dict[m_col] = fn
+
+            if not agg_dict:
+                continue
+
+            grouped = filtered_df.groupby(dim_col).agg(agg_dict).reset_index()
+            records = []
+            for _, grow in grouped.iterrows():
+                rec = {dim_col: str(grow[dim_col])}
+                for m_col, fn in agg_dict.items():
+                    val = float(grow[m_col])
+                    rec[m_col] = val
+                    rec[f"{m_col}_formatted"] = f"{int(val):,}" if val.is_integer() else f"{val:,.2f}"
+                records.append(rec)
+
+            b_data: Dict[str, Any] = {"dimension": dim_col, "records": records}
+
+            if breq.find_highest and breq.extreme_metric:
+                m_col = next((col for col in filtered_df.columns if col.lower() == breq.extreme_metric.lower()), None)
+                if m_col and records:
+                    highest_rec = max(records, key=lambda r: r.get(m_col, 0))
+                    b_data["highest"] = {
+                        dim_col: highest_rec[dim_col],
+                        "metric": m_col,
+                        "value": highest_rec[m_col],
+                        "formatted": highest_rec[f"{m_col}_formatted"],
+                    }
+
+            breakdowns_output[dim_col] = b_data
+
         # Format markdown response
         lines = [
             f"🎯 **Analytical Query Result**:\n",
@@ -1231,6 +1275,30 @@ class FilterEngine:
         if grouped_summary_lines:
             lines.extend(grouped_summary_lines)
 
+        # Format breakdowns if not already covered by grouped_summary_lines
+        if not grouped_summary_lines and breakdowns_output:
+            for dim_col, b_data in breakdowns_output.items():
+                records = b_data.get("records", [])
+                if not records:
+                    continue
+                metric_keys = [k for k in records[0].keys() if k != dim_col and not k.endswith("_formatted")]
+                if len(metric_keys) >= 2:
+                    lines.append(f"\n### {dim_col.title()} Breakdown:\n")
+                    headers = [dim_col.title()] + [k.title() for k in metric_keys]
+                    lines.append("| " + " | ".join(headers) + " |")
+                    lines.append("| :--- | " + " | ".join(["---:"] * len(metric_keys)) + " |")
+                    for r in records:
+                        row_vals = [r[dim_col]] + [r[f"{k}_formatted"] for k in metric_keys]
+                        lines.append("| " + " | ".join(row_vals) + " |")
+                else:
+                    met_key = metric_keys[0] if metric_keys else "metric"
+                    lines.append(f"\n### Regional Analysis ({dim_col.title()} Averages):\n")
+                    for r in records:
+                        lines.append(f"- **{r[dim_col]}**: Average {met_key.title()} = **{r[f'{met_key}_formatted']}**")
+                    if "highest" in b_data:
+                        h = b_data["highest"]
+                        lines.append(f"- **Highest Average {h['metric'].title()} {dim_col.title()}**: **{h[dim_col]}** ({h['formatted']})")
+
         if secondary_lines:
             lines.extend(secondary_lines)
 
@@ -1238,7 +1306,7 @@ class FilterEngine:
             lines.append("\n> [!NOTE]\n> *Projections and aggregations reflect observed mathematical associations without asserting causal claims.*")
 
         # Add preview table if not already displaying grouped combinations table
-        if not plan.group_by and matching_rows > 0:
+        if not plan.group_by and not breakdowns_output and matching_rows > 0:
             lines.append("\n**Filtered Records Preview**:\n")
             preview_rows = filtered_df.head(10)
             headers = list(preview_rows.columns)
@@ -1274,7 +1342,7 @@ class FilterEngine:
             filtered_df=filtered_df,
             columns=cols,
             markdown_response=markdown_resp,
-            breakdowns={},
+            breakdowns=breakdowns_output,
             filter_ast=filter_ast,
             highest_record=highest_record_dict,
             lowest_record=lowest_record_dict if plan.group_by else None,
