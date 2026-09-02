@@ -169,7 +169,7 @@ class ToolRegistry:
                 capabilities=["aggregation", "group_by", "ranking", "regional_analysis", "segmentation"],
                 input_schema={"data": "pd.DataFrame", "metric": "str", "dimension": "str", "agg_func": "str"},
                 output_schema={"aggregated_data": "dict", "ranking": "list"},
-                execution_fn=lambda data, **kw: AnalysisAgent().run({"data": data, "request": "summary", **kw}),
+                execution_fn=lambda data, **kw: AnalysisAgent().run({"data": data, "request": "group_by" if ("group_by" in kw or "query" in kw or kw.get("request") in ("group_by", "aggregation")) else kw.get("request", "summary"), **kw}),
                 validation_requirements=["aggregated_data is not empty"],
             )
         )
