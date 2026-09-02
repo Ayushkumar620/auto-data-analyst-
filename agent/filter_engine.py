@@ -1,6 +1,8 @@
 """
 Filter Engine - Autonomous analytical filter parsing, compilation, and execution engine.
 Parses natural-language filters (numeric, categorical, compound AND/OR, and temporal/dates),
+applies safe vectorized boolean indexing, compiles to a structured AST, and executes
+aggregations, group breakdowns, and dimensional statistics on the filtered subset.
 grouping dimensions (single and multi-column combinations), rankings, extreme values,
 and secondary aggregations. Applies safe vectorized boolean indexing, compiles to a
 structured AST, and executes aggregations and dimensional statistics.
@@ -268,6 +270,7 @@ class FilterExecutionResult:
 class FilterEngine:
     """
     Parser and execution engine for natural language filtering, compound expressions,
+    date/temporal filters, aggregations, and grouped dimensional breakdowns.
     date/temporal filters, aggregations, group combinations, rankings, and secondary statistics.
     """
 
@@ -287,6 +290,7 @@ class FilterEngine:
         (re.compile(r"(?:is\s+)?(?:equal\s+to|equals?|==|=)\s*([0-9]+(?:\.[0-9]+)?)\%?", re.I), "=="),
     ]
 
+    # Filter indicator keywords
     # Filter indicator keywords - strictly discriminates genuine filters from grouping/ranking
     FILTER_INDICATORS = [
         re.compile(r"\bwhere\b", re.I),
@@ -304,11 +308,13 @@ class FilterEngine:
         re.compile(r"[a-z0-9_]+\s+(?:is\s+)?at\s+least\s+[0-9]+", re.I),
         re.compile(r"\beither\b.+\bor\b", re.I),
         re.compile(r"\b(?:is|in|equals?|can\s+be|one\s+of)\s+(?:either\s+)?[a-zA-Z0-9_'\"]+\s+or\s+[a-zA-Z0-9_'\"]+", re.I),
+        # Date filter indicators
         # Date filter indicators - require an actual date token
         re.compile(r"\bfrom\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?|\d{4}-\d{2}-\d{2})\b", re.I),
         re.compile(r"\b(?:on|between|after|before|through|until|since)\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?|\d{4}-\d{2}-\d{2})\b", re.I),
         re.compile(r"\b\d{4}-\d{2}-\d{2}\b", re.I),
         re.compile(r"\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?\b", re.I),
+        re.compile(r"\b(?:records|sales|data)\s+(?:from|between|on|after|before)\b", re.I),
         re.compile(r"\b(?:records|sales|data)\s+(?:from|between|on|after|before)\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{2,4})\b", re.I),
     ]
 
@@ -403,6 +409,7 @@ class FilterEngine:
     def _parse_iso_date(cls, val_str: str, default_year: Optional[Union[str, int]] = None) -> Optional[str]:
         """Convert a date string (e.g. 'January 3, 2025' or 'January 3') to ISO YYYY-MM-DD."""
         s = val_str.strip().rstrip(".,")
+        # If year is missing (e.g. 'January 3' or 'Jan 3'), append default_year
         m_no_yr = re.match(r"^([a-zA-Z]+)\s+(\d{1,2})(?:st|nd|rd|th)?$", s)
         if m_no_yr and default_year:
             s = f"{m_no_yr.group(1)} {m_no_yr.group(2)}, {default_year}"
@@ -510,11 +517,14 @@ class FilterEngine:
 
     @classmethod
     def _extract_filter_clause(cls, query: str) -> str:
+        """Extract the specific substring containing non-date filter conditions."""
+        where_match = re.search(r"\b(?:where|filter(?:ed)?(?:\s+by|\s+on)?|having|with)\s+([^.]+)", query, re.I)
         """Extract the specific substring containing filter conditions respecting sentence boundaries."""
         where_match = re.search(r"\b(?:where|filter(?:ed)?(?:\s+by|\s+on)?|having|with)\s+([^.;!\n]+)", query, re.I)
         if where_match:
             clause = where_match.group(1).strip()
             end_match = re.search(
+                r"\b(?:calculate|compute|aggregate|break\s+down|showing|and\s+calculate|then\s+calculate|do\s+not\s+include)\b",
                 r"\b(?:calculate|compute|aggregate|break\s+down|showing|and\s+calculate|then\s+calculate|do\s+not\s+include|rank|group\s+by)\b",
                 clause,
                 re.I,
@@ -533,6 +543,7 @@ class FilterEngine:
     ) -> Optional[CompoundFilter]:
         """
         Extract structured filter AST from a natural language query against dataset columns.
+        Supports dates, numeric comparisons, categorical equality, 'either ... or', and compound AND/OR logic.
         Returns None if no explicit filter condition is present.
         """
         if not cls.has_filter_intent(query):
@@ -564,6 +575,7 @@ class FilterEngine:
                 "january" in part_cleaned.lower() or "february" in part_cleaned.lower()
                 or re.search(r"\b\d{4}-\d{2}-\d{2}\b", part_cleaned)
             ):
+                # If part also contains a numeric/categorical filter (e.g. 'discount is 5 or less')
                 if not any(kw in part_cleaned.lower() for kw in ("<", ">", "=", "discount", "sales", "region", "product")):
                     continue
 
@@ -584,6 +596,7 @@ class FilterEngine:
                     continue
 
         if not conditions:
+            # Fallback: scan whole query text for numeric comparison patterns
             # Fallback: scan whole query text for explicit numeric comparison patterns with column names
             for op_regex, op_symbol in cls.NUMERIC_PATTERNS:
                 pat = re.compile(rf"\b([a-zA-Z_][a-zA-Z0-9_]*)\b\s*{op_regex.pattern}", re.I)
@@ -607,6 +620,7 @@ class FilterEngine:
 
         compound = CompoundFilter(conditions=conditions, logical_op="AND")
 
+        # Step 1 Temporary Trace Logging
         # Temporary Trace Logging
         logger.info(
             "\n[NATURAL_LANGUAGE_FILTER_PARSER_TRACE]\n"
@@ -690,6 +704,7 @@ class FilterEngine:
         if col_map:
             for c_low, c_orig in col_map.items():
                 pat = re.compile(
+                    rf"^\b{re.escape(c_low)}\b\s*(?:is|can\s+be|equals?|==?|in|one\s+of)?\s*(.+)",
                     rf"^\b{re.escape(c_low)}\b\s+(?:is|can\s+be|equals?|==?|!=|in|one\s+of)\s+(.+)",
                     re.I,
                 )
@@ -701,6 +716,7 @@ class FilterEngine:
 
         if not col_name:
             gen_pat = re.compile(
+                r"^([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:is|can\s+be|equals?|==?|in|one\s+of)\s*(.+)",
                 r"^([a-zA-Z_][a-zA-Z0-9_]*)\s+(?:is|can\s+be|equals?|==?|!=|in|one\s+of)\s+(.+)",
                 re.I,
             )
@@ -736,6 +752,9 @@ class FilterEngine:
             v_low = v.lower()
             if v_low in LOGICAL_MODIFIERS:
                 continue
+            if v_low in actual_uniques:
+                clean_vals.append(actual_uniques[v_low])
+            elif v_low not in GRAMMAR_STOPWORDS:
 
             # Check actual dataset uniques first!
             if actual_uniques:
@@ -1018,6 +1037,7 @@ class FilterEngine:
         breakdown_requests: Optional[List[BreakdownRequest]] = None,
     ) -> FilterExecutionResult:
         """
+        Executes filtering, aggregations, and dimensional breakdowns against DataFrame.
         Executes analytical query plan (filter, group_by, aggregations, ranking, extremes, secondary analysis).
         """
         cols = list(df.columns)
@@ -1029,6 +1049,7 @@ class FilterEngine:
             return FilterExecutionResult(
                 filter_description=date_err,
                 matching_rows=0,
+                total_rows=len(df),
                 total_rows=total_rows,
                 aggregations={},
                 filtered_df=df.iloc[0:0].copy(),
@@ -1038,16 +1059,24 @@ class FilterEngine:
                 filter_ast={},
             )
 
+        filter_expr = compound_filter or cls.parse_filters(query, columns=cols, dataframe=df)
+        aggs = aggregations or cls.parse_aggregations(query, columns=cols)
+        b_reqs = breakdown_requests if breakdown_requests is not None else cls.parse_breakdowns(query, columns=cols)
         plan = cls.parse_query_plan(query, columns=cols, dataframe=df)
         if compound_filter:
             plan.filter = compound_filter
         if aggregations:
             plan.aggregations = aggregations
 
+        total_rows = len(df)
+        if filter_expr:
+            mask = filter_expr.evaluate(df)
         # Execute Filter
         if plan.filter:
             mask = plan.filter.evaluate(df)
             filtered_df = df[mask].copy()
+            filter_desc = filter_expr.to_expression()
+            filter_ast = filter_expr.to_ast()
             filter_desc = plan.filter.to_expression()
             filter_ast = plan.filter.to_ast()
         else:
@@ -1055,11 +1084,13 @@ class FilterEngine:
             if cls.has_filter_intent(query):
                 filter_desc = "Could not reliably parse requested filter from query."
             else:
+                filter_desc = "All Records (No filter applied)"
                 filter_desc = "None"
             filter_ast = {}
 
         matching_rows = len(filtered_df)
 
+        # Default aggregations for numeric columns if none explicitly parsed but columns exist in dataset
         # Top-level aggregations
         aggs = plan.aggregations
         if not aggs and matching_rows > 0:
@@ -1067,10 +1098,12 @@ class FilterEngine:
             num_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c]) and c.lower() not in ("id", "index", "discount")]
             for nc in num_cols[:2]:
                 default_aggs.append(AggregationRequest(column=nc, function="sum", display_name=f"Total {nc.title()}"))
+                if nc.lower() in ("sales", "revenue", "amount", "price", "salary"):
                 if nc.lower() in ("sales", "revenue", "amount", "price", "salary") and not plan.group_by:
                     default_aggs.append(AggregationRequest(column=nc, function="mean", display_name=f"Average {nc.title()}"))
             aggs = default_aggs
 
+        # Compute top-level aggregations
         agg_results: Dict[str, Dict[str, Any]] = {}
         for agg in aggs:
             c = agg.column
@@ -1098,9 +1131,11 @@ class FilterEngine:
                     "display_name": agg.display_name or f"{agg.function.title()} of {resolved_col}",
                 }
 
+        # Check for highest sales record (Step 7 requirement)
         # Multi-dimension Grouping & Ranking Execution
         grouped_records = None
         highest_record_dict = None
+        if matching_rows > 0 and "sales" in filtered_df.columns:
         grouped_summary_lines = []
 
         if plan.group_by and matching_rows > 0:
@@ -1261,6 +1296,7 @@ class FilterEngine:
 
         # Format markdown response
         lines = [
+            f"🎯 **Filtered Analysis Result**:\n",
             f"🎯 **Analytical Query Result**:\n",
             f"- **Filter Applied**: `{filter_desc}`",
             f"- **Matching Records**: **{matching_rows:,}** (out of {total_rows:,} total rows)",
@@ -1269,12 +1305,35 @@ class FilterEngine:
         for col, res in agg_results.items():
             lines.append(f"- **{res['display_name']}**: **{res['formatted']}**")
 
+        if highest_record_dict:
         if highest_record_dict and not plan.group_by:
             lines.append(f"- **Highest Sales Record**: **{highest_record_dict['date']}** (Sales: **{highest_record_dict['formatted_sales']}**)")
 
+        # Format breakdowns
+        for dim_col, b_data in breakdowns_output.items():
+            records = b_data.get("records", [])
+            if not records:
+                continue
         if grouped_summary_lines:
             lines.extend(grouped_summary_lines)
 
+            metric_keys = [k for k in records[0].keys() if k != dim_col and not k.endswith("_formatted")]
+            if len(metric_keys) >= 2:
+                lines.append(f"\n### {dim_col.title()} Breakdown:\n")
+                headers = [dim_col.title()] + [k.title() for k in metric_keys]
+                lines.append("| " + " | ".join(headers) + " |")
+                lines.append("| :--- | " + " | ".join(["---:"] * len(metric_keys)) + " |")
+                for r in records:
+                    row_vals = [r[dim_col]] + [r[f"{k}_formatted"] for k in metric_keys]
+                    lines.append("| " + " | ".join(row_vals) + " |")
+            else:
+                met_key = metric_keys[0] if metric_keys else "metric"
+                lines.append(f"\n### Regional Analysis ({dim_col.title()} Averages):\n")
+                for r in records:
+                    lines.append(f"- **{r[dim_col]}**: Average {met_key.title()} = **{r[f'{met_key}_formatted']}**")
+                if "highest" in b_data:
+                    h = b_data["highest"]
+                    lines.append(f"- **Highest Average {h['metric'].title()} {dim_col.title()}**: **{h[dim_col]}** ({h['formatted']})")
         # Format breakdowns if not already covered by grouped_summary_lines
         if not grouped_summary_lines and breakdowns_output:
             for dim_col, b_data in breakdowns_output.items():
@@ -1305,6 +1364,8 @@ class FilterEngine:
         if "causal" in query.lower():
             lines.append("\n> [!NOTE]\n> *Projections and aggregations reflect observed mathematical associations without asserting causal claims.*")
 
+        # Add preview rows
+        if matching_rows > 0:
         # Add preview table if not already displaying grouped combinations table
         if not plan.group_by and not breakdowns_output and matching_rows > 0:
             lines.append("\n**Filtered Records Preview**:\n")
@@ -1333,6 +1394,22 @@ class FilterEngine:
                 lines.append("| " + " | ".join(row_vals) + " |")
 
         markdown_resp = "\n".join(lines)
+
+        # Step 1 Debug Logging
+        logger.info(
+            "\n[DATE_FILTER_EXECUTION_TRACE]\n"
+            "  RAW QUERY: %r\n"
+            "  DETECTED DATE: %s\n"
+            "  DATE COLUMN: %s\n"
+            "  FILTER: %s\n"
+            "  PLAN: filter -> aggregate\n"
+            "  EXECUTION: %d matching rows\n",
+            query,
+            filter_desc,
+            date_col_detected,
+            filter_desc,
+            matching_rows,
+        )
 
         return FilterExecutionResult(
             filter_description=filter_desc,

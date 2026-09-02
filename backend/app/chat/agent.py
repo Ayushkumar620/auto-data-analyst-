@@ -23,6 +23,7 @@ class ChatAgent:
             return ChatResponse("How should I define best—highest sales, highest profit, or most units sold?", "clarification", "needs_clarification", suggested_questions=self._metric_questions(dataframe))
         
         from agent.filter_engine import FilterEngine
+        if FilterEngine.has_filter_intent(text):
         plan = FilterEngine.parse_query_plan(text, columns=list(dataframe.columns), dataframe=dataframe)
         if FilterEngine.has_filter_intent(text) or (plan.group_by and (len(plan.group_by) > 1 or plan.ranking or plan.secondary_analysis)):
             filter_res = FilterEngine.execute(dataframe, message)
@@ -38,6 +39,7 @@ class ChatAgent:
             }
             return ChatResponse(
                 filter_res.markdown_response,
+                "filtering",
                 "grouping" if filter_res.group_by else "filtering",
                 "success",
                 evidence=evidence,
