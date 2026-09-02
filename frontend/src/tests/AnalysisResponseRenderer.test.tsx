@@ -250,3 +250,4 @@ Keyboard | 50 | $45`;
     expect(container.textContent).toContain('All statistical calculations use two-tailed hypothesis tests.');
   });
 });
+
