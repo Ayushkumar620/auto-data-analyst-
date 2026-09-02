@@ -319,44 +319,50 @@ class FilterEngine:
         Returns (resolved_column_name, error_or_clarification_message).
         """
         col_list = list(df.columns) if df is not None else (columns or [])
+        if not col_list:
+            return None, "No columns available in the dataset to filter by date."
 
-        # 1. Check if user explicitly mentioned a known column in query
-        for c in col_list:
-            if re.search(rf"\b{re.escape(c)}\b", query, re.I):
-                return c, None
+        detected_temporal_cols: List[str] = []
 
-        # 2. Use TemporalIntelligenceEngine if DataFrame is provided
+        # 1. Use TemporalIntelligenceEngine if DataFrame is provided
         if df is not None and not df.empty:
             try:
                 engine = TemporalIntelligenceEngine()
                 fields = engine.detect_fields(df)
                 if fields:
-                    if len(fields) == 1:
-                        return fields[0]["column"], None
-                    # Multiple temporal fields found
-                    col_names = [f["column"] for f in fields]
-                    # Check if query mentions any
-                    for cn in col_names:
-                        if re.search(rf"\b{re.escape(cn)}\b", query, re.I):
-                            return cn, None
-                    return None, f"I detected a date filter, but the dataset contains multiple temporal columns: {', '.join(col_names)}. Please specify which date column to filter on."
+                    detected_temporal_cols = [f["column"] for f in fields]
             except Exception:
                 pass
 
-        # 3. Fallback: column name keyword heuristics
-        date_candidates = [
-            c for c in col_list
-            if any(kw in c.lower() for kw in ("date", "time", "timestamp", "day", "dt", "created", "order_date", "sale_date", "transaction_date"))
-        ]
-        if len(date_candidates) == 1:
-            return date_candidates[0], None
-        elif len(date_candidates) > 1:
-            for cn in date_candidates:
-                if re.search(rf"\b{re.escape(cn)}\b", query, re.I):
-                    return cn, None
-            return None, f"I detected a date filter, but there are multiple potential date columns ({', '.join(date_candidates)}). Please specify which date column to filter on."
+        # 2. Fallback: identify candidate temporal columns by name/type
+        if not detected_temporal_cols:
+            for c in col_list:
+                c_low = c.lower()
+                if df is not None and c in df.columns and pd.api.types.is_datetime64_any_dtype(df[c]):
+                    detected_temporal_cols.append(c)
+                elif any(kw in c_low for kw in ("date", "time", "timestamp", "datetime", "created_at", "updated_at", "order_date", "sale_date", "transaction_date")):
+                    detected_temporal_cols.append(c)
 
-        return None, "I detected a date filter in your request, but could not find a date or timestamp column in the current dataset."
+        if not detected_temporal_cols:
+            return None, f"I detected a date filter in your request, but could not find a date or timestamp column in the current dataset. Available columns: {', '.join(col_list)}."
+
+        # 3. Check if user explicitly mentioned one of the detected temporal columns in query
+        mentioned = []
+        for tc in detected_temporal_cols:
+            if re.search(rf"\b{re.escape(tc)}\b", query, re.I):
+                mentioned.append(tc)
+
+        if len(mentioned) == 1:
+            return mentioned[0], None
+        elif len(mentioned) > 1:
+            return None, f"I detected a date filter, and multiple date columns ({', '.join(mentioned)}) are mentioned in your query. Please clarify which date column to filter on."
+
+        # 4. If none explicitly mentioned, but exactly 1 temporal column exists
+        if len(detected_temporal_cols) == 1:
+            return detected_temporal_cols[0], None
+
+        # 5. Multiple temporal columns exist and query did not specify which one
+        return None, f"I detected a date filter, but the dataset contains multiple date columns ({', '.join(detected_temporal_cols)}). Please specify which date column to filter on."
 
     @classmethod
     def _parse_iso_date(cls, val_str: str, default_year: Optional[Union[str, int]] = None) -> Optional[str]:
