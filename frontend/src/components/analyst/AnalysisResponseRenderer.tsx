@@ -73,6 +73,8 @@ function splitRowCells(line: string): string[] {
   return rawCells.map((c) => c.replace(/\\\|/g, '|'));
 }
 
+import SummaryData from '../SummaryData';
+
 /**
  * Checks if a line is a candidate table row (contains | and is not a pure separator).
  */
@@ -81,8 +83,121 @@ function isTableRow(line: string): boolean {
   return trimmed.includes('|') && !isTableSeparator(trimmed);
 }
 
+/**
+ * Detects if a markdown text is a SummaryData report and parses it into structured summary props.
+ */
+function tryParseSummaryData(content: string) {
+  if (!/(?:📋\s*Summary|Dataset Summary|Summarydata)/i.test(content)) {
+    return null;
+  }
+  if (!/Rows/i.test(content) || !/Columns/i.test(content)) {
+    return null;
+  }
+
+  // Extract rows
+  const rowsMatch = content.match(/Rows[:\s]*(\d[\d,]*)/i);
+  const colsMatch = content.match(/Columns[:\s]*(\d[\d,]*)/i);
+  const nullsMatch =
+    content.match(/Nulls[:\s]*(\d[\d,]*)/i) ||
+    content.match(/Missing(?:\s*Values)?[:\s]*(\d[\d,]*)/i);
+
+  if (!rowsMatch || !colsMatch) {
+    return null;
+  }
+
+  const rows = parseInt(rowsMatch[1].replace(/,/g, ''), 10);
+  const columns = parseInt(colsMatch[1].replace(/,/g, ''), 10);
+  const nulls = nullsMatch ? parseInt(nullsMatch[1].replace(/,/g, ''), 10) : 0;
+
+  // Extract dataset name if present
+  const nameMatch = content.match(/📋\s*Summary\s*(?:data|:\s*([^\n\r]+))?/i);
+  const datasetName =
+    nameMatch && nameMatch[1] && nameMatch[1].trim().toLowerCase() !== 'data'
+      ? nameMatch[1].trim()
+      : '';
+
+  // Extract Columns & Types table
+  const colTypes: Record<string, string> = {};
+  const colTypesMatch = content.match(
+    /#{1,4}\s*Columns\s*&(?:\s*amp;)?\s*Types[\s\S]*?(?=#{1,4}\s*Preview|$)/i,
+  );
+  if (colTypesMatch) {
+    const tableLines = colTypesMatch[0].split('\n');
+    for (const l of tableLines) {
+      if (isTableRow(l) && !isTableSeparator(l)) {
+        const cells = splitRowCells(l);
+        if (cells.length >= 2 && !/^(column|columntype)$/i.test(cells[0])) {
+          colTypes[cells[0]] = cells[1];
+        } else if (cells.length === 1 && !/^(column|columntype)$/i.test(cells[0])) {
+          colTypes[cells[0]] = 'string';
+        }
+      }
+    }
+  }
+
+  // Extract Preview table
+  const preview: Array<Record<string, unknown>> = [];
+  const previewMatch = content.match(/#{1,4}\s*Preview[^\n]*\n([\s\S]*)/i);
+  if (previewMatch) {
+    const previewLines = previewMatch[1].split('\n');
+    let previewHeaders: string[] = [];
+    for (let j = 0; j < previewLines.length; j++) {
+      const pl = previewLines[j];
+      if (isTableRow(pl)) {
+        if (!isTableSeparator(pl)) {
+          const cells = splitRowCells(pl);
+          if (
+            previewHeaders.length === 0 &&
+            j + 1 < previewLines.length &&
+            isTableSeparator(previewLines[j + 1])
+          ) {
+            previewHeaders = cells;
+            j++; // skip separator
+          } else if (previewHeaders.length > 0) {
+            const rowObj: Record<string, unknown> = {};
+            previewHeaders.forEach((h, idx) => {
+              const val = cells[idx] ?? '';
+              const num = Number(val);
+              rowObj[h] = !isNaN(num) && val.trim() !== '' ? num : val;
+            });
+            preview.push(rowObj);
+          }
+        }
+      } else if (pl.trim().startsWith('#') || (pl.trim() === '' && preview.length > 0)) {
+        break;
+      }
+    }
+  }
+
+  return {
+    dataset_name: datasetName,
+    rows,
+    columns,
+    nulls,
+    dtypes: colTypes,
+    preview,
+  };
+}
+
 export default function AnalysisResponseRenderer({ content }: AnalysisResponseRendererProps) {
   if (!content) return null;
+
+  // Render structured SummaryData dashboard if content is a dataset summary report
+  const summaryDataPayload = tryParseSummaryData(content);
+  if (summaryDataPayload) {
+    return (
+      <div
+        className="analysis-response-body"
+        style={{
+          width: '100%',
+          maxWidth: '100%',
+          minWidth: 0,
+        }}
+      >
+        <SummaryData data={summaryDataPayload} />
+      </div>
+    );
+  }
 
   // Normalize line breaks
   const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
