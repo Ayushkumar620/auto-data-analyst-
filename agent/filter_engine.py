@@ -1,6 +1,6 @@
 """
 Filter Engine - Autonomous analytical filter parsing, compilation, and execution engine.
-Parses natural-language filters (simple, compound with AND/OR, 'either...or', 'one of'),
+Parses natural-language filters (numeric, categorical, compound AND/OR, and temporal/dates),
 applies safe vectorized boolean indexing, compiles to a structured AST, and executes
 aggregations, group breakdowns, and dimensional statistics on the filtered subset.
 """
@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
+
+from backend.app.core.temporal import TemporalIntelligenceEngine
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +37,7 @@ class FilterCondition:
     operator: str  # '<=', '>=', '<', '>', '==', '!=', 'in', 'not in'
     value: Any
     raw_expression: str = ""
+    is_date: bool = False
 
     def evaluate(self, df: pd.DataFrame) -> pd.Series:
         """Evaluate condition against DataFrame and return boolean mask."""
@@ -49,7 +52,29 @@ class FilterCondition:
 
         series = df[col_name]
 
-        # Numeric comparisons
+        # 1. Date / Temporal comparisons
+        if self.is_date or self._looks_like_date(self.value):
+            dt_series = pd.to_datetime(series, errors="coerce")
+            try:
+                val_dt = pd.to_datetime(self.value)
+                if not pd.isna(val_dt):
+                    v_date = val_dt.date()
+                    if self.operator == "==":
+                        return dt_series.dt.date == v_date
+                    elif self.operator == "!=":
+                        return dt_series.dt.date != v_date
+                    elif self.operator == "<=":
+                        return dt_series.dt.date <= v_date
+                    elif self.operator == ">=":
+                        return dt_series.dt.date >= v_date
+                    elif self.operator == "<":
+                        return dt_series.dt.date < v_date
+                    elif self.operator == ">":
+                        return dt_series.dt.date > v_date
+            except Exception:
+                pass
+
+        # 2. Numeric comparisons
         if self.operator in ("<=", ">=", "<", ">", "==", "!="):
             num_series = pd.to_numeric(series, errors="coerce")
             if isinstance(self.value, (int, float)) or (isinstance(self.value, str) and self._is_numeric_str(self.value)):
@@ -75,7 +100,7 @@ class FilterCondition:
             elif self.operator == "!=":
                 return str_series != val_str
 
-        # Categorical 'in' / 'not in'
+        # 3. Categorical 'in' / 'not in'
         if self.operator == "in":
             if isinstance(self.value, (list, tuple, set)):
                 val_set = {str(v).strip().lower() for v in self.value}
@@ -100,6 +125,7 @@ class FilterCondition:
             "column": self.column,
             "operator": self.operator,
             "value": self.value,
+            "is_date": self.is_date,
             "expression": self.to_expression(),
         }
 
@@ -110,7 +136,7 @@ class FilterCondition:
         if self.operator == "in" and isinstance(self.value, (list, tuple, set)):
             val_strs = [f"'{v}'" if isinstance(v, str) else str(v) for v in self.value]
             return f"({ ' OR '.join([f'{self.column} == {v}' for v in val_strs]) })"
-        val_str = f"'{self.value}'" if isinstance(self.value, str) else str(self.value)
+        val_str = f"'{self.value}'" if isinstance(self.value, str) and not self.is_date else str(self.value)
         return f"{self.column} {self.operator} {val_str}"
 
     @staticmethod
@@ -120,6 +146,12 @@ class FilterCondition:
             return True
         except ValueError:
             return False
+
+    @staticmethod
+    def _looks_like_date(val: Any) -> bool:
+        if not isinstance(val, str):
+            return False
+        return bool(re.match(r"^\d{4}-\d{2}-\d{2}$", val.strip()) or re.match(r"^\d{1,2}/\d{1,2}/\d{2,4}$", val.strip()))
 
 
 @dataclass
@@ -195,15 +227,18 @@ class FilterExecutionResult:
     markdown_response: str
     breakdowns: Dict[str, Any] = field(default_factory=dict)
     filter_ast: Dict[str, Any] = field(default_factory=dict)
+    highest_record: Optional[Dict[str, Any]] = None
 
 
 class FilterEngine:
     """
     Parser and execution engine for natural language filtering, compound expressions,
-    aggregations, and grouped dimensional breakdowns.
+    date/temporal filters, aggregations, and grouped dimensional breakdowns.
     """
 
-    # Comparison operator patterns for numbers (ordered most specific to least specific)
+    DATE_TOKEN_REGEX = r"(?:(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?|\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{2,4})"
+
+    # Comparison operator patterns for numbers
     NUMERIC_PATTERNS = [
         (re.compile(r"(?:is\s+)?(?:less\s+than\s+or\s+equal\s+to|at\s+most|no\s+more\s+than|<=)\s*([0-9]+(?:\.[0-9]+)?)\%?", re.I), "<="),
         (re.compile(r"(?:is\s+)?(?:greater\s+than\s+or\s+equal\s+to|at\s+least|no\s+less\s+than|>=)\s*([0-9]+(?:\.[0-9]+)?)\%?", re.I), ">="),
@@ -234,6 +269,12 @@ class FilterEngine:
         re.compile(r"[a-z0-9_]+\s+(?:is\s+)?at\s+least\s+[0-9]+", re.I),
         re.compile(r"\beither\b.+\bor\b", re.I),
         re.compile(r"\b(?:is|in|equals?|can\s+be|one\s+of)\s+(?:either\s+)?[a-zA-Z0-9_'\"]+\s+or\s+[a-zA-Z0-9_'\"]+", re.I),
+        # Date filter indicators
+        re.compile(r"\bfrom\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?|\d{4}-\d{2}-\d{2})\b", re.I),
+        re.compile(r"\b(?:on|between|after|before|through|until|since)\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?|\d{4}-\d{2}-\d{2})\b", re.I),
+        re.compile(r"\b\d{4}-\d{2}-\d{2}\b", re.I),
+        re.compile(r"\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?\b", re.I),
+        re.compile(r"\b(?:records|sales|data)\s+(?:from|between|on|after|before)\b", re.I),
     ]
 
     # Explicit preview indicators
@@ -267,12 +308,172 @@ class FilterEngine:
         return any(pat.search(query) for pat in cls.LEGITIMATE_PREVIEW_INDICATORS)
 
     @classmethod
+    def detect_date_column(
+        cls,
+        df: Optional[pd.DataFrame] = None,
+        query: str = "",
+        columns: Optional[List[str]] = None,
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Detect the appropriate temporal column from DataFrame or column list.
+        Returns (resolved_column_name, error_or_clarification_message).
+        """
+        col_list = list(df.columns) if df is not None else (columns or [])
+
+        # 1. Check if user explicitly mentioned a known column in query
+        for c in col_list:
+            if re.search(rf"\b{re.escape(c)}\b", query, re.I):
+                return c, None
+
+        # 2. Use TemporalIntelligenceEngine if DataFrame is provided
+        if df is not None and not df.empty:
+            try:
+                engine = TemporalIntelligenceEngine()
+                fields = engine.detect_fields(df)
+                if fields:
+                    if len(fields) == 1:
+                        return fields[0]["column"], None
+                    # Multiple temporal fields found
+                    col_names = [f["column"] for f in fields]
+                    # Check if query mentions any
+                    for cn in col_names:
+                        if re.search(rf"\b{re.escape(cn)}\b", query, re.I):
+                            return cn, None
+                    return None, f"I detected a date filter, but the dataset contains multiple temporal columns: {', '.join(col_names)}. Please specify which date column to filter on."
+            except Exception:
+                pass
+
+        # 3. Fallback: column name keyword heuristics
+        date_candidates = [
+            c for c in col_list
+            if any(kw in c.lower() for kw in ("date", "time", "timestamp", "day", "dt", "created", "order_date", "sale_date", "transaction_date"))
+        ]
+        if len(date_candidates) == 1:
+            return date_candidates[0], None
+        elif len(date_candidates) > 1:
+            for cn in date_candidates:
+                if re.search(rf"\b{re.escape(cn)}\b", query, re.I):
+                    return cn, None
+            return None, f"I detected a date filter, but there are multiple potential date columns ({', '.join(date_candidates)}). Please specify which date column to filter on."
+
+        return None, "I detected a date filter in your request, but could not find a date or timestamp column in the current dataset."
+
+    @classmethod
+    def _parse_iso_date(cls, val_str: str, default_year: Optional[Union[str, int]] = None) -> Optional[str]:
+        """Convert a date string (e.g. 'January 3, 2025' or 'January 3') to ISO YYYY-MM-DD."""
+        s = val_str.strip().rstrip(".,")
+        # If year is missing (e.g. 'January 3' or 'Jan 3'), append default_year
+        m_no_yr = re.match(r"^([a-zA-Z]+)\s+(\d{1,2})(?:st|nd|rd|th)?$", s)
+        if m_no_yr and default_year:
+            s = f"{m_no_yr.group(1)} {m_no_yr.group(2)}, {default_year}"
+        try:
+            dt = pd.to_datetime(s, errors="coerce")
+            if pd.isna(dt):
+                return None
+            return dt.strftime("%Y-%m-%d")
+        except Exception:
+            return None
+
+    @classmethod
+    def parse_date_filter(
+        cls,
+        query: str,
+        columns: Optional[List[str]] = None,
+        dataframe: Optional[pd.DataFrame] = None,
+    ) -> Tuple[Optional[Union[FilterCondition, CompoundFilter]], Optional[str], Optional[str]]:
+        """
+        Extract date conditions from natural language query.
+        Returns (filter_node, date_column, error_message).
+        """
+        token = cls.DATE_TOKEN_REGEX
+
+        # 1. Range: between <d1> and <d2>
+        m_between = re.search(rf"\bbetween\s+({token})\s+and\s+({token})\b", query, re.I)
+        if m_between:
+            d1_raw, d2_raw = m_between.group(1), m_between.group(2)
+            y2 = re.search(r"\b(20\d\d|19\d\d)\b", d2_raw)
+            def_y = y2.group(1) if y2 else None
+            iso1 = cls._parse_iso_date(d1_raw, def_y)
+            iso2 = cls._parse_iso_date(d2_raw)
+            if iso1 and iso2:
+                col_name, err = cls.detect_date_column(dataframe, query, columns)
+                if err:
+                    return None, None, err
+                cond_start = FilterCondition(column=col_name, operator=">=", value=iso1, is_date=True, raw_expression=f"{col_name} >= {iso1}")
+                cond_end = FilterCondition(column=col_name, operator="<=", value=iso2, is_date=True, raw_expression=f"{col_name} <= {iso2}")
+                return CompoundFilter(conditions=[cond_start, cond_end], logical_op="AND"), col_name, None
+
+        # 2. Range: from <d1> (through|to|until|–|-) <d2> (inclusive)?
+        m_range = re.search(rf"\b(?:from\s+)?({token})\s*(?:through|to|until|thru|–|-)\s*({token})(?:\s+inclusive)?\b", query, re.I)
+        if m_range:
+            d1_raw, d2_raw = m_range.group(1), m_range.group(2)
+            y2 = re.search(r"\b(20\d\d|19\d\d)\b", d2_raw)
+            def_y = y2.group(1) if y2 else None
+            iso1 = cls._parse_iso_date(d1_raw, def_y)
+            iso2 = cls._parse_iso_date(d2_raw)
+            if iso1 and iso2:
+                col_name, err = cls.detect_date_column(dataframe, query, columns)
+                if err:
+                    return None, None, err
+                cond_start = FilterCondition(column=col_name, operator=">=", value=iso1, is_date=True, raw_expression=f"{col_name} >= {iso1}")
+                cond_end = FilterCondition(column=col_name, operator="<=", value=iso2, is_date=True, raw_expression=f"{col_name} <= {iso2}")
+                return CompoundFilter(conditions=[cond_start, cond_end], logical_op="AND"), col_name, None
+
+        # 3. Single date: on or after / after / since
+        m_after = re.search(rf"\b(?:on\s+or\s+after|after|since)\s+({token})\b", query, re.I)
+        if m_after:
+            iso = cls._parse_iso_date(m_after.group(1))
+            if iso:
+                col_name, err = cls.detect_date_column(dataframe, query, columns)
+                if err:
+                    return None, None, err
+                return FilterCondition(column=col_name, operator=">=", value=iso, is_date=True, raw_expression=f"{col_name} >= {iso}"), col_name, None
+
+        # 4. Single date: on or before / before / until
+        m_before = re.search(rf"\b(?:on\s+or\s+before|before|until|prior\s+to)\s+({token})\b", query, re.I)
+        if m_before:
+            iso = cls._parse_iso_date(m_before.group(1))
+            if iso:
+                col_name, err = cls.detect_date_column(dataframe, query, columns)
+                if err:
+                    return None, None, err
+                return FilterCondition(column=col_name, operator="<=", value=iso, is_date=True, raw_expression=f"{col_name} <= {iso}"), col_name, None
+
+        # 5. Single date: on / from / for / at <date>
+        m_on = re.search(rf"\b(?:on|from|for|at|records\s+from)\s+({token})\b", query, re.I)
+        if m_on:
+            iso = cls._parse_iso_date(m_on.group(1))
+            if iso:
+                col_name, err = cls.detect_date_column(dataframe, query, columns)
+                if err:
+                    return None, None, err
+                return FilterCondition(column=col_name, operator="==", value=iso, is_date=True, raw_expression=f"{col_name} == {iso}"), col_name, None
+
+        # 6. Fallback: lone date mention
+        m_lone = re.search(rf"\b({token})\b", query, re.I)
+        if m_lone:
+            iso = cls._parse_iso_date(m_lone.group(1))
+            if iso:
+                col_name, err = cls.detect_date_column(dataframe, query, columns)
+                if err:
+                    return None, None, err
+                return FilterCondition(column=col_name, operator="==", value=iso, is_date=True, raw_expression=f"{col_name} == {iso}"), col_name, None
+
+        # Check if user mentioned an invalid date
+        m_inv = re.search(r"\b(?:from|on|between|before|after)\s+([A-Za-z]+ \d{1,2}(?:, \d{4})?)\b", query, re.I)
+        if m_inv:
+            raw_cand = m_inv.group(1)
+            if not cls._parse_iso_date(raw_cand):
+                return None, None, f"I detected a date filter, but could not parse a valid date from: '{raw_cand}'."
+
+        return None, None, None
+
+    @classmethod
     def _extract_filter_clause(cls, query: str) -> str:
-        """Extract the specific substring containing the filter conditions."""
+        """Extract the specific substring containing non-date filter conditions."""
         where_match = re.search(r"\b(?:where|filter(?:ed)?(?:\s+by|\s+on)?|having|with)\s+([^.]+)", query, re.I)
         if where_match:
             clause = where_match.group(1).strip()
-            # Trim trailing action instructions (e.g. "Calculate...", "Break down...", "Do not include...")
             end_match = re.search(
                 r"\b(?:calculate|compute|aggregate|break\s+down|showing|and\s+calculate|then\s+calculate|do\s+not\s+include)\b",
                 clause,
@@ -281,7 +482,6 @@ class FilterEngine:
             if end_match:
                 clause = clause[:end_match.start()].strip()
             return clause
-
         return query
 
     @classmethod
@@ -293,39 +493,51 @@ class FilterEngine:
     ) -> Optional[CompoundFilter]:
         """
         Extract structured filter AST from a natural language query against dataset columns.
-        Supports numeric comparisons, categorical equality, 'either ... or', 'one of', and compound AND/OR logic.
+        Supports dates, numeric comparisons, categorical equality, 'either ... or', and compound AND/OR logic.
         """
         if not cls.has_filter_intent(query):
             return None
 
-        clause_text = cls._extract_filter_clause(query)
         col_map = {c.lower(): c for c in columns} if columns else {}
-
-        # If dataframe provided, build column map from df columns
         if dataframe is not None and not col_map:
             col_map = {c.lower(): c for c in dataframe.columns}
             columns = list(dataframe.columns)
 
-        # Split clause on 'AND' while respecting parentheses
+        conditions: List[Union[FilterCondition, CompoundFilter]] = []
+
+        # 1. Parse Date Conditions
+        date_cond, date_col, date_err = cls.parse_date_filter(query, columns=columns, dataframe=dataframe)
+        if date_cond:
+            if isinstance(date_cond, CompoundFilter):
+                conditions.extend(date_cond.conditions)
+            else:
+                conditions.append(date_cond)
+
+        # 2. Parse Numeric & Categorical Conditions from filter clause
+        clause_text = cls._extract_filter_clause(query)
         parts = cls._split_conjunctions(clause_text)
 
-        conditions: List[Union[FilterCondition, CompoundFilter]] = []
         for part in parts:
             part_cleaned = part.strip().strip("()")
+            # Skip if this part was only the date expression already parsed
+            if date_cond and (
+                "january" in part_cleaned.lower() or "february" in part_cleaned.lower()
+                or re.search(r"\b\d{4}-\d{2}-\d{2}\b", part_cleaned)
+            ):
+                # If part also contains a numeric/categorical filter (e.g. 'discount is 5 or less')
+                if not any(kw in part_cleaned.lower() for kw in ("<", ">", "=", "discount", "sales", "region", "product")):
+                    continue
 
-            # 1. First check if it's an atomic numeric condition (e.g. discount <= 5)
             atomic_num = cls._parse_numeric_condition(part_cleaned, col_map, columns)
             if atomic_num:
                 conditions.append(atomic_num)
                 continue
 
-            # 2. Check if it's a categorical condition with OR / either / one of / in
             cat_or = cls._parse_categorical_condition(part_cleaned, col_map, columns, dataframe)
             if cat_or:
                 conditions.append(cat_or)
                 continue
 
-            # 3. Check for multiple distinct expressions separated by OR: e.g. 'region = North or region = West'
             if re.search(r"\bor\b", part_cleaned, re.I):
                 or_cond = cls._parse_compound_or_condition(part_cleaned, col_map, columns, dataframe)
                 if or_cond:
@@ -360,14 +572,13 @@ class FilterEngine:
         logger.info(
             "\n[NATURAL_LANGUAGE_FILTER_PARSER_TRACE]\n"
             "  RAW QUERY: %r\n"
-            "  EXTRACTED FILTER TEXT: %r\n"
-            "  PARSED CONDITIONS: %s\n"
-            "  FINAL FILTER AST/EXPRESSION: %s\n"
-            "  EXECUTED FILTER: %s\n",
+            "  DETECTED DATE: %s\n"
+            "  DATE COLUMN: %s\n"
+            "  FILTER: %s\n"
+            "  PLAN: filter -> aggregate\n",
             query,
-            clause_text,
-            [c.to_ast() for c in conditions],
-            compound.to_ast(),
+            date_cond.to_expression() if date_cond else "None",
+            date_col,
             compound.to_expression(),
         )
 
@@ -430,26 +641,12 @@ class FilterEngine:
         columns: Optional[List[str]],
         dataframe: Optional[pd.DataFrame] = None,
     ) -> Optional[FilterCondition]:
-        """
-        Parse natural-language categorical conditions:
-        - 'region is either North or West'
-        - 'region is North or West'
-        - 'region can be North or West'
-        - 'region is one of North or West'
-        - 'region is one of North, West'
-        - 'region in North or West'
-        - 'region equals North or West'
-        - 'region is North, West'
-        - 'region is either North, West, or South'
-        - 'product is Laptop or Phone'
-        """
+        """Parse natural-language categorical conditions (e.g. 'region is either North or West')."""
         clean_text = re.sub(r"^(?:the|a|an|where|that)\s+", "", text.strip(), flags=re.I).strip("()[]")
 
-        # Check which known column appears at or near the start
         col_name = None
         rest = None
 
-        # Priority 1: Match against known columns in col_map
         if col_map:
             for c_low, c_orig in col_map.items():
                 pat = re.compile(
@@ -462,7 +659,6 @@ class FilterEngine:
                     rest = m.group(1).strip()
                     break
 
-        # Priority 2: Generic token match if no col_map passed
         if not col_name:
             gen_pat = re.compile(
                 r"^([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:is|can\s+be|equals?|==?|in|one\s+of)\s*(.+)",
@@ -478,17 +674,13 @@ class FilterEngine:
         if not col_name or not rest:
             return None
 
-        # Strip leading logical modifiers from rest: e.g. 'either ', 'one of ', 'any of '
         rest = re.sub(r"^(?:either|one\s+of|any\s+of|either\s+of)\s+", "", rest, flags=re.I).strip("()[]")
-
-        # Split on ', or', ' or ', ','
         raw_vals = [
             v.strip().strip("'\"()")
             for v in re.split(r",?\s+\bor\b\s*|,\s*", rest, flags=re.I)
             if v.strip()
         ]
 
-        # Clean and filter candidate values (Step 7 & Step 10: NEVER allow 'either' or grammar stopwords)
         actual_uniques = {}
         if dataframe is not None and col_name in dataframe.columns:
             actual_uniques = {str(x).strip().lower(): str(x) for x in dataframe[col_name].dropna().unique()}
@@ -506,18 +698,11 @@ class FilterEngine:
         if not clean_vals:
             return None
 
-        # Step 10: Check for suspicious values like 'either'
         for v in clean_vals:
             if v.lower() in LOGICAL_MODIFIERS:
-                logger.warning(
-                    "Rejected suspicious modifier '%s' as categorical value for column '%s'",
-                    v,
-                    col_name,
-                )
                 return None
 
         if len(clean_vals) > 1:
-            # Build proper expression: (col == 'A' OR col == 'B')
             expr_str = f"({ ' OR '.join([f'{col_name} == {repr(v)}' for v in clean_vals]) })"
             return FilterCondition(
                 column=col_name,
@@ -541,7 +726,7 @@ class FilterEngine:
         columns: Optional[List[str]],
         dataframe: Optional[pd.DataFrame] = None,
     ) -> Optional[CompoundFilter]:
-        """Parse multiple distinct expressions connected by OR (e.g. 'region = North or region = West')."""
+        """Parse multiple distinct expressions connected by OR."""
         sub_exprs = re.split(r"\s+\bor\b\s+", text, flags=re.I)
         sub_conds = []
         for se in sub_exprs:
@@ -560,10 +745,7 @@ class FilterEngine:
 
     @classmethod
     def parse_aggregations(cls, query: str, columns: Optional[List[str]] = None) -> List[AggregationRequest]:
-        """
-        Extract AggregationRequest(s) from a natural language query.
-        e.g. 'Calculate the total sales and total units' -> [sales (sum), units (sum)]
-        """
+        """Extract AggregationRequest(s) from a natural language query."""
         q = query.strip()
         aggregations: List[AggregationRequest] = []
         col_map = {c.lower(): c for c in columns} if columns else {}
@@ -620,21 +802,15 @@ class FilterEngine:
 
     @classmethod
     def parse_breakdowns(cls, query: str, columns: Optional[List[str]] = None) -> List[BreakdownRequest]:
-        """
-        Extract group breakdown and dimensional analysis requests from query:
-        - 'Break down the filtered results by product, showing total sales and total units for each product'
-        - 'calculate the average sales for each matching region and identify which region has the highest average sales'
-        """
+        """Extract group breakdown and dimensional analysis requests from query."""
         q = query.strip()
         requests: List[BreakdownRequest] = []
         col_map = {c.lower(): c for c in columns} if columns else {}
 
-        # 1. Look for explicit 'break down by <dim>' or 'by <dim>'
         bd_match = re.search(r"\b(?:break\s+down(?:\s+the\s+filtered\s+results?)?|group(?:\s+by)?)\s+by\s+([a-zA-Z0-9_]+)", q, re.I)
         if bd_match:
             raw_dim = bd_match.group(1).lower()
             resolved_dim = col_map.get(raw_dim, raw_dim)
-            # Find what metrics to show for each dim item
             metrics = []
             if re.search(r"\btotal\s+sales\b", q, re.I):
                 metrics.append(("sales", "sum"))
@@ -644,7 +820,6 @@ class FilterEngine:
                 metrics = [("sales", "sum")]
             requests.append(BreakdownRequest(dimension=resolved_dim, metrics=metrics))
 
-        # 2. Look for 'average <metric> for each matching <dim>' or 'for each <dim>'
         avg_match = re.search(r"\baverage\s+([a-zA-Z0-9_]+)\s+for\s+each\s+(?:matching\s+)?([a-zA-Z0-9_]+)", q, re.I)
         if avg_match:
             met_name = avg_match.group(1).lower()
@@ -652,7 +827,6 @@ class FilterEngine:
             resolved_dim = col_map.get(raw_dim, raw_dim)
             resolved_met = col_map.get(met_name, met_name)
 
-            # Check if highest / lowest requested
             find_high = bool(re.search(rf"\b(highest|max|maximum)\s+(?:average\s+)?{re.escape(met_name)}\b", q, re.I))
             find_low = bool(re.search(rf"\b(lowest|min|minimum)\s+(?:average\s+)?{re.escape(met_name)}\b", q, re.I))
 
@@ -679,6 +853,22 @@ class FilterEngine:
         Executes filtering, aggregations, and dimensional breakdowns against DataFrame.
         """
         cols = list(df.columns)
+
+        # Check for date filter errors (Step 11: never silently ignore date filter)
+        _, date_col_detected, date_err = cls.parse_date_filter(query, columns=cols, dataframe=df)
+        if date_err:
+            return FilterExecutionResult(
+                filter_description=date_err,
+                matching_rows=0,
+                total_rows=len(df),
+                aggregations={},
+                filtered_df=df.iloc[0:0].copy(),
+                columns=cols,
+                markdown_response=f"⚠️ {date_err}",
+                breakdowns={},
+                filter_ast={},
+            )
+
         filter_expr = compound_filter or cls.parse_filters(query, columns=cols, dataframe=df)
         aggs = aggregations or cls.parse_aggregations(query, columns=cols)
         b_reqs = breakdown_requests if breakdown_requests is not None else cls.parse_breakdowns(query, columns=cols)
@@ -691,10 +881,24 @@ class FilterEngine:
             filter_ast = filter_expr.to_ast()
         else:
             filtered_df = df.copy()
-            filter_desc = "All Records (No filter applied)"
+            if cls.has_filter_intent(query):
+                filter_desc = "Could not reliably parse requested filter from query."
+            else:
+                filter_desc = "All Records (No filter applied)"
             filter_ast = {}
 
         matching_rows = len(filtered_df)
+
+        # Default aggregations for sales/units if none explicitly parsed but columns exist in dataset
+        if not aggs and matching_rows > 0:
+            default_aggs = []
+            if "sales" in df.columns and re.search(r"\bsales\b", query, re.I):
+                default_aggs.append(AggregationRequest(column="sales", function="sum", display_name="Total Sales"))
+            if "units" in df.columns and re.search(r"\bunits\b", query, re.I):
+                default_aggs.append(AggregationRequest(column="units", function="sum", display_name="Total Units"))
+            if re.search(r"\baverage\s+sales\b", query, re.I) and "sales" in df.columns:
+                default_aggs.append(AggregationRequest(column="sales", function="mean", display_name="Average Sales"))
+            aggs = default_aggs
 
         # Compute top-level aggregations
         agg_results: Dict[str, Dict[str, Any]] = {}
@@ -723,7 +927,24 @@ class FilterEngine:
                     "display_name": agg.display_name or f"{agg.function.title()} of {resolved_col}",
                 }
 
-        # Compute dimensional breakdowns (Step 13)
+        # Check for highest sales record (Step 7 requirement)
+        highest_record_dict = None
+        if matching_rows > 0 and re.search(r"\bhighest(?:\s+sales)?(?:\s+record)?\b", query, re.I) and "sales" in filtered_df.columns:
+            try:
+                max_idx = filtered_df["sales"].idxmax()
+                max_row = filtered_df.loc[max_idx]
+                d_col, _ = cls.detect_date_column(df, query, cols)
+                d_val = str(max_row[d_col]) if d_col and d_col in filtered_df.columns else "N/A"
+                s_val = float(max_row["sales"])
+                highest_record_dict = {
+                    "date": d_val,
+                    "sales": s_val,
+                    "formatted_sales": f"{int(s_val):,}" if s_val.is_integer() else f"{s_val:,.2f}",
+                }
+            except Exception:
+                pass
+
+        # Compute dimensional breakdowns
         breakdowns_output: Dict[str, Any] = {}
         for breq in b_reqs:
             dim_col = next((col for col in filtered_df.columns if col.lower() == breq.dimension.lower()), None)
@@ -751,7 +972,6 @@ class FilterEngine:
 
             b_data: Dict[str, Any] = {"dimension": dim_col, "records": records}
 
-            # Check extreme if requested
             if breq.find_highest and breq.extreme_metric:
                 m_col = next((col for col in filtered_df.columns if col.lower() == breq.extreme_metric.lower()), None)
                 if m_col and records:
@@ -765,7 +985,7 @@ class FilterEngine:
 
             breakdowns_output[dim_col] = b_data
 
-        # Format rich markdown response
+        # Format markdown response
         lines = [
             f"🎯 **Filtered Analysis Result**:\n",
             f"- **Filter Applied**: `{filter_desc}`",
@@ -775,13 +995,15 @@ class FilterEngine:
         for col, res in agg_results.items():
             lines.append(f"- **{res['display_name']}**: **{res['formatted']}**")
 
-        # Format breakdowns if computed
+        if highest_record_dict:
+            lines.append(f"- **Highest Sales Record**: **{highest_record_dict['date']}** (Sales: **{highest_record_dict['formatted_sales']}**)")
+
+        # Format breakdowns
         for dim_col, b_data in breakdowns_output.items():
             records = b_data.get("records", [])
             if not records:
                 continue
 
-            # If breakdown has multiple metrics (e.g. sales & units), format table
             metric_keys = [k for k in records[0].keys() if k != dim_col and not k.endswith("_formatted")]
             if len(metric_keys) >= 2:
                 lines.append(f"\n### {dim_col.title()} Breakdown:\n")
@@ -792,7 +1014,6 @@ class FilterEngine:
                     row_vals = [r[dim_col]] + [r[f"{k}_formatted"] for k in metric_keys]
                     lines.append("| " + " | ".join(row_vals) + " |")
             else:
-                # Single metric average breakdown
                 met_key = metric_keys[0] if metric_keys else "metric"
                 lines.append(f"\n### Regional Analysis ({dim_col.title()} Averages):\n")
                 for r in records:
@@ -801,11 +1022,53 @@ class FilterEngine:
                     h = b_data["highest"]
                     lines.append(f"- **Highest Average {h['metric'].title()} {dim_col.title()}**: **{h[dim_col]}** ({h['formatted']})")
 
-        # Avoid causal claims disclaimer if query requested
         if "causal" in query.lower():
             lines.append("\n> [!NOTE]\n> *Projections and aggregations reflect observed mathematical associations without asserting causal claims.*")
 
+        # Add preview rows
+        if matching_rows > 0:
+            lines.append("\n**Filtered Records Preview**:\n")
+            preview_rows = filtered_df.head(10)
+            headers = list(preview_rows.columns)
+            alignments = []
+            for h in headers:
+                is_num = pd.api.types.is_numeric_dtype(preview_rows[h])
+                alignments.append("---:" if is_num else ":---")
+
+            lines.append("| " + " | ".join(headers) + " |")
+            lines.append("| " + " | ".join(alignments) + " |")
+
+            for _, row in preview_rows.iterrows():
+                row_vals = []
+                for h in headers:
+                    v = row[h]
+                    if pd.isna(v):
+                        row_vals.append("—")
+                    elif isinstance(v, (int, np.integer)):
+                        row_vals.append(f"{v:,}")
+                    elif isinstance(v, (float, np.floating)):
+                        row_vals.append(f"{v:,.2f}" if not v.is_integer() else f"{int(v):,}")
+                    else:
+                        row_vals.append(str(v))
+                lines.append("| " + " | ".join(row_vals) + " |")
+
         markdown_resp = "\n".join(lines)
+
+        # Step 1 Debug Logging
+        logger.info(
+            "\n[DATE_FILTER_EXECUTION_TRACE]\n"
+            "  RAW QUERY: %r\n"
+            "  DETECTED DATE: %s\n"
+            "  DATE COLUMN: %s\n"
+            "  FILTER: %s\n"
+            "  PLAN: filter -> aggregate\n"
+            "  EXECUTION: %d matching rows\n",
+            query,
+            filter_desc,
+            date_col_detected,
+            filter_desc,
+            matching_rows,
+        )
 
         return FilterExecutionResult(
             filter_description=filter_desc,
@@ -817,4 +1080,5 @@ class FilterEngine:
             markdown_response=markdown_resp,
             breakdowns=breakdowns_output,
             filter_ast=filter_ast,
+            highest_record=highest_record_dict,
         )
