@@ -1,4 +1,5 @@
 import React from 'react';
+import SummaryData from '../SummaryData';
 
 type AnalysisResponseRendererProps = {
   content: string;
@@ -72,8 +73,6 @@ function splitRowCells(line: string): string[] {
   rawCells.push(current.trim());
   return rawCells.map((c) => c.replace(/\\\|/g, '|'));
 }
-
-import SummaryData from '../SummaryData';
 
 /**
  * Checks if a line is a candidate table row (contains | and is not a pure separator).
